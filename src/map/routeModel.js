@@ -8,6 +8,7 @@ import {
   smoothLineStringForDisplay,
   tempLineFeaturesWithSmoothedGeometry,
 } from "./displayLineSmoothing.js";
+import { DEFAULT_BUILTIN_MAP_DATA } from "./defaultBuiltinData.js";
 
 export const store = {
   routesFC: { type: "FeatureCollection", features: [] },
@@ -30,8 +31,13 @@ export const store = {
   },
 };
 
-const PERSIST_STORAGE_KEY = "metro-map-data-v1";
-const PERSIST_VERSION = 1;
+const PERSIST_STORAGE_KEY = "metro-map-data-v2";
+const PERSIST_VERSION = 2;
+
+/** 內建（免費展示）路線；未來由官方資料匯入時使用。 */
+export const ROUTE_KIND_DEFAULT = "default";
+/** 使用者自行繪製的路線（付費／編輯產生）。 */
+export const ROUTE_KIND_USER = "user";
 
 /** Ensure new ids never collide after loading from disk. */
 function syncCountersFromLoadedFeatures() {
@@ -59,26 +65,148 @@ function syncCountersFromLoadedFeatures() {
   store.counters.station = Math.max(store.counters.station, maxS + 1);
 }
 
-function loadPersistedState() {
+function deepCloneFC(fc) {
+  if (!fc || !Array.isArray(fc.features)) return { type: "FeatureCollection", features: [] };
+  return JSON.parse(JSON.stringify({ type: "FeatureCollection", features: fc.features }));
+}
+
+function normalizeBuiltinRoutesAsDefault() {
+  for (const f of store.routesFC.features) {
+    if (!f.properties || typeof f.properties !== "object") f.properties = {};
+    if (f.properties.route_kind !== ROUTE_KIND_DEFAULT && f.properties.route_kind !== ROUTE_KIND_USER) {
+      f.properties.route_kind = ROUTE_KIND_DEFAULT;
+    }
+    if (typeof f.properties.country !== "string") f.properties.country = "";
+    if (typeof f.properties.region !== "string") f.properties.region = "";
+  }
+}
+
+function loadBuiltinDefaultState() {
+  const routesFC = deepCloneFC(DEFAULT_BUILTIN_MAP_DATA?.routesFC);
+  const stationsFC = deepCloneFC(DEFAULT_BUILTIN_MAP_DATA?.stationsFC);
+  store.routesFC = routesFC;
+  store.stationsFC = stationsFC;
+  normalizeBuiltinRoutesAsDefault();
+  syncCountersFromLoadedFeatures();
+}
+
+function routeKindOf(feature) {
+  const kind = feature?.properties?.route_kind;
+  return kind === ROUTE_KIND_DEFAULT || kind === ROUTE_KIND_USER ? kind : ROUTE_KIND_USER;
+}
+
+function extractUserOnlyRoutes(routes) {
+  return routes.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
+}
+
+function extractUserStationsByRoutes(stations, userRouteIds) {
+  return stations.filter((s) => {
+    const rid = s?.properties?.route_id;
+    if (userRouteIds.has(rid)) return true;
+    const transferRoutes = s?.properties?.transfer_routes;
+    return Array.isArray(transferRoutes) && transferRoutes.some((tr) => userRouteIds.has(tr));
+  });
+}
+
+function mergeUserStateIntoStore(userRoutes, userStations) {
+  const existingRouteIds = new Set(store.routesFC.features.map((f) => f.properties?.route_id));
+  const existingGroupIds = new Set(store.routesFC.features.map((f) => f.properties?.group_id));
+  const existingStationIds = new Set(store.stationsFC.features.map((f) => f.properties?.station_id));
+
+  let routeCounter = store.counters.route;
+  let groupCounter = store.counters.group;
+  let stationCounter = store.counters.station;
+  const nextRoute = () => {
+    while (existingRouteIds.has(`r${routeCounter}`)) routeCounter += 1;
+    const id = `r${routeCounter++}`;
+    existingRouteIds.add(id);
+    return id;
+  };
+  const nextGroup = () => {
+    while (existingGroupIds.has(`g${groupCounter}`)) groupCounter += 1;
+    const id = `g${groupCounter++}`;
+    existingGroupIds.add(id);
+    return id;
+  };
+  const nextStation = () => {
+    while (existingStationIds.has(`s${stationCounter}`)) stationCounter += 1;
+    const id = `s${stationCounter++}`;
+    existingStationIds.add(id);
+    return id;
+  };
+
+  const routeIdMap = new Map();
+  const groupIdMap = new Map();
+  const mergedRoutes = userRoutes.map((f) => {
+    const c = JSON.parse(JSON.stringify(f));
+    const oldRouteId = c?.properties?.route_id;
+    const oldGroupId = c?.properties?.group_id;
+    const newRouteId = typeof oldRouteId === "string" && !existingRouteIds.has(oldRouteId) ? oldRouteId : nextRoute();
+    if (typeof oldRouteId === "string") routeIdMap.set(oldRouteId, newRouteId);
+    if (typeof oldGroupId === "string") {
+      if (!groupIdMap.has(oldGroupId)) {
+        const mapped = !existingGroupIds.has(oldGroupId) ? oldGroupId : nextGroup();
+        groupIdMap.set(oldGroupId, mapped);
+        existingGroupIds.add(mapped);
+      }
+    }
+    if (!c.properties || typeof c.properties !== "object") c.properties = {};
+    c.properties.route_id = newRouteId;
+    c.properties.group_id = typeof oldGroupId === "string" ? groupIdMap.get(oldGroupId) : nextGroup();
+    c.properties.route_kind = ROUTE_KIND_USER;
+    if (typeof c.properties.country !== "string") c.properties.country = "";
+    if (typeof c.properties.region !== "string") c.properties.region = "";
+    return c;
+  });
+
+  const mergedStations = userStations.map((s) => {
+    const c = JSON.parse(JSON.stringify(s));
+    if (!c.properties || typeof c.properties !== "object") c.properties = {};
+    const oldStationId = c.properties.station_id;
+    c.properties.station_id =
+      typeof oldStationId === "string" && !existingStationIds.has(oldStationId) ? oldStationId : nextStation();
+    existingStationIds.add(c.properties.station_id);
+    if (typeof c.properties.route_id === "string" && routeIdMap.has(c.properties.route_id)) {
+      c.properties.route_id = routeIdMap.get(c.properties.route_id);
+    }
+    if (Array.isArray(c.properties.transfer_routes)) {
+      c.properties.transfer_routes = c.properties.transfer_routes.map((rid) => routeIdMap.get(rid) || rid);
+    }
+    return c;
+  });
+
+  store.routesFC.features.push(...mergedRoutes);
+  store.stationsFC.features.push(...mergedStations);
+  store.counters.route = Math.max(store.counters.route, routeCounter);
+  store.counters.group = Math.max(store.counters.group, groupCounter);
+  store.counters.station = Math.max(store.counters.station, stationCounter);
+}
+
+function loadPersistedUserState() {
   if (typeof localStorage === "undefined") return;
   try {
-    const raw = localStorage.getItem(PERSIST_STORAGE_KEY);
-    if (!raw) return;
-    const data = JSON.parse(raw);
-    if (!data || data.v !== PERSIST_VERSION) return;
-    if (Array.isArray(data.routesFC?.features)) {
-      store.routesFC = { type: "FeatureCollection", features: data.routesFC.features };
-    }
-    if (Array.isArray(data.stationsFC?.features)) {
-      store.stationsFC = { type: "FeatureCollection", features: data.stationsFC.features };
-    }
+    const rawV2 = localStorage.getItem(PERSIST_STORAGE_KEY);
+    const rawV1 = localStorage.getItem("metro-map-data-v1");
+    const data = rawV2 ? JSON.parse(rawV2) : rawV1 ? JSON.parse(rawV1) : null;
+    if (!data || typeof data !== "object") return;
+
+    const allRoutes = Array.isArray(data.userRoutesFC?.features)
+      ? data.userRoutesFC.features
+      : Array.isArray(data.routesFC?.features)
+        ? data.routesFC.features
+        : [];
+    const allStations = Array.isArray(data.userStationsFC?.features)
+      ? data.userStationsFC.features
+      : Array.isArray(data.stationsFC?.features)
+        ? data.stationsFC.features
+        : [];
+    const userRoutes = extractUserOnlyRoutes(allRoutes);
+    const userRouteIds = new Set(userRoutes.map((f) => f?.properties?.route_id).filter((id) => typeof id === "string"));
+    const userStations = extractUserStationsByRoutes(allStations, userRouteIds);
+    mergeUserStateIntoStore(userRoutes, userStations);
+
     if (Array.isArray(data.hiddenRouteIds)) {
       store.hiddenRouteIds = new Set(data.hiddenRouteIds);
-    }
-    if (data.counters && typeof data.counters === "object") {
-      if (Number.isFinite(data.counters.route)) store.counters.route = data.counters.route;
-      if (Number.isFinite(data.counters.group)) store.counters.group = data.counters.group;
-      if (Number.isFinite(data.counters.station)) store.counters.station = data.counters.station;
     }
     if (data.settings && typeof data.settings.stationMinPerRoute === "number") {
       store.settings.stationMinPerRoute = data.settings.stationMinPerRoute;
@@ -90,7 +218,8 @@ function loadPersistedState() {
   }
 }
 
-loadPersistedState();
+loadBuiltinDefaultState();
+loadPersistedUserState();
 
 let persistTimer = null;
 function schedulePersistToStorage() {
@@ -99,10 +228,13 @@ function schedulePersistToStorage() {
   persistTimer = setTimeout(() => {
     persistTimer = null;
     try {
+      const userRoutes = store.routesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
+      const userRouteIds = new Set(userRoutes.map((f) => f.properties?.route_id));
+      const userStations = extractUserStationsByRoutes(store.stationsFC.features, userRouteIds);
       const payload = {
         v: PERSIST_VERSION,
-        routesFC: store.routesFC,
-        stationsFC: store.stationsFC,
+        userRoutesFC: { type: "FeatureCollection", features: userRoutes },
+        userStationsFC: { type: "FeatureCollection", features: userStations },
         hiddenRouteIds: Array.from(store.hiddenRouteIds),
         counters: { ...store.counters },
         settings: { ...store.settings },
@@ -128,11 +260,6 @@ const NAME_MAX_LEN = 15;
 function clampName15(v) {
   return String(v ?? "").slice(0, NAME_MAX_LEN);
 }
-
-/** 內建（免費展示）路線；未來由官方資料匯入時使用。 */
-export const ROUTE_KIND_DEFAULT = "default";
-/** 使用者自行繪製的路線（付費／編輯產生）。 */
-export const ROUTE_KIND_USER = "user";
 
 function normalizeRouteProperties(p) {
   if (!p || typeof p !== "object") return;
