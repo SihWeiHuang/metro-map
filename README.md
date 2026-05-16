@@ -26,6 +26,20 @@ VITE_MAPBOX_TOKEN=your_mapbox_public_token
 npm run dev
 ```
 
+5. Commit and push changes to GitHub
+
+Stage all changes, create a commit, and push to the remote in one command. Replace the message with a short description of your changes:
+
+```bash
+git add -A && git commit -m "你的提交說明" && git push
+```
+
+If this branch has no upstream yet, use:
+
+```bash
+git add -A && git commit -m "你的提交說明" && git push -u origin HEAD
+```
+
 ## Deploy to Vercel (GitHub Auto Deploy)
 
 - This project reads `VITE_MAPBOX_TOKEN` from environment variables.

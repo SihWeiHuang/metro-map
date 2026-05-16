@@ -13,6 +13,12 @@ const DEFAULT_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
 export default function MapView({ onModeChange }) {
   const { locale } = useI18n();
   const containerRef = useRef(null);
+  const lastViewRef = useRef({
+    center: [121.51, 25.03],
+    zoom: 14,
+    bearing: 0,
+    pitch: 0,
+  });
 
   useEffect(() => {
     registerModeChange(onModeChange);
@@ -21,13 +27,16 @@ export default function MapView({ onModeChange }) {
   useEffect(() => {
     if (!containerRef.current) return;
     const mapLanguage = locale === "en" ? "en" : "zh-Hant";
+    const view = lastViewRef.current;
 
     mapboxgl.accessToken = DEFAULT_TOKEN;
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: "mapbox://styles/ethen9798/cmfceirln001n01sl9bqf4axy",
-      center: [121.51, 25.03],
-      zoom: 14,
+      center: view.center,
+      zoom: view.zoom,
+      bearing: view.bearing,
+      pitch: view.pitch,
       language: mapLanguage,
     });
 
@@ -51,6 +60,13 @@ export default function MapView({ onModeChange }) {
     else map.once("load", onLoad);
 
     return () => {
+      const center = map.getCenter();
+      lastViewRef.current = {
+        center: [center.lng, center.lat],
+        zoom: map.getZoom(),
+        bearing: map.getBearing(),
+        pitch: map.getPitch(),
+      };
       setMapInstance(null);
       map.remove();
     };

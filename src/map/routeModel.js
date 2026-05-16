@@ -33,6 +33,9 @@ export const store = {
 
 const PERSIST_STORAGE_KEY = "metro-map-data-v2";
 const PERSIST_VERSION = 2;
+export const EXPORT_FILE_FORMAT = "metro-map-x01";
+
+const DISPLAY_ONLY_STATION_PROPS = ["label_anchor", "label_offset"];
 
 /** 內建（免費展示）路線；未來由官方資料匯入時使用。 */
 export const ROUTE_KIND_DEFAULT = "default";
@@ -1009,6 +1012,155 @@ function setGroupMetadata(groupId, patch) {
   refreshSources();
 }
 
+function sanitizeRouteForExport(feature) {
+  const c = JSON.parse(JSON.stringify(feature));
+  if (!c.properties || typeof c.properties !== "object") c.properties = {};
+  normalizeRouteProperties(c.properties);
+  c.properties.route_kind = ROUTE_KIND_USER;
+  return c;
+}
+
+function sanitizeStationForExport(feature) {
+  if (feature?.properties?.route_id === "__temp_preview__") return null;
+  const c = JSON.parse(JSON.stringify(feature));
+  if (!c.properties || typeof c.properties !== "object") c.properties = {};
+  for (const key of DISPLAY_ONLY_STATION_PROPS) {
+    delete c.properties[key];
+  }
+  delete c.properties.label_lnglat;
+  delete c.properties.label_is_manual;
+  return c;
+}
+
+function buildUserExportPayload() {
+  const userRoutes = store.routesFC.features
+    .filter((f) => routeKindOf(f) === ROUTE_KIND_USER)
+    .map(sanitizeRouteForExport);
+  const userRouteIds = new Set(userRoutes.map((f) => f.properties.route_id));
+  const userStations = extractUserStationsByRoutes(store.stationsFC.features, userRouteIds)
+    .map(sanitizeStationForExport)
+    .filter(Boolean);
+  const hiddenRouteIds = Array.from(store.hiddenRouteIds).filter((id) => userRouteIds.has(id));
+  return {
+    format: EXPORT_FILE_FORMAT,
+    formatVersion: PERSIST_VERSION,
+    exportedAt: new Date().toISOString(),
+    v: PERSIST_VERSION,
+    userRoutesFC: { type: "FeatureCollection", features: userRoutes },
+    userStationsFC: { type: "FeatureCollection", features: userStations },
+    hiddenRouteIds,
+    counters: { ...store.counters },
+    settings: { ...store.settings },
+  };
+}
+
+function hasUserContent() {
+  return store.routesFC.features.some((f) => routeKindOf(f) === ROUTE_KIND_USER);
+}
+
+function clearUserContent() {
+  const userRouteIds = new Set(
+    store.routesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER).map((f) => f.properties.route_id)
+  );
+  store.routesFC.features = store.routesFC.features.filter((f) => routeKindOf(f) !== ROUTE_KIND_USER);
+  store.stationsFC.features = store.stationsFC.features.filter((s) => {
+    const rid = s?.properties?.route_id;
+    if (rid === "__temp_preview__") return false;
+    if (userRouteIds.has(rid)) return false;
+    const transferRoutes = s?.properties?.transfer_routes;
+    return !(Array.isArray(transferRoutes) && transferRoutes.some((tr) => userRouteIds.has(tr)));
+  });
+  userRouteIds.forEach((rid) => store.hiddenRouteIds.delete(rid));
+  store.temp.editingSessions = [];
+  store.temp.previewStations = [];
+  store.temp.queuedStations = [];
+  store.temp.routeIdEditing = null;
+  syncCountersFromLoadedFeatures();
+}
+
+function parseImportPayload(data) {
+  if (!data || typeof data !== "object") {
+    throw new Error("invalid_json");
+  }
+  if (data.format && data.format !== EXPORT_FILE_FORMAT) {
+    throw new Error("unsupported_format");
+  }
+  const allRoutes = Array.isArray(data.userRoutesFC?.features)
+    ? data.userRoutesFC.features
+    : Array.isArray(data.routesFC?.features)
+      ? data.routesFC.features
+      : null;
+  const allStations = Array.isArray(data.userStationsFC?.features)
+    ? data.userStationsFC.features
+    : Array.isArray(data.stationsFC?.features)
+      ? data.stationsFC.features
+      : null;
+  if (!allRoutes || !allStations) {
+    throw new Error("missing_features");
+  }
+  const userRoutes = extractUserOnlyRoutes(allRoutes);
+  const userRouteIds = new Set(userRoutes.map((f) => f?.properties?.route_id).filter((id) => typeof id === "string"));
+  const userStations = extractUserStationsByRoutes(allStations, userRouteIds)
+    .map(sanitizeStationForExport)
+    .filter(Boolean);
+  return {
+    userRoutes,
+    userStations,
+    hiddenRouteIds: Array.isArray(data.hiddenRouteIds) ? data.hiddenRouteIds : [],
+    counters: data.counters,
+    settings: data.settings,
+  };
+}
+
+function exportUserStateJSON() {
+  return JSON.stringify(buildUserExportPayload(), null, 2);
+}
+
+function getExportFileName() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return `metro-map-${stamp}.json`;
+}
+
+/**
+ * @param {string} jsonString
+ * @param {{ replace?: boolean }} [options]
+ * @returns {{ ok: true, routeCount: number, stationCount: number } | { ok: false, error: string }}
+ */
+function importUserStateJSON(jsonString, options = {}) {
+  try {
+    const data = JSON.parse(jsonString);
+    const { userRoutes, userStations, hiddenRouteIds, counters, settings } = parseImportPayload(data);
+    if (options.replace) {
+      clearUserContent();
+    }
+    mergeUserStateIntoStore(userRoutes, userStations);
+    if (Array.isArray(hiddenRouteIds)) {
+      for (const rid of hiddenRouteIds) {
+        if (typeof rid === "string") store.hiddenRouteIds.add(rid);
+      }
+    }
+    if (counters && typeof counters === "object") {
+      if (typeof counters.route === "number") store.counters.route = Math.max(store.counters.route, counters.route);
+      if (typeof counters.group === "number") store.counters.group = Math.max(store.counters.group, counters.group);
+      if (typeof counters.station === "number") {
+        store.counters.station = Math.max(store.counters.station, counters.station);
+      }
+    }
+    if (settings && typeof settings.stationMinPerRoute === "number") {
+      store.settings.stationMinPerRoute = settings.stationMinPerRoute;
+    }
+    syncCountersFromLoadedFeatures();
+    normalizeAllRoutesMetadata();
+    refreshSources();
+    return { ok: true, routeCount: userRoutes.length, stationCount: userStations.length };
+  } catch (e) {
+    const code = e instanceof Error && e.message ? e.message : "import_failed";
+    return { ok: false, error: code };
+  }
+}
+
 export const Route = {
   ROUTE_KIND_DEFAULT,
   ROUTE_KIND_USER,
@@ -1042,5 +1194,9 @@ export const Route = {
   setStationName,
   setStationLabelPosition,
   refreshSources,
+  hasUserContent,
+  exportUserStateJSON,
+  getExportFileName,
+  importUserStateJSON,
   _store: store,
 };

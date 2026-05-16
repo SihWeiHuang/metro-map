@@ -10,6 +10,7 @@ import {
   registerEditStationSubmodeChange,
   registerModeHintChange,
 } from "./map/modeBundle.js";
+import { Route } from "./map/routeModel.js";
 import { useI18n } from "./i18n/I18nProvider.jsx";
 import { resizeMap } from "./map/mapInstance.js";
 
@@ -44,6 +45,7 @@ function App() {
   routeListWidthRef.current = routeListWidthPx;
   /** 未開啟時側欄內其他按鈕皆停用（僅「編輯模式」可切換） */
   const [editToolsOpen, setEditToolsOpen] = useState(false);
+  const importInputRef = useRef(null);
 
   const startRouteListResize = useCallback((clientX) => {
     const startX = clientX;
@@ -156,6 +158,54 @@ function App() {
     });
   };
 
+  const handleExportMap = () => {
+    const json = Route.exportUserStateJSON();
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = Route.getExportFileName();
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importErrorMessage = (code) => {
+    if (code === "unsupported_format") return t("app.importErrorUnsupported");
+    if (code === "missing_features") return t("app.importErrorMissing");
+    if (code === "invalid_json") return t("app.importErrorInvalid");
+    return t("app.importErrorGeneric");
+  };
+
+  const handleImportFile = async (file) => {
+    if (!file) return;
+    let text;
+    try {
+      text = await file.text();
+    } catch {
+      alert(t("app.importErrorInvalid"));
+      return;
+    }
+    const replace = Route.hasUserContent() ? window.confirm(t("app.importReplacePrompt")) : false;
+    const result = Route.importUserStateJSON(text, { replace });
+    if (!result.ok) {
+      alert(importErrorMessage(result.error));
+      return;
+    }
+    setMode("general");
+    setEditToolsOpen(false);
+    bumpRouteList();
+    alert(
+      t("app.importSuccess", {
+        routes: result.routeCount,
+        stations: result.stationCount,
+      })
+    );
+  };
+
+  const handleLoadMapClick = () => {
+    importInputRef.current?.click();
+  };
+
   return (
     <div className="app-root">
       <header className="app-site-header">
@@ -164,17 +214,40 @@ function App() {
             <h1 className="app-site-title">{t("app.headerTitle")}</h1>
             <p className="app-site-tagline">{t("app.headerTagline")}</p>
           </div>
-          <div className="app-lang-switch" role="group" aria-label="Language">
-            <button
-              type="button"
-              className={locale === "zh-Hant" ? "active" : ""}
-              onClick={() => setLocale("zh-Hant")}
-            >
-              {t("lang.zh")}
-            </button>
-            <button type="button" className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>
-              {t("lang.en")}
-            </button>
+          <div className="app-header-actions">
+            <div className="app-file-actions" role="group" aria-label={t("app.loadMap")}>
+              <button type="button" className="app-header-btn" onClick={handleExportMap} title={t("app.saveMapTitle")}>
+                {t("app.saveMap")}
+              </button>
+              <button type="button" className="app-header-btn" onClick={handleLoadMapClick} title={t("app.loadMapTitle")}>
+                {t("app.loadMap")}
+              </button>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".json,application/json"
+                className="app-import-input"
+                aria-hidden
+                tabIndex={-1}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  void handleImportFile(file);
+                }}
+              />
+            </div>
+            <div className="app-lang-switch" role="group" aria-label="Language">
+              <button
+                type="button"
+                className={locale === "zh-Hant" ? "active" : ""}
+                onClick={() => setLocale("zh-Hant")}
+              >
+                {t("lang.zh")}
+              </button>
+              <button type="button" className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>
+                {t("lang.en")}
+              </button>
+            </div>
           </div>
         </div>
       </header>
