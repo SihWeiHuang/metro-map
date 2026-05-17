@@ -356,7 +356,71 @@ function buildTransferSnapPointsFC() {
   return { type: "FeatureCollection", features };
 }
 
+/** Snapshot taken immediately before the most recent successful import. */
+let lastImportUndoSnapshot = null;
+let skipImportUndoInvalidate = false;
+const importUndoListeners = new Set();
+
+function notifyImportUndoListeners() {
+  const available = lastImportUndoSnapshot != null;
+  importUndoListeners.forEach((fn) => fn(available));
+}
+
+function subscribeImportUndoAvailability(listener) {
+  importUndoListeners.add(listener);
+  listener(lastImportUndoSnapshot != null);
+  return () => importUndoListeners.delete(listener);
+}
+
+function captureUserStateSnapshot() {
+  const userRoutes = store.routesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
+  const userRouteIds = new Set(userRoutes.map((f) => f.properties?.route_id).filter((id) => typeof id === "string"));
+  const userStations = extractUserStationsByRoutes(store.stationsFC.features, userRouteIds);
+  return {
+    userRoutes: JSON.parse(JSON.stringify(userRoutes)),
+    userStations: JSON.parse(JSON.stringify(userStations)),
+    hiddenRouteIds: Array.from(store.hiddenRouteIds).filter((id) => userRouteIds.has(id)),
+    counters: { ...store.counters },
+    settings: { ...store.settings },
+  };
+}
+
+function restoreUserStateSnapshot(snapshot) {
+  clearUserContent();
+  if (snapshot.userRoutes.length || snapshot.userStations.length) {
+    mergeUserStateIntoStore(snapshot.userRoutes, snapshot.userStations);
+  }
+  store.hiddenRouteIds = new Set(snapshot.hiddenRouteIds);
+  store.counters = { ...snapshot.counters };
+  store.settings = { ...snapshot.settings };
+  syncCountersFromLoadedFeatures();
+  normalizeAllRoutesMetadata();
+}
+
+function canUndoLastImport() {
+  return lastImportUndoSnapshot != null;
+}
+
+function undoLastImport() {
+  if (!lastImportUndoSnapshot) return { ok: false };
+  const snapshot = lastImportUndoSnapshot;
+  lastImportUndoSnapshot = null;
+  skipImportUndoInvalidate = true;
+  try {
+    restoreUserStateSnapshot(snapshot);
+    refreshSources();
+    return { ok: true };
+  } finally {
+    skipImportUndoInvalidate = false;
+    notifyImportUndoListeners();
+  }
+}
+
 function refreshSources() {
+  if (!skipImportUndoInvalidate && lastImportUndoSnapshot) {
+    lastImportUndoSnapshot = null;
+    notifyImportUndoListeners();
+  }
   schedulePersistToStorage();
 
   const map = getMap();
@@ -1078,6 +1142,91 @@ function clearUserContent() {
   syncCountersFromLoadedFeatures();
 }
 
+function normalizeGroupName(name) {
+  return String(name ?? "").trim();
+}
+
+/** @param {import('geojson').Feature[]} routes */
+function collectGroupNamesByGroupId(routes) {
+  const map = new Map();
+  for (const f of routes) {
+    const gid = f.properties?.group_id;
+    if (typeof gid !== "string") continue;
+    if (!map.has(gid)) {
+      map.set(gid, normalizeGroupName(f.properties?.name));
+    }
+  }
+  return map;
+}
+
+function getExistingUserGroupNameSet() {
+  const userRoutes = store.routesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
+  const names = new Set();
+  for (const name of collectGroupNamesByGroupId(userRoutes).values()) {
+    if (name) names.add(name);
+  }
+  return names;
+}
+
+/** Display names of import groups that match an existing user group name. */
+function getImportDuplicateGroupNames(userRoutes) {
+  const existing = getExistingUserGroupNameSet();
+  const duplicates = [];
+  const seen = new Set();
+  for (const name of collectGroupNamesByGroupId(userRoutes).values()) {
+    if (!name || !existing.has(name) || seen.has(name)) continue;
+    seen.add(name);
+    duplicates.push(name);
+  }
+  return duplicates.sort((a, b) => a.localeCompare(b, "zh-Hant"));
+}
+
+function deleteUserGroupsByNames(names) {
+  const nameSet = new Set(names);
+  if (!nameSet.size) return;
+  const groupIds = [];
+  const seenGroupIds = new Set();
+  for (const f of store.routesFC.features) {
+    if (routeKindOf(f) !== ROUTE_KIND_USER) continue;
+    const gid = f.properties?.group_id;
+    if (typeof gid !== "string" || seenGroupIds.has(gid)) continue;
+    seenGroupIds.add(gid);
+    const n = normalizeGroupName(f.properties?.name);
+    if (n && nameSet.has(n)) groupIds.push(gid);
+  }
+  if (groupIds.length) deleteGroups(groupIds);
+}
+
+function countRoutesInGroupsByNames(userRoutes, groupNames) {
+  const nameSet = new Set(groupNames);
+  const groupIds = new Set();
+  for (const [gid, name] of collectGroupNamesByGroupId(userRoutes)) {
+    if (name && nameSet.has(name)) groupIds.add(gid);
+  }
+  return userRoutes.filter((f) => groupIds.has(f.properties?.group_id)).length;
+}
+
+/** Import duplicate detection uses group names internally; UI messages use route segment counts only. */
+function buildImportResultStats(userRoutes, userStations, mode, duplicateGroupNames) {
+  const groupNameById = collectGroupNamesByGroupId(userRoutes);
+  const importGroupCount = groupNameById.size;
+  const duplicateSet = new Set(duplicateGroupNames);
+  const addedGroupNames = [...new Set(groupNameById.values())].filter((n) => n && !duplicateSet.has(n));
+  const replacedRouteCount = countRoutesInGroupsByNames(userRoutes, duplicateGroupNames);
+  const addedRouteCount = countRoutesInGroupsByNames(userRoutes, addedGroupNames);
+
+  return {
+    mode,
+    routeCount: userRoutes.length,
+    stationCount: userStations.length,
+    groupCount: importGroupCount,
+    replacedGroupCount: duplicateGroupNames.length,
+    addedGroupCount: addedGroupNames.length,
+    replacedRouteCount,
+    addedRouteCount,
+  };
+}
+
 function parseImportPayload(data) {
   if (!data || typeof data !== "object") {
     throw new Error("invalid_json");
@@ -1125,15 +1274,39 @@ function getExportFileName() {
 
 /**
  * @param {string} jsonString
- * @param {{ replace?: boolean }} [options]
- * @returns {{ ok: true, routeCount: number, stationCount: number } | { ok: false, error: string }}
+ * @returns {{ ok: true, duplicateGroupNames: string[] } | { ok: false, error: string }}
+ */
+function analyzeImportJSON(jsonString) {
+  try {
+    const data = JSON.parse(jsonString);
+    const { userRoutes } = parseImportPayload(data);
+    return { ok: true, duplicateGroupNames: getImportDuplicateGroupNames(userRoutes) };
+  } catch (e) {
+    const code = e instanceof Error && e.message ? e.message : "import_failed";
+    return { ok: false, error: code };
+  }
+}
+
+/** @typedef {'replaceAll' | 'merge' | 'replaceMatching'} ImportMode */
+
+/**
+ * @param {string} jsonString
+ * @param {{ mode?: ImportMode }} [options]
+ * @returns {({ ok: true } & ReturnType<typeof buildImportResultStats>) | { ok: false, error: string }}
  */
 function importUserStateJSON(jsonString, options = {}) {
+  skipImportUndoInvalidate = true;
+  const snapshotBeforeImport = captureUserStateSnapshot();
   try {
     const data = JSON.parse(jsonString);
     const { userRoutes, userStations, hiddenRouteIds, counters, settings } = parseImportPayload(data);
-    if (options.replace) {
+    const mode = options.mode ?? "merge";
+    const duplicateGroupNames =
+      mode === "replaceMatching" ? getImportDuplicateGroupNames(userRoutes) : [];
+    if (mode === "replaceAll") {
       clearUserContent();
+    } else if (mode === "replaceMatching") {
+      deleteUserGroupsByNames(duplicateGroupNames);
     }
     mergeUserStateIntoStore(userRoutes, userStations);
     if (Array.isArray(hiddenRouteIds)) {
@@ -1153,11 +1326,19 @@ function importUserStateJSON(jsonString, options = {}) {
     }
     syncCountersFromLoadedFeatures();
     normalizeAllRoutesMetadata();
+    lastImportUndoSnapshot = snapshotBeforeImport;
     refreshSources();
-    return { ok: true, routeCount: userRoutes.length, stationCount: userStations.length };
+    notifyImportUndoListeners();
+    return { ok: true, ...buildImportResultStats(userRoutes, userStations, mode, duplicateGroupNames) };
   } catch (e) {
+    restoreUserStateSnapshot(snapshotBeforeImport);
+    lastImportUndoSnapshot = null;
+    refreshSources();
+    notifyImportUndoListeners();
     const code = e instanceof Error && e.message ? e.message : "import_failed";
     return { ok: false, error: code };
+  } finally {
+    skipImportUndoInvalidate = false;
   }
 }
 
@@ -1195,8 +1376,12 @@ export const Route = {
   setStationLabelPosition,
   refreshSources,
   hasUserContent,
+  analyzeImportJSON,
   exportUserStateJSON,
   getExportFileName,
   importUserStateJSON,
+  canUndoLastImport,
+  undoLastImport,
+  subscribeImportUndoAvailability,
   _store: store,
 };

@@ -46,6 +46,9 @@ function App() {
   /** 未開啟時側欄內其他按鈕皆停用（僅「編輯模式」可切換） */
   const [editToolsOpen, setEditToolsOpen] = useState(false);
   const importInputRef = useRef(null);
+  const [pendingImport, setPendingImport] = useState(null);
+  const [importUndoAvailable, setImportUndoAvailable] = useState(false);
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
 
   const startRouteListResize = useCallback((clientX) => {
     const startX = clientX;
@@ -114,6 +117,8 @@ function App() {
     registerModeHintChange(setModeHint);
   }, []);
 
+  useEffect(() => Route.subscribeImportUndoAvailability(setImportUndoAvailable), []);
+
   useEffect(() => {
     setListTick((x) => x + 1);
   }, [locale]);
@@ -176,6 +181,31 @@ function App() {
     return t("app.importErrorGeneric");
   };
 
+  const applyImport = (text, mode) => {
+    const result = Route.importUserStateJSON(text, { mode });
+    if (!result.ok) {
+      alert(importErrorMessage(result.error));
+      return;
+    }
+    setMode("general");
+    setEditToolsOpen(false);
+    bumpRouteList();
+    const successKey =
+      result.mode === "replaceMatching" ? "app.importSuccessReplaceMatching" : "app.importSuccess";
+    const successVars =
+      result.mode === "replaceMatching"
+        ? {
+            replacedRoutes: result.replacedRouteCount,
+            addedRoutes: result.addedRouteCount,
+            stations: result.stationCount,
+          }
+        : {
+            routes: result.routeCount,
+            stations: result.stationCount,
+          };
+    alert(t(successKey, successVars));
+  };
+
   const handleImportFile = async (file) => {
     if (!file) return;
     let text;
@@ -185,25 +215,56 @@ function App() {
       alert(t("app.importErrorInvalid"));
       return;
     }
-    const replace = Route.hasUserContent() ? window.confirm(t("app.importReplacePrompt")) : false;
-    const result = Route.importUserStateJSON(text, { replace });
-    if (!result.ok) {
-      alert(importErrorMessage(result.error));
+    if (Route.hasUserContent()) {
+      const analysis = Route.analyzeImportJSON(text);
+      if (!analysis.ok) {
+        alert(importErrorMessage(analysis.error));
+        return;
+      }
+      setPendingImport({ text, duplicateGroupNames: analysis.duplicateGroupNames });
       return;
     }
+    applyImport(text, "merge");
+  };
+
+  const closeImportDialog = () => setPendingImport(null);
+
+  const confirmImportWithMode = (mode) => {
+    if (pendingImport == null) return;
+    const { text } = pendingImport;
+    setPendingImport(null);
+    applyImport(text, mode);
+  };
+
+  const handleImportMapClick = () => {
+    importInputRef.current?.click();
+  };
+
+  const handleUndoLastImport = () => {
+    const result = Route.undoLastImport();
+    if (!result.ok) return;
     setMode("general");
     setEditToolsOpen(false);
     bumpRouteList();
-    alert(
-      t("app.importSuccess", {
-        routes: result.routeCount,
-        stations: result.stationCount,
-      })
-    );
+    alert(t("app.undoLastImportSuccess"));
   };
 
-  const handleLoadMapClick = () => {
-    importInputRef.current?.click();
+  const openFileMenu = () => setFileMenuOpen(true);
+  const closeFileMenu = () => setFileMenuOpen(false);
+
+  const handleFileMenuExport = () => {
+    closeFileMenu();
+    handleExportMap();
+  };
+
+  const handleFileMenuImport = () => {
+    closeFileMenu();
+    handleImportMapClick();
+  };
+
+  const handleFileMenuUndo = () => {
+    closeFileMenu();
+    handleUndoLastImport();
   };
 
   return (
@@ -215,27 +276,6 @@ function App() {
             <p className="app-site-tagline">{t("app.headerTagline")}</p>
           </div>
           <div className="app-header-actions">
-            <div className="app-file-actions" role="group" aria-label={t("app.loadMap")}>
-              <button type="button" className="app-header-btn" onClick={handleExportMap} title={t("app.saveMapTitle")}>
-                {t("app.saveMap")}
-              </button>
-              <button type="button" className="app-header-btn" onClick={handleLoadMapClick} title={t("app.loadMapTitle")}>
-                {t("app.loadMap")}
-              </button>
-              <input
-                ref={importInputRef}
-                type="file"
-                accept=".json,application/json"
-                className="app-import-input"
-                aria-hidden
-                tabIndex={-1}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = "";
-                  void handleImportFile(file);
-                }}
-              />
-            </div>
             <div className="app-lang-switch" role="group" aria-label="Language">
               <button
                 type="button"
@@ -336,6 +376,9 @@ function App() {
                 >
                   {t("app.modeUngroup")}
                 </button>
+                <button type="button" onClick={openFileMenu} title={t("app.routeFilesMenuTitle")}>
+                  {t("app.routeFilesMenu")}
+                </button>
               </div>
               {showMergeCancel && (
                 <button type="button" id="mergeCancelButton" disabled={toolsDisabled} onClick={cancelMerge}>
@@ -397,6 +440,98 @@ function App() {
           </div>
         </div>
       </div>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".json,application/json"
+        className="app-import-input"
+        aria-hidden
+        tabIndex={-1}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          void handleImportFile(file);
+        }}
+      />
+      {fileMenuOpen && (
+        <div className="app-import-dialog-backdrop" role="presentation" onClick={closeFileMenu}>
+          <div
+            className="app-import-dialog app-file-menu-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="file-menu-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="file-menu-dialog-title" className="app-import-dialog-title">
+              {t("app.routeFilesDialogTitle")}
+            </h2>
+            <div className="app-file-menu-actions">
+              <button type="button" className="app-file-menu-btn" onClick={handleFileMenuExport} title={t("app.exportRoutesTitle")}>
+                {t("app.exportRoutes")}
+              </button>
+              <button type="button" className="app-file-menu-btn" onClick={handleFileMenuImport} title={t("app.importMapTitle")}>
+                {t("app.importMap")}
+              </button>
+              <button
+                type="button"
+                className="app-file-menu-btn"
+                disabled={!importUndoAvailable}
+                onClick={handleFileMenuUndo}
+                title={t("app.undoLastImportTitle")}
+              >
+                {t("app.undoLastImport")}
+              </button>
+            </div>
+            <div className="app-import-dialog-actions">
+              <button type="button" className="app-import-dialog-btn app-import-dialog-btn--cancel" onClick={closeFileMenu}>
+                {t("app.importCancel")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {pendingImport != null && (
+        <div className="app-import-dialog-backdrop" role="presentation" onClick={closeImportDialog}>
+          <div
+            className="app-import-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="import-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="import-dialog-title" className="app-import-dialog-title">
+              {t("app.importModeTitle")}
+            </h2>
+            <p className="app-import-dialog-message">{t("app.importModeMessage")}</p>
+            {pendingImport.duplicateGroupNames.length > 0 && (
+              <p className="app-import-dialog-duplicates">
+                {t("app.importDuplicateHint", {
+                  names: pendingImport.duplicateGroupNames.join("、"),
+                })}
+              </p>
+            )}
+            <div className="app-import-dialog-options">
+              <button type="button" className="app-import-option" onClick={() => confirmImportWithMode("replaceAll")}>
+                <span className="app-import-option-label">{t("app.importReplaceAll")}</span>
+                <span className="app-import-option-hint">{t("app.importReplaceAllHint")}</span>
+              </button>
+              <button type="button" className="app-import-option" onClick={() => confirmImportWithMode("merge")}>
+                <span className="app-import-option-label">{t("app.importMergeDirect")}</span>
+                <span className="app-import-option-hint">{t("app.importMergeDirectHint")}</span>
+              </button>
+              <button type="button" className="app-import-option" onClick={() => confirmImportWithMode("replaceMatching")}>
+                <span className="app-import-option-label">{t("app.importReplaceMatching")}</span>
+                <span className="app-import-option-hint">{t("app.importReplaceMatchingHint")}</span>
+              </button>
+            </div>
+            <div className="app-import-dialog-actions">
+              <button type="button" className="app-import-dialog-btn app-import-dialog-btn--cancel" onClick={closeImportDialog}>
+                {t("app.importCancel")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
