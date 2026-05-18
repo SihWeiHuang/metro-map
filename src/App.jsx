@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 import MapView from "./components/MapView.jsx";
 import RouteListPanel from "./components/RouteListPanel.jsx";
+import RouteStatusDialog from "./components/RouteStatusDialog.jsx";
 import {
   setMode,
   finishEditing,
@@ -49,6 +50,7 @@ function App() {
   const [pendingImport, setPendingImport] = useState(null);
   const [importUndoAvailable, setImportUndoAvailable] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [statusDialog, setStatusDialog] = useState(null);
 
   const startRouteListResize = useCallback((clientX) => {
     const startX = clientX;
@@ -120,6 +122,12 @@ function App() {
   useEffect(() => Route.subscribeImportUndoAvailability(setImportUndoAvailable), []);
 
   useEffect(() => {
+    if (mode !== "general" || !editToolsOpen) {
+      setFileMenuOpen(false);
+    }
+  }, [mode, editToolsOpen]);
+
+  useEffect(() => {
     setListTick((x) => x + 1);
   }, [locale]);
 
@@ -152,6 +160,20 @@ function App() {
     if (mode === "general") return false;
     return !isThisModeActive;
   };
+
+  const handleFinishEditing = () => {
+    const result = finishEditing();
+    if (result?.ok && result.newGroupIds?.length > 0) {
+      setStatusDialog({ groupIds: result.newGroupIds, isNewRoute: true });
+    }
+    bumpRouteList();
+  };
+
+  const openRouteMetadataDialog = (groupId) => {
+    setStatusDialog({ groupIds: [groupId], isNewRoute: false });
+  };
+
+  const closeStatusDialog = () => setStatusDialog(null);
 
   const toggleEditTools = () => {
     setEditToolsOpen((prev) => {
@@ -249,7 +271,10 @@ function App() {
     alert(t("app.undoLastImportSuccess"));
   };
 
-  const openFileMenu = () => setFileMenuOpen(true);
+  const openFileMenu = () => {
+    if (modeBtnDisabled(false)) return;
+    setFileMenuOpen(true);
+  };
   const closeFileMenu = () => setFileMenuOpen(false);
 
   const handleFileMenuExport = () => {
@@ -303,6 +328,7 @@ function App() {
               key={listTick}
               onRefresh={bumpRouteList}
               showRouteActions={routeListEditActions}
+              onEditRouteMetadata={openRouteMetadataDialog}
             />
           </div>
           <div className={`app-controls-dock${editToolsOpen ? " app-controls-dock-open" : ""}`}>
@@ -376,7 +402,12 @@ function App() {
                 >
                   {t("app.modeUngroup")}
                 </button>
-                <button type="button" onClick={openFileMenu} title={t("app.routeFilesMenuTitle")}>
+                <button
+                  type="button"
+                  disabled={modeBtnDisabled(false)}
+                  onClick={openFileMenu}
+                  title={t("app.routeFilesMenuTitle")}
+                >
                   {t("app.routeFilesMenu")}
                 </button>
               </div>
@@ -433,7 +464,7 @@ function App() {
           </div>
           <div className="app-map-finish-slot">
             {showFinish && editToolsOpen && (
-              <button type="button" id="finishModeButton" className="mode-finish-bar" onClick={finishEditing}>
+              <button type="button" id="finishModeButton" className="mode-finish-bar" onClick={handleFinishEditing}>
                 {t("app.finish")}
               </button>
             )}
@@ -453,6 +484,14 @@ function App() {
           void handleImportFile(file);
         }}
       />
+      {statusDialog != null && (
+        <RouteStatusDialog
+          groupIds={statusDialog.groupIds}
+          isNewRoute={statusDialog.isNewRoute}
+          onClose={closeStatusDialog}
+          onSaved={bumpRouteList}
+        />
+      )}
       {fileMenuOpen && (
         <div className="app-import-dialog-backdrop" role="presentation" onClick={closeFileMenu}>
           <div

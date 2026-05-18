@@ -42,6 +42,23 @@ export const ROUTE_KIND_DEFAULT = "default";
 /** 使用者自行繪製的路線（付費／編輯產生）。 */
 export const ROUTE_KIND_USER = "user";
 
+/** 路線營運狀態（群組層級，與 route_kind 分開）。 */
+export const ROUTE_STATUS_OPERATING = "operating";
+export const ROUTE_STATUS_PLANNING = "planning";
+export const ROUTE_STATUS_CONSTRUCTION = "construction";
+export const ROUTE_STATUS_CUSTOM = "custom";
+
+const ROUTE_STATUS_VALUES = new Set([
+  ROUTE_STATUS_OPERATING,
+  ROUTE_STATUS_PLANNING,
+  ROUTE_STATUS_CONSTRUCTION,
+  ROUTE_STATUS_CUSTOM,
+]);
+
+function normalizeStatus(value) {
+  return ROUTE_STATUS_VALUES.has(value) ? value : ROUTE_STATUS_CUSTOM;
+}
+
 /** Ensure new ids never collide after loading from disk. */
 function syncCountersFromLoadedFeatures() {
   let maxR = 0;
@@ -81,6 +98,7 @@ function normalizeBuiltinRoutesAsDefault() {
     }
     if (typeof f.properties.country !== "string") f.properties.country = "";
     if (typeof f.properties.region !== "string") f.properties.region = "";
+    f.properties.status = normalizeStatus(f.properties.status);
   }
 }
 
@@ -159,6 +177,7 @@ function mergeUserStateIntoStore(userRoutes, userStations) {
     c.properties.route_kind = ROUTE_KIND_USER;
     if (typeof c.properties.country !== "string") c.properties.country = "";
     if (typeof c.properties.region !== "string") c.properties.region = "";
+    c.properties.status = normalizeStatus(c.properties.status);
     return c;
   });
 
@@ -271,6 +290,7 @@ function normalizeRouteProperties(p) {
   }
   if (typeof p.country !== "string") p.country = "";
   if (typeof p.region !== "string") p.region = "";
+  p.status = normalizeStatus(p.status);
 }
 
 function normalizeAllRoutesMetadata() {
@@ -286,11 +306,13 @@ function syncGroupRouteMetadata(groupId, sourceProps) {
       : ROUTE_KIND_USER;
   const country = typeof sourceProps?.country === "string" ? sourceProps.country : "";
   const region = typeof sourceProps?.region === "string" ? sourceProps.region : "";
+  const status = normalizeStatus(sourceProps?.status);
   store.routesFC.features.forEach((f) => {
     if (f.properties.group_id !== groupId) return;
     f.properties.route_kind = kind;
     f.properties.country = country;
     f.properties.region = region;
+    f.properties.status = status;
   });
 }
 
@@ -539,6 +561,7 @@ function getGroupList() {
       p.route_kind === ROUTE_KIND_DEFAULT || p.route_kind === ROUTE_KIND_USER ? p.route_kind : ROUTE_KIND_USER;
     const country = typeof p.country === "string" ? p.country : "";
     const region = typeof p.region === "string" ? p.region : "";
+    const status = normalizeStatus(p.status);
     if (!groups[p.group_id]) groups[p.group_id] = [];
     groups[p.group_id].push({
       route_id: p.route_id,
@@ -547,6 +570,7 @@ function getGroupList() {
       route_kind: rk,
       country,
       region,
+      status,
     });
   });
   return Object.entries(groups).map(([group_id, routes]) => {
@@ -557,6 +581,7 @@ function getGroupList() {
       route_kind: head?.route_kind ?? ROUTE_KIND_USER,
       country: head?.country ?? "",
       region: head?.region ?? "",
+      status: head?.status ?? ROUTE_STATUS_CUSTOM,
     };
   });
 }
@@ -646,9 +671,12 @@ function startEditGroup(groupId) {
 }
 
 function endTempEditingAndCommit() {
-  if (!store.temp.editingSessions || store.temp.editingSessions.length === 0) return true;
+  if (!store.temp.editingSessions || store.temp.editingSessions.length === 0) {
+    return { ok: true, newGroupIds: [] };
+  }
 
   const newRouteIdMap = new Map();
+  const newGroupIds = [];
 
   store.temp.editingSessions.forEach((session) => {
     const { routeId, nodes } = session;
@@ -669,6 +697,7 @@ function endTempEditingAndCommit() {
       const new_route_id = nextRouteId();
       const new_group_id = nextGroupId();
       newRouteIdMap.set(session, new_route_id);
+      newGroupIds.push(new_group_id);
       store.routesFC.features.push({
         type: "Feature",
         geometry: { type: "LineString", coordinates: nodes },
@@ -679,6 +708,7 @@ function endTempEditingAndCommit() {
           route_kind: ROUTE_KIND_USER,
           country: "",
           region: "",
+          status: ROUTE_STATUS_CUSTOM,
         },
       });
       ensureEndpointStations(new_route_id, nodes);
@@ -726,7 +756,22 @@ function endTempEditingAndCommit() {
   store.temp.previewStations = [];
   store.temp.queuedStations = [];
   refreshSources();
-  return true;
+  return { ok: true, newGroupIds };
+}
+
+function getGroupStatus(groupId) {
+  const route = store.routesFC.features.find((f) => f.properties?.group_id === groupId);
+  return normalizeStatus(route?.properties?.status);
+}
+
+function setGroupStatus(groupId, status) {
+  const next = normalizeStatus(status);
+  const routes = store.routesFC.features.filter((f) => f.properties.group_id === groupId);
+  if (!routes.length) return;
+  for (const f of routes) {
+    f.properties.status = next;
+  }
+  refreshSources();
 }
 
 function addTempNodeAt(coord, routeId, insertIndex = null) {
@@ -1072,6 +1117,7 @@ function setGroupMetadata(groupId, patch) {
     }
     if (typeof patch.country === "string") f.properties.country = patch.country;
     if (typeof patch.region === "string") f.properties.region = patch.region;
+    if (patch.status && ROUTE_STATUS_VALUES.has(patch.status)) f.properties.status = patch.status;
   }
   refreshSources();
 }
@@ -1096,10 +1142,13 @@ function sanitizeStationForExport(feature) {
   return c;
 }
 
-function buildUserExportPayload() {
-  const userRoutes = store.routesFC.features
-    .filter((f) => routeKindOf(f) === ROUTE_KIND_USER)
-    .map(sanitizeRouteForExport);
+function buildUserExportPayload(groupIds) {
+  const groupIdSet = Array.isArray(groupIds) && groupIds.length > 0 ? new Set(groupIds) : null;
+  let userRouteFeatures = store.routesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
+  if (groupIdSet) {
+    userRouteFeatures = userRouteFeatures.filter((f) => groupIdSet.has(f.properties.group_id));
+  }
+  const userRoutes = userRouteFeatures.map(sanitizeRouteForExport);
   const userRouteIds = new Set(userRoutes.map((f) => f.properties.route_id));
   const userStations = extractUserStationsByRoutes(store.stationsFC.features, userRouteIds)
     .map(sanitizeStationForExport)
@@ -1265,11 +1314,37 @@ function exportUserStateJSON() {
   return JSON.stringify(buildUserExportPayload(), null, 2);
 }
 
-function getExportFileName() {
+function exportStamp() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
-  const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  return `metro-map-${stamp}.json`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function getExportFileName() {
+  return `metro-map-${exportStamp()}.json`;
+}
+
+function getExportFileNameForSelectedGroups(groupCount) {
+  return `metro-map-selected-${groupCount}-${exportStamp()}.json`;
+}
+
+/**
+ * @param {string[]} groupIds
+ * @returns {{ ok: true, json: string, fileName: string } | { ok: false, error: string }}
+ */
+function exportGroupsJSON(groupIds) {
+  if (!Array.isArray(groupIds) || groupIds.length === 0) {
+    return { ok: false, error: "no_groups" };
+  }
+  const payload = buildUserExportPayload(groupIds);
+  if (!payload.userRoutesFC.features.length) {
+    return { ok: false, error: "no_user_routes" };
+  }
+  return {
+    ok: true,
+    json: JSON.stringify(payload, null, 2),
+    fileName: getExportFileNameForSelectedGroups(groupIds.length),
+  };
 }
 
 /**
@@ -1345,7 +1420,13 @@ function importUserStateJSON(jsonString, options = {}) {
 export const Route = {
   ROUTE_KIND_DEFAULT,
   ROUTE_KIND_USER,
+  ROUTE_STATUS_OPERATING,
+  ROUTE_STATUS_PLANNING,
+  ROUTE_STATUS_CONSTRUCTION,
+  ROUTE_STATUS_CUSTOM,
   getGroupList,
+  getGroupStatus,
+  setGroupStatus,
   getActiveEditGroupId,
   setGroupMetadata,
   deleteRoute,
@@ -1378,6 +1459,7 @@ export const Route = {
   hasUserContent,
   analyzeImportJSON,
   exportUserStateJSON,
+  exportGroupsJSON,
   getExportFileName,
   importUserStateJSON,
   canUndoLastImport,

@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../i18n/I18nProvider.jsx";
 import { Route } from "../map/routeModel.js";
-import { setMode } from "../map/modeBundle.js";
+import { M, setMode } from "../map/modeBundle.js";
 import {
   buildRouteListGridTemplate,
   defaultRouteListColumns,
 } from "./routeListColumnPrefs.js";
 
-export default function RouteListPanel({ onRefresh, showRouteActions = false }) {
+export default function RouteListPanel({ onRefresh, showRouteActions = false, onEditRouteMetadata }) {
   const { t } = useI18n();
   const groupList = Route.getGroupList();
   const [selectedGroupIds, setSelectedGroupIds] = useState(() => new Set());
@@ -72,6 +72,23 @@ export default function RouteListPanel({ onRefresh, showRouteActions = false }) 
     onRefresh();
   };
 
+  const exportSelected = () => {
+    const result = Route.exportGroupsJSON(Array.from(selectedGroupIds));
+    if (!result.ok) {
+      if (result.error === "no_user_routes") {
+        alert(t("routeList.exportNoUserRoutes"));
+      }
+      return;
+    }
+    const blob = new Blob([result.json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = result.fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="route-list-inner">
       {showRouteActions && (
@@ -81,6 +98,15 @@ export default function RouteListPanel({ onRefresh, showRouteActions = false }) 
             {t("routeList.selectAll")}
           </label>
           <span className="route-selected-count">{t("routeList.selected", { n: selectedCount })}</span>
+          {selectedCount >= 1 && (
+            <button
+              type="button"
+              onClick={exportSelected}
+              title={t("routeList.exportSelectedTitle")}
+            >
+              {t("routeList.exportSelected")}
+            </button>
+          )}
           {selectedCount >= 2 && (
             <>
               <button type="button" onClick={hideSelected} disabled={toolbarLocked}>
@@ -127,6 +153,7 @@ export default function RouteListPanel({ onRefresh, showRouteActions = false }) 
             cols={columnVisibility}
             gridStyle={gridStyle}
             t={t}
+            onEditRouteMetadata={onEditRouteMetadata}
           />
         );
       })}
@@ -134,7 +161,19 @@ export default function RouteListPanel({ onRefresh, showRouteActions = false }) 
   );
 }
 
-function GroupRow({ g, currentName, onRefresh, selected, onToggleSelect, showRouteActions, activeEditGroupId, cols, gridStyle, t }) {
+function GroupRow({
+  g,
+  currentName,
+  onRefresh,
+  selected,
+  onToggleSelect,
+  showRouteActions,
+  activeEditGroupId,
+  cols,
+  gridStyle,
+  t,
+  onEditRouteMetadata,
+}) {
   const handleMouseEnter = () => {
     Route.highlightRoute(g.routes[0].route_id);
   };
@@ -151,6 +190,7 @@ function GroupRow({ g, currentName, onRefresh, selected, onToggleSelect, showRou
     if (!showRouteActions || disableRowActions) return;
     if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT" || e.target.tagName === "B") return;
     Route.clearHover();
+    M.suppressNextEditMapClick = true;
     Route.startEditGroup(g.group_id);
   };
 
@@ -163,15 +203,37 @@ function GroupRow({ g, currentName, onRefresh, selected, onToggleSelect, showRou
   const rowClass =
     `group-header route-item route-list-row-grid${showRouteActions ? "" : " route-item-readonly"}${isActiveEditingRow ? " route-item-active-edit" : ""}${isLockedByOtherRow ? " route-item-disabled" : ""}`;
 
-  const kindBadge = (
-    <span
-      className={`route-kind-badge route-kind-${g.route_kind === Route.ROUTE_KIND_DEFAULT ? "default" : "user"}`}
-      title={t("routeList.kindBadgeTitle")}
-      onMouseDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {g.route_kind === Route.ROUTE_KIND_DEFAULT ? t("routeList.kindDefault") : t("routeList.kindUser")}
-    </span>
+  const status = g.status ?? Route.ROUTE_STATUS_CUSTOM;
+  const statusLabelKey = {
+    [Route.ROUTE_STATUS_OPERATING]: "routeStatus.operating",
+    [Route.ROUTE_STATUS_PLANNING]: "routeStatus.planning",
+    [Route.ROUTE_STATUS_CONSTRUCTION]: "routeStatus.construction",
+    [Route.ROUTE_STATUS_CUSTOM]: "routeStatus.custom",
+  }[status];
+
+  const typeTags = (
+    <div className="route-row-tags-inner">
+      {/* 左側：營運狀態與日後新增標籤 */}
+      <div className="route-row-tags-meta">
+        <span
+          className={`route-list-badge route-status-badge route-status-${status}`}
+          title={t("routeList.statusBadgeTitle")}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {t(statusLabelKey)}
+        </span>
+      </div>
+      {/* 右側固定：使用者／內建（勿移除此區塊順序） */}
+      <span
+        className={`route-list-badge route-kind-badge route-row-tags-kind route-kind-${g.route_kind === Route.ROUTE_KIND_DEFAULT ? "default" : "user"}`}
+        title={t("routeList.kindBadgeTitle")}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {g.route_kind === Route.ROUTE_KIND_DEFAULT ? t("routeList.kindDefault") : t("routeList.kindUser")}
+      </span>
+    </div>
   );
 
   const trailingActions = showRouteActions && cols.actions && (
@@ -193,6 +255,19 @@ function GroupRow({ g, currentName, onRefresh, selected, onToggleSelect, showRou
           Route.clearHover();
         }}
       />
+      <button
+        type="button"
+        className="route-row-action-btn"
+        disabled={disableRowActions}
+        title={t("routeList.routeInfoTitle")}
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          onEditRouteMetadata?.(g.group_id);
+        }}
+      >
+        {t("routeList.routeInfo")}
+      </button>
       <button
         type="button"
         className="route-row-action-btn"
@@ -272,7 +347,7 @@ function GroupRow({ g, currentName, onRefresh, selected, onToggleSelect, showRou
           allowRename={showRouteActions}
         />
       </div>
-      {cols.kind && <div className="route-row-tags-col">{kindBadge}</div>}
+      {cols.kind && <div className="route-row-tags-col">{typeTags}</div>}
       {trailingActions}
     </div>
   );

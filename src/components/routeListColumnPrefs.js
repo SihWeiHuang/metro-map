@@ -42,7 +42,7 @@ export function saveRouteListColumns(cols) {
  */
 export function buildRouteListGridTemplate(showRouteActions, cols) {
   const parts = ["22px", "minmax(0, 1fr)"];
-  if (cols.kind) parts.push("64px");
-  if (showRouteActions && cols.actions) parts.push("minmax(160px, 230px)");
+  if (cols.kind) parts.push("minmax(7.5rem, max-content)");
+  if (showRouteActions && cols.actions) parts.push("minmax(228px, 1fr)");
   return parts.join(" ");
 }

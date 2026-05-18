@@ -397,6 +397,41 @@
   border-color: #e0e0e0;
 }
 
+.app-route-status-select-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.app-route-status-select-label {
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: #424242;
+}
+
+.app-route-status-select {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #1a237e;
+  border: 1px solid #c5cae9;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.app-route-status-select:focus {
+  outline: 2px solid #1565c0;
+  outline-offset: 1px;
+}
+
+.app-route-status-actions {
+  justify-content: flex-end;
+}
+
 .app-edit-mode-toggle {
   display: flex;
   align-items: center;
@@ -663,10 +698,66 @@
 .route-row-tags-col,
 .route-list-header-tags {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: center;
   flex-shrink: 0;
   min-width: 0;
+}
+
+.route-row-tags-inner {
+  --route-badge-width: 4.25em;
+  display: grid;
+  grid-template-columns: 1fr var(--route-badge-width);
+  align-items: center;
+  column-gap: 6px;
+  width: 100%;
+  min-height: 22px;
+}
+
+html[lang="en"] .route-row-tags-inner {
+  --route-badge-width: 8.75em;
+}
+
+.route-row-tags-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.route-row-tags-kind {
+  justify-self: end;
+}
+
+.route-list-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--route-badge-width, 4.25em);
+  min-width: var(--route-badge-width, 4.25em);
+  max-width: var(--route-badge-width, 4.25em);
+  min-height: 20px;
+  box-sizing: border-box;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 5px;
+  line-height: 1.35;
+  white-space: nowrap;
+  user-select: none;
+  border: 1px solid transparent;
+  letter-spacing: 0.02em;
+}
+
+html[lang="en"] .route-list-badge {
+  font-size: 10px;
+  letter-spacing: 0;
 }
 
 .route-list-header-name {
@@ -789,26 +880,42 @@
   box-sizing: border-box;
 }
 
-.route-kind-badge {
-  flex-shrink: 0;
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
-  line-height: 1.35;
-  white-space: nowrap;
-  user-select: none;
-}
-
+/* 路線類型：內建／使用者 */
 .route-kind-default {
-  background: #e3f2fd;
-  color: #0d47a1;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  color: #334155;
+  border-color: #cbd5e1;
 }
 
 .route-kind-user {
-  background: #f3e5f5;
-  color: #4a148c;
+  background: linear-gradient(180deg, #f5f7ff 0%, #eef2ff 100%);
+  color: #3730a3;
+  border-color: #a5b4fc;
+}
+
+/* 營運狀態 */
+.route-status-operating {
+  background: linear-gradient(180deg, #f0fdf8 0%, #e6f7f0 100%);
+  color: #0f766e;
+  border-color: #86d9be;
+}
+
+.route-status-planning {
+  background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+  color: #a16207;
+  border-color: #f0c96a;
+}
+
+.route-status-construction {
+  background: linear-gradient(180deg, #fff7ed 0%, #ffedd5 100%);
+  color: #c2410c;
+  border-color: #fdba74;
+}
+
+.route-status-custom {
+  background: linear-gradient(180deg, #faf5ff 0%, #f3e8ff 100%);
+  color: #7c3aed;
+  border-color: #c4b5fd;
 }
 
 .group-header.route-item {
@@ -847,12 +954,12 @@
 
 .group-row-trailing {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px 8px;
-  row-gap: 6px;
+  gap: 4px;
   min-width: 0;
+  overflow-x: auto;
 }
 
 .group-color-input {
@@ -873,10 +980,10 @@
 
 .route-row-action-btn,
 .delete-group-btn {
-  padding: 4px 8px;
-  font-size: 12px;
+  padding: 4px 6px;
+  font-size: 11px;
   line-height: 1.25;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
 }
 
@@ -894,12 +1001,6 @@
 }
 
 @container route-list (max-width: 280px) {
-  .route-row-action-btn,
-  .delete-group-btn {
-    flex: 1 1 100%;
-    text-align: center;
-  }
-
   .group-color-input {
     flex: 0 0 28px;
   }

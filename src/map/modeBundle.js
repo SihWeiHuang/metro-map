@@ -50,6 +50,8 @@ export const M = {
   pointer: { isDown: false },
   hover: { routeId: "", stationId: "" },
   popups: { route: null, station: null, transferSnapHint: null },
+  /** 地圖選路線後略過緊接著的那次 click，避免誤加編輯點 */
+  suppressNextEditMapClick: false,
 };
 
 export const Modes = {};
@@ -476,12 +478,13 @@ export function finishEditing() {
       saveBtn.click();
     }
     setMode("general");
-  } else {
-    const ok = Route.endTempEditingAndCommit();
-    if (ok) {
-      setMode("general");
-    }
+    return { ok: true, newGroupIds: [] };
   }
+  const result = Route.endTempEditingAndCommit();
+  if (result.ok) {
+    setMode("general");
+  }
+  return result;
 }
 
 export function cancelMerge() {
@@ -489,6 +492,11 @@ export function cancelMerge() {
 }
 
 function onMapClickWhileEditing(e) {
+  if (M.suppressNextEditMapClick) {
+    M.suppressNextEditMapClick = false;
+    return;
+  }
+
   const map = getMap();
   if (!map) return;
 
@@ -770,6 +778,7 @@ Modes["edit-route-select"] = {
     if (!groupId) return;
 
     Route.clearHover();
+    M.suppressNextEditMapClick = true;
     Route.startEditGroup(groupId);
     const map = getMap();
     map.once("mouseup", () => setMode("edit-route-active"));
@@ -779,7 +788,9 @@ Modes["edit-route-select"] = {
 Modes["edit-route-active"] = {
   name: "edit-route-active",
   onEnter() {},
-  onLeave() {},
+  onLeave() {
+    M.suppressNextEditMapClick = false;
+  },
   onMapMove: Modes["add-route"].onMapMove,
   onMapClick: onMapClickWhileEditing,
   onTempLineClick: Modes["add-route"].onTempLineClick,
