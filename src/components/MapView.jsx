@@ -3,6 +3,13 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useI18n } from "../i18n/I18nProvider.jsx";
 import { setMapInstance } from "../map/mapInstance.js";
+import {
+  applyMapCameraAfterLoad,
+  bindMapViewPersistence,
+  consumePendingMapFit,
+  getInitialMapCamera,
+  snapshotMapView,
+} from "../map/mapViewState.js";
 import { addStationLabelFrameImage } from "../map/labelMoveFrameImage.js";
 import { initializeLayers } from "../map/layers.js";
 import { Route, store } from "../map/routeModel.js";
@@ -13,12 +20,7 @@ const DEFAULT_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
 export default function MapView({ onModeChange }) {
   const { locale } = useI18n();
   const containerRef = useRef(null);
-  const lastViewRef = useRef({
-    center: [121.51, 25.03],
-    zoom: 14,
-    bearing: 0,
-    pitch: 0,
-  });
+  const lastViewRef = useRef(getInitialMapCamera());
 
   useEffect(() => {
     registerModeChange(onModeChange);
@@ -54,19 +56,17 @@ export default function MapView({ onModeChange }) {
       initializeLayers(map, store);
       Route.refreshSources();
       initializeEventListeners();
+      applyMapCameraAfterLoad(map);
+      consumePendingMapFit(map);
+      bindMapViewPersistence(map);
     };
 
     if (map.loaded()) onLoad();
     else map.once("load", onLoad);
 
     return () => {
-      const center = map.getCenter();
-      lastViewRef.current = {
-        center: [center.lng, center.lat],
-        zoom: map.getZoom(),
-        bearing: map.getBearing(),
-        pitch: map.getPitch(),
-      };
+      const snap = snapshotMapView(map);
+      if (snap) lastViewRef.current = snap;
       setMapInstance(null);
       map.remove();
     };

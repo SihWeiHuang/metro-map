@@ -14,6 +14,7 @@ import {
 import { Route } from "./map/routeModel.js";
 import { useI18n } from "./i18n/I18nProvider.jsx";
 import { resizeMap } from "./map/mapInstance.js";
+import { requestImportedMapView } from "./map/mapViewState.js";
 
 const ROUTE_LIST_WIDTH_STORAGE_KEY = "metro-route-list-width";
 const ROUTE_LIST_MIN_PX = 200;
@@ -212,6 +213,7 @@ function App() {
     setMode("general");
     setEditToolsOpen(false);
     bumpRouteList();
+    const importedMapView = result.mapView;
     const successKey =
       result.mode === "replaceMatching" ? "app.importSuccessReplaceMatching" : "app.importSuccess";
     const successVars =
@@ -226,6 +228,7 @@ function App() {
             stations: result.stationCount,
           };
     alert(t(successKey, successVars));
+    requestImportedMapView(importedMapView);
   };
 
   const handleImportFile = async (file) => {
@@ -268,7 +271,9 @@ function App() {
     setMode("general");
     setEditToolsOpen(false);
     bumpRouteList();
+    const restoredMapView = result.mapView;
     alert(t("app.undoLastImportSuccess"));
+    requestImportedMapView(restoredMapView);
   };
 
   const openFileMenu = () => {

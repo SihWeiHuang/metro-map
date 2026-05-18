@@ -9,6 +9,8 @@ import {
   tempLineFeaturesWithSmoothedGeometry,
 } from "./displayLineSmoothing.js";
 import { DEFAULT_BUILTIN_MAP_DATA } from "./defaultBuiltinData.js";
+import { computeMapViewFromFeatures, normalizeImportedMapView } from "./mapGeoBounds.js";
+import { scheduleImportMapView } from "./mapViewState.js";
 
 export const store = {
   routesFC: { type: "FeatureCollection", features: [] },
@@ -431,7 +433,9 @@ function undoLastImport() {
   try {
     restoreUserStateSnapshot(snapshot);
     refreshSources();
-    return { ok: true };
+    const mapView = computeMapViewFromFeatures(snapshot.userRoutes, snapshot.userStations);
+    scheduleImportMapView(mapView);
+    return { ok: true, mapView };
   } finally {
     skipImportUndoInvalidate = false;
     notifyImportUndoListeners();
@@ -1154,6 +1158,7 @@ function buildUserExportPayload(groupIds) {
     .map(sanitizeStationForExport)
     .filter(Boolean);
   const hiddenRouteIds = Array.from(store.hiddenRouteIds).filter((id) => userRouteIds.has(id));
+  const mapView = computeMapViewFromFeatures(userRoutes, userStations);
   return {
     format: EXPORT_FILE_FORMAT,
     formatVersion: PERSIST_VERSION,
@@ -1164,6 +1169,7 @@ function buildUserExportPayload(groupIds) {
     hiddenRouteIds,
     counters: { ...store.counters },
     settings: { ...store.settings },
+    ...(mapView ? { mapView } : {}),
   };
 }
 
@@ -1301,12 +1307,18 @@ function parseImportPayload(data) {
   const userStations = extractUserStationsByRoutes(allStations, userRouteIds)
     .map(sanitizeStationForExport)
     .filter(Boolean);
+  const mapView =
+    normalizeImportedMapView(data.mapView) ??
+    normalizeImportedMapView(data.mapCenter) ??
+    computeMapViewFromFeatures(userRoutes, userStations);
+
   return {
     userRoutes,
     userStations,
     hiddenRouteIds: Array.isArray(data.hiddenRouteIds) ? data.hiddenRouteIds : [],
     counters: data.counters,
     settings: data.settings,
+    mapView,
   };
 }
 
@@ -1374,7 +1386,7 @@ function importUserStateJSON(jsonString, options = {}) {
   const snapshotBeforeImport = captureUserStateSnapshot();
   try {
     const data = JSON.parse(jsonString);
-    const { userRoutes, userStations, hiddenRouteIds, counters, settings } = parseImportPayload(data);
+    const { userRoutes, userStations, hiddenRouteIds, counters, settings, mapView } = parseImportPayload(data);
     const mode = options.mode ?? "merge";
     const duplicateGroupNames =
       mode === "replaceMatching" ? getImportDuplicateGroupNames(userRoutes) : [];
@@ -1404,7 +1416,8 @@ function importUserStateJSON(jsonString, options = {}) {
     lastImportUndoSnapshot = snapshotBeforeImport;
     refreshSources();
     notifyImportUndoListeners();
-    return { ok: true, ...buildImportResultStats(userRoutes, userStations, mode, duplicateGroupNames) };
+    scheduleImportMapView(mapView);
+    return { ok: true, mapView, ...buildImportResultStats(userRoutes, userStations, mode, duplicateGroupNames) };
   } catch (e) {
     restoreUserStateSnapshot(snapshotBeforeImport);
     lastImportUndoSnapshot = null;
