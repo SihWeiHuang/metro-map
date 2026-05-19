@@ -1,21 +1,50 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../i18n/I18nProvider.jsx";
 import { Route } from "../map/routeModel.js";
-import { M, setMode } from "../map/modeBundle.js";
+import {
+  getMergePickRouteIds,
+  M,
+  pickRouteForMerge,
+  pickRouteForUngroup,
+  registerMergePickChange,
+  setMode,
+} from "../map/modeBundle.js";
 import {
   buildRouteListGridTemplate,
   defaultRouteListColumns,
 } from "./routeListColumnPrefs.js";
 
-export default function RouteListPanel({ onRefresh, showRouteActions = false, onEditRouteMetadata }) {
+function getGroupMergePickOrder(routes, mergePickRouteIds) {
+  for (let i = 0; i < mergePickRouteIds.length; i++) {
+    if (routes.some((r) => r.route_id === mergePickRouteIds[i])) return i + 1;
+  }
+  return 0;
+}
+
+export default function RouteListPanel({
+  onRefresh,
+  showRouteActions = false,
+  mergeSelectMode = false,
+  ungroupSelectMode = false,
+  onEditRouteMetadata,
+}) {
   const { t } = useI18n();
   const groupList = Route.getGroupList();
   const [selectedGroupIds, setSelectedGroupIds] = useState(() => new Set());
+  const [mergePickRouteIds, setMergePickRouteIds] = useState(() => getMergePickRouteIds());
   const [columnVisibility] = useState(defaultRouteListColumns);
 
+  const listCols = useMemo(
+    () => ({
+      ...columnVisibility,
+      kind: showRouteActions ? false : columnVisibility.kind,
+    }),
+    [columnVisibility, showRouteActions],
+  );
+
   const gridTemplateColumns = useMemo(
-    () => buildRouteListGridTemplate(showRouteActions, columnVisibility),
-    [showRouteActions, columnVisibility],
+    () => buildRouteListGridTemplate(showRouteActions, listCols),
+    [showRouteActions, listCols],
   );
   const gridStyle = useMemo(() => ({ gridTemplateColumns }), [gridTemplateColumns]);
 
@@ -31,10 +60,20 @@ export default function RouteListPanel({ onRefresh, showRouteActions = false, on
     if (!showRouteActions) setSelectedGroupIds(new Set());
   }, [showRouteActions]);
 
+  useEffect(() => {
+    registerMergePickChange(() => setMergePickRouteIds(getMergePickRouteIds()));
+  }, []);
+
+  useEffect(() => {
+    if (!mergeSelectMode) setMergePickRouteIds([]);
+  }, [mergeSelectMode]);
+
   const allSelected = groupList.length > 0 && selectedGroupIds.size === groupList.length;
   const selectedCount = selectedGroupIds.size;
   const activeEditGroupId = showRouteActions ? Route.getActiveEditGroupId() : null;
   const toolbarLocked = !!activeEditGroupId;
+  /** 已勾選至少一條時，禁止點列進入臨時編輯，僅能繼續勾選 */
+  const blockRowEdit = showRouteActions && selectedGroupIds.size > 0;
 
   const visibleGroupList = groupList;
 
@@ -72,6 +111,20 @@ export default function RouteListPanel({ onRefresh, showRouteActions = false, on
     onRefresh();
   };
 
+  const handleMergeGroupPick = (group) => {
+    const routeId = group.routes[0]?.route_id;
+    if (!routeId) return;
+    const result = pickRouteForMerge(routeId);
+    if (result.merged) onRefresh();
+  };
+
+  const handleUngroupGroupPick = (group) => {
+    const routeId = group.routes[0]?.route_id;
+    if (!routeId) return;
+    const result = pickRouteForUngroup(routeId);
+    if (result.ok) onRefresh();
+  };
+
   const exportSelected = () => {
     const result = Route.exportGroupsJSON(Array.from(selectedGroupIds));
     if (!result.ok) {
@@ -90,7 +143,18 @@ export default function RouteListPanel({ onRefresh, showRouteActions = false, on
   };
 
   return (
-    <div className="route-list-inner">
+    <div className={`route-list-inner${showRouteActions ? " route-list-inner--edit" : ""}`}>
+      {mergeSelectMode && (
+        <div className="route-batch-toolbar route-merge-toolbar">
+          <span className="route-merge-toolbar-hint">{t("routeList.mergePickHint")}</span>
+          <span className="route-selected-count">{t("routeList.mergePickProgress", { n: mergePickRouteIds.length })}</span>
+        </div>
+      )}
+      {ungroupSelectMode && (
+        <div className="route-batch-toolbar route-merge-toolbar">
+          <span className="route-merge-toolbar-hint">{t("routeList.ungroupPickHint")}</span>
+        </div>
+      )}
       {showRouteActions && (
         <div className="route-batch-toolbar">
           <label className="route-select-all">
@@ -127,12 +191,12 @@ export default function RouteListPanel({ onRefresh, showRouteActions = false, on
         <div className="route-list-header-name">
           <span className="route-list-header-label">{t("routeList.colName")}</span>
         </div>
-        {columnVisibility.kind && (
+        {listCols.kind && (
           <div className="route-list-header-tags">
             <span className="route-list-header-label">{t("routeList.colKind")}</span>
           </div>
         )}
-        {showRouteActions && columnVisibility.actions && (
+        {showRouteActions && listCols.actions && (
           <div className="group-row-trailing route-list-header-trailing">
             <span className="route-list-header-label">{t("routeList.colActions")}</span>
           </div>
@@ -140,6 +204,7 @@ export default function RouteListPanel({ onRefresh, showRouteActions = false, on
       </div>
       {visibleGroupList.map((g) => {
         const currentName = g.routes[0]?.name || t("routeList.groupFallback", { id: g.group_id });
+        const mergePickOrder = mergeSelectMode ? getGroupMergePickOrder(g.routes, mergePickRouteIds) : 0;
         return (
           <GroupRow
             key={g.group_id}
@@ -149,8 +214,14 @@ export default function RouteListPanel({ onRefresh, showRouteActions = false, on
             selected={selectedGroupIds.has(g.group_id)}
             onToggleSelect={() => toggleGroupSelect(g.group_id)}
             showRouteActions={showRouteActions}
+            mergeSelectMode={mergeSelectMode}
+            ungroupSelectMode={ungroupSelectMode}
+            mergePickOrder={mergePickOrder}
+            onMergePick={() => handleMergeGroupPick(g)}
+            onUngroupPick={() => handleUngroupGroupPick(g)}
             activeEditGroupId={activeEditGroupId}
-            cols={columnVisibility}
+            blockRowEdit={blockRowEdit}
+            cols={listCols}
             gridStyle={gridStyle}
             t={t}
             onEditRouteMetadata={onEditRouteMetadata}
@@ -168,7 +239,13 @@ function GroupRow({
   selected,
   onToggleSelect,
   showRouteActions,
+  mergeSelectMode = false,
+  ungroupSelectMode = false,
+  mergePickOrder = 0,
+  onMergePick,
+  onUngroupPick,
   activeEditGroupId,
+  blockRowEdit = false,
   cols,
   gridStyle,
   t,
@@ -187,7 +264,7 @@ function GroupRow({
   const disableRowActions = isLockedByOtherRow;
 
   const startEdit = (e) => {
-    if (!showRouteActions || disableRowActions) return;
+    if (!showRouteActions || disableRowActions || blockRowEdit) return;
     if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT" || e.target.tagName === "B") return;
     Route.clearHover();
     M.suppressNextEditMapClick = true;
@@ -195,13 +272,32 @@ function GroupRow({
   };
 
   const endMouseUp = (e) => {
-    if (!showRouteActions || disableRowActions) return;
+    if (!showRouteActions || disableRowActions || blockRowEdit) return;
     if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT" || e.target.tagName === "B") return;
     setMode("edit-route-active");
   };
 
+  const handleBatchRowClick = (e) => {
+    if (!blockRowEdit || mergeSelectMode) return;
+    if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT" || e.target.tagName === "B") return;
+    onToggleSelect();
+  };
+
+  const handleMergeRowClick = (e) => {
+    if (!mergeSelectMode) return;
+    if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT" || e.target.tagName === "B") return;
+    onMergePick?.();
+  };
+
+  const handleUngroupRowClick = (e) => {
+    if (!ungroupSelectMode) return;
+    if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT" || e.target.tagName === "B") return;
+    onUngroupPick?.();
+  };
+
+  const listPickMode = mergeSelectMode || ungroupSelectMode;
   const rowClass =
-    `group-header route-item route-list-row-grid${showRouteActions ? "" : " route-item-readonly"}${isActiveEditingRow ? " route-item-active-edit" : ""}${isLockedByOtherRow ? " route-item-disabled" : ""}`;
+    `group-header route-item route-list-row-grid${showRouteActions ? (blockRowEdit ? " route-item-batch-select" : "") : listPickMode ? " route-item-merge-select" : " route-item-readonly"}${isActiveEditingRow ? " route-item-active-edit" : ""}${isLockedByOtherRow ? " route-item-disabled" : ""}${mergePickOrder > 0 ? " route-item-merge-picked" : ""}`;
 
   const status = g.status ?? Route.ROUTE_STATUS_CUSTOM;
   const statusLabelKey = {
@@ -318,11 +414,26 @@ function GroupRow({
       style={gridStyle}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onMouseDown={showRouteActions ? startEdit : undefined}
-      onMouseUp={showRouteActions ? endMouseUp : undefined}
+      onMouseDown={showRouteActions && !blockRowEdit ? startEdit : undefined}
+      onMouseUp={showRouteActions && !blockRowEdit ? endMouseUp : undefined}
+      onClick={
+        mergeSelectMode
+          ? handleMergeRowClick
+          : ungroupSelectMode
+            ? handleUngroupRowClick
+            : blockRowEdit
+              ? handleBatchRowClick
+              : undefined
+      }
     >
       <div className="route-row-lead">
-        {showRouteActions ? (
+        {listPickMode ? (
+          <span
+            className="route-color-swatch"
+            style={{ backgroundColor: g.routes[0]?.color || "#1e88e5" }}
+            aria-hidden
+          />
+        ) : showRouteActions ? (
           <input
             type="checkbox"
             checked={selected}

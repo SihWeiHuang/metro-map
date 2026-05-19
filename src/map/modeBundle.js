@@ -23,6 +23,7 @@ import { t } from "../i18n/i18n.js";
 let onModeChange = () => {};
 let onEditStationSubmodeChange = () => {};
 let onModeHintChange = () => {};
+let onMergePickChange = () => {};
 
 export function registerModeChange(fn) {
   onModeChange = fn;
@@ -35,6 +36,34 @@ export function registerEditStationSubmodeChange(fn) {
 export function registerModeHintChange(fn) {
   onModeHintChange = fn;
   onModeHintChange(getModeHintText());
+}
+
+export function registerMergePickChange(fn) {
+  onMergePickChange = fn;
+  onMergePickChange();
+}
+
+function emitMergePickChange() {
+  onMergePickChange();
+}
+
+export function getMergePickRouteIds() {
+  return [...mergePick];
+}
+
+/** @returns {{ picked: boolean, merged?: boolean, ok?: boolean, msg?: string }} */
+export function pickRouteForMerge(routeId) {
+  if (M.mode !== "merge" || typeof routeId !== "string") return { picked: false };
+  if (!mergePick.includes(routeId)) mergePick.push(routeId);
+  Route.highlightRoute(routeId);
+  emitModeHint();
+  emitMergePickChange();
+  if (mergePick.length < 2) return { picked: true, merged: false };
+  const res = Route.mergeRoutes(mergePick[0], mergePick[1]);
+  if (!res.ok) alert(res.msg);
+  else alert(t("routeModel.mergeSuccess"));
+  setMode("general");
+  return { picked: true, merged: true, ok: res.ok, msg: res.msg };
 }
 
 export const M = {
@@ -350,39 +379,94 @@ export function popupRoute(lngLat, routeId) {
     .addTo(getMap());
 }
 
+function addRouteIdToSet(ids, routeId) {
+  if (routeId == null || routeId === "") return;
+  ids.add(String(routeId));
+}
+
+function collectRouteIdsForStation(station) {
+  const ids = new Set();
+  addRouteIdToSet(ids, station?.properties?.route_id);
+  const transferRoutes = station?.properties?.transfer_routes;
+  if (Array.isArray(transferRoutes)) {
+    transferRoutes.forEach((rid) => addRouteIdToSet(ids, rid));
+  }
+  return ids;
+}
+
+function resolveStoreStation(stationFeature) {
+  const sid = stationFeature?.properties?.station_id;
+  if (typeof sid !== "string") return stationFeature;
+  return store.stationsFC.features.find((f) => f.properties?.station_id === sid) || stationFeature;
+}
+
+/** 彙整 hover 車站經過的路線 id（含 store 完整屬性與近距離共點）。 */
+function collectPassingRouteIdsForPopup(hoveredFeature) {
+  const ids = new Set();
+  const storeStation = resolveStoreStation(hoveredFeature);
+
+  const addFromStation = (station) => {
+    collectRouteIdsForStation(station).forEach((rid) => ids.add(rid));
+  };
+
+  addFromStation(hoveredFeature);
+  addFromStation(storeStation);
+
+  const anchorCoord = storeStation?.geometry?.coordinates || hoveredFeature?.geometry?.coordinates;
+  if (anchorCoord) {
+    const coincidentRadiusMeters = 10;
+    for (const feature of store.stationsFC.features) {
+      const distance = turf.distance(feature.geometry.coordinates, anchorCoord, { units: "meters" });
+      if (distance <= coincidentRadiusMeters) addFromStation(feature);
+    }
+  }
+
+  return ids;
+}
+
+function collectGroupNamesForRouteIds(routeIds) {
+  const groups = new Map();
+  routeIds.forEach((routeId) => {
+    const parentRoute = store.routesFC.features.find((f) => f.properties.route_id === routeId);
+    if (!parentRoute) return;
+    const groupId = parentRoute.properties.group_id;
+    if (typeof groupId !== "string" || groups.has(groupId)) return;
+    const firstRouteInGroup = store.routesFC.features.find((f) => f.properties.group_id === groupId);
+    const groupDisplayName =
+      firstRouteInGroup?.properties?.name || t("routeList.groupFallback", { id: groupId });
+    groups.set(groupId, groupDisplayName);
+  });
+  return groups;
+}
+
+/** 車站 popup 顯示用的路線／群組名稱（至少一條）。 */
+function buildPassingRouteLabels(passingRouteIds) {
+  const fromGroups = Array.from(collectGroupNamesForRouteIds(passingRouteIds).values());
+  if (fromGroups.length > 0) return fromGroups;
+  return [...passingRouteIds].map((rid) => {
+    const route = store.routesFC.features.find((f) => f.properties.route_id === rid);
+    if (route?.properties?.group_id) {
+      const gid = route.properties.group_id;
+      const firstInGroup = store.routesFC.features.find((f) => f.properties.group_id === gid);
+      return firstInGroup?.properties?.name || t("routeList.groupFallback", { id: gid });
+    }
+    return route?.properties?.name || t("routeModel.routeDefault", { id: rid });
+  });
+}
+
 export function popupStation(lngLat, st) {
   const p = st.properties;
-  const hoveredCoords = st.geometry.coordinates;
-
-  const coincidentStations = store.stationsFC.features.filter((feature) => {
-    const distance = turf.distance(feature.geometry.coordinates, hoveredCoords, { units: "meters" });
-    return distance < 1;
-  });
-
-  const groups = new Map();
-  coincidentStations.forEach((station) => {
-    const parentRoute = store.routesFC.features.find((f) => f.properties.route_id === station.properties.route_id);
-    if (parentRoute) {
-      const groupId = parentRoute.properties.group_id;
-      if (!groups.has(groupId)) {
-        const firstRouteInGroup = store.routesFC.features.find((f) => f.properties.group_id === groupId);
-        const groupDisplayName = firstRouteInGroup?.properties?.name || t("routeList.groupFallback", { id: groupId });
-        groups.set(groupId, groupDisplayName);
-      }
-    }
-  });
+  const passingRouteIds = collectPassingRouteIdsForPopup(st);
+  const routeLabels = buildPassingRouteLabels(passingRouteIds);
 
   const stationNameHTML = `<b>${p.name || p.station_id}</b>`;
   let groupInfoHTML = "";
-  const groupNames = Array.from(groups.values());
 
-  if (groupNames.length > 1) {
+  if (routeLabels.length > 0) {
     groupInfoHTML =
       `<hr style="margin:2px 0;">${t("popup.routesPassingHeader")}<ul style="margin:0; padding-left:20px;">` +
-      groupNames.map((name) => `<li>${name}</li>`).join("") +
+      routeLabels.map((name) => `<li>${name}</li>`).join("") +
       "</ul>";
-  } else if (groupNames.length === 1) {
-    groupInfoHTML = `<br>${groupNames[0]}`;
   }
 
   if (M.popups.station) {
@@ -1023,10 +1107,12 @@ Modes.merge = {
   onEnter() {
     mergePick.length = 0;
     emitModeHint();
+    emitMergePickChange();
   },
   onLeave() {
     mergePick.length = 0;
     emitModeHint();
+    emitMergePickChange();
   },
 
   onRouteMove(e) {
@@ -1035,15 +1121,7 @@ Modes.merge = {
   },
 
   onRouteClick(e) {
-    const rid = e.features[0].properties.route_id;
-    if (!mergePick.includes(rid)) mergePick.push(rid);
-    Route.highlightRoute(rid);
-    emitModeHint();
-    if (mergePick.length === 2) {
-      const res = Route.mergeRoutes(mergePick[0], mergePick[1]);
-      if (!res.ok) alert(res.msg);
-      setMode("general");
-    }
+    pickRouteForMerge(e.features[0].properties.route_id);
   },
 };
 
@@ -1059,12 +1137,19 @@ Modes.ungroup = {
   },
 
   onRouteClick(e) {
-    const rid = e.features[0].properties.route_id;
-    const res = Route.ungroupRoute(rid);
-    if (!res.ok) alert(res.msg);
-    setMode("general");
+    pickRouteForUngroup(e.features[0].properties.route_id);
   },
 };
+
+/** @returns {{ ok: boolean, msg?: string }} */
+export function pickRouteForUngroup(routeId) {
+  if (M.mode !== "ungroup" || typeof routeId !== "string") return { ok: false };
+  const res = Route.ungroupRoute(routeId);
+  if (!res.ok) alert(res.msg);
+  else alert(t("routeModel.ungroupSuccess"));
+  setMode("general");
+  return res;
+}
 
 export function initializeEventListeners() {
   const map = getMap();

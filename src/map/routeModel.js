@@ -61,30 +61,62 @@ function normalizeStatus(value) {
   return ROUTE_STATUS_VALUES.has(value) ? value : ROUTE_STATUS_CUSTOM;
 }
 
-/** Ensure new ids never collide after loading from disk. */
-function syncCountersFromLoadedFeatures() {
-  let maxR = 0;
-  let maxG = 0;
-  let maxS = 0;
+function addNumericIdToSet(set, id, pattern) {
+  if (typeof id !== "string") return;
+  const m = id.match(pattern);
+  if (m) set.add(parseInt(m[1], 10));
+}
+
+/** 收集已使用的 r/g/s 數字（含編輯暫存）。 */
+function collectUsedNumericIds() {
+  const routes = new Set();
+  const groups = new Set();
+  const stations = new Set();
   for (const f of store.routesFC.features) {
-    const rid = f.properties?.route_id;
-    const gid = f.properties?.group_id;
-    if (typeof rid === "string" && /^r\d+$/.test(rid)) {
-      maxR = Math.max(maxR, parseInt(rid.slice(1), 10));
-    }
-    if (typeof gid === "string" && /^g\d+$/.test(gid)) {
-      maxG = Math.max(maxG, parseInt(gid.slice(1), 10));
-    }
+    addNumericIdToSet(routes, f.properties?.route_id, /^r(\d+)$/);
+    addNumericIdToSet(groups, f.properties?.group_id, /^g(\d+)$/);
   }
   for (const f of store.stationsFC.features) {
-    const sid = f.properties?.station_id;
-    if (typeof sid === "string" && /^s\d+$/.test(sid)) {
-      maxS = Math.max(maxS, parseInt(sid.slice(1), 10));
-    }
+    addNumericIdToSet(stations, f.properties?.station_id, /^s(\d+)$/);
   }
-  store.counters.route = Math.max(store.counters.route, maxR + 1);
-  store.counters.group = Math.max(store.counters.group, maxG + 1);
-  store.counters.station = Math.max(store.counters.station, maxS + 1);
+  for (const session of store.temp.editingSessions || []) {
+    addNumericIdToSet(routes, session?.routeId, /^r(\d+)$/);
+  }
+  for (const sid of store.temp.previewStations || []) {
+    addNumericIdToSet(stations, sid, /^s(\d+)$/);
+  }
+  for (const q of store.temp.queuedStations || []) {
+    addNumericIdToSet(stations, q?.station_id, /^s(\d+)$/);
+  }
+  return { routes, groups, stations };
+}
+
+function firstAvailableInSet(usedSet) {
+  let n = 1;
+  while (usedSet.has(n)) n++;
+  return n;
+}
+
+function maxInSet(usedSet) {
+  if (!usedSet.size) return 0;
+  return Math.max(...usedSet);
+}
+
+/** 下一個編號優先填補空隙（例如已有 r1,r2,r5 → 下一條為 r3）。 */
+function alignCounterToUsedIds(counterKey, usedSet) {
+  const first = firstAvailableInSet(usedSet);
+  const maxUsed = maxInSet(usedSet);
+  const cur = store.counters[counterKey];
+  if (cur < first || usedSet.has(cur) || cur > maxUsed) {
+    store.counters[counterKey] = first;
+  }
+}
+
+function syncCountersFromLoadedFeatures() {
+  const used = collectUsedNumericIds();
+  alignCounterToUsedIds("route", used.routes);
+  alignCounterToUsedIds("group", used.groups);
+  alignCounterToUsedIds("station", used.stations);
 }
 
 function deepCloneFC(fc) {
@@ -201,9 +233,7 @@ function mergeUserStateIntoStore(userRoutes, userStations) {
 
   store.routesFC.features.push(...mergedRoutes);
   store.stationsFC.features.push(...mergedStations);
-  store.counters.route = Math.max(store.counters.route, routeCounter);
-  store.counters.group = Math.max(store.counters.group, groupCounter);
-  store.counters.station = Math.max(store.counters.station, stationCounter);
+  syncCountersFromLoadedFeatures();
 }
 
 function loadPersistedUserState() {
@@ -270,15 +300,26 @@ function schedulePersistToStorage() {
   }, 200);
 }
 
-const nextRouteId = () => `r${store.counters.route++}`;
-const nextGroupId = () => `g${store.counters.group++}`;
-const nextStationId = () => `s${store.counters.station++}`;
+const nextRouteId = () => {
+  syncCountersFromLoadedFeatures();
+  return `r${store.counters.route++}`;
+};
+const nextGroupId = () => {
+  syncCountersFromLoadedFeatures();
+  return `g${store.counters.group++}`;
+};
+const nextStationId = () => {
+  syncCountersFromLoadedFeatures();
+  return `s${store.counters.station++}`;
+};
 const TRANSFER_DEDUP_METERS = 4;
 
 /** 游標與黃色吸附點距離 ≤ 此值（公尺）時視為「吸附」，可調整吸附強弱。 */
 export const TRANSFER_SNAP_HOVER_METERS = 22;
 /** 點擊路線時，與交叉吸附點距離 ≤ 此值（公尺）則改為新增轉乘站（略大於 hover 較好點）。 */
 export const TRANSFER_SNAP_CLICK_METERS = 30;
+/** 建立／整理轉乘站時，合併半徑內的一般站與路線端點站。 */
+const TRANSFER_ABSORB_METERS = 10;
 
 const NAME_MAX_LEN = 15;
 function clampName15(v) {
@@ -604,6 +645,7 @@ function deleteRoute(route_id) {
   store.routesFC.features = store.routesFC.features.filter((f) => f.properties.route_id !== route_id);
   store.stationsFC.features = store.stationsFC.features.filter((f) => f.properties.route_id !== route_id);
   store.hiddenRouteIds.delete(route_id);
+  syncCountersFromLoadedFeatures();
   refreshSources();
 }
 
@@ -615,6 +657,7 @@ function deleteGroup(groupId) {
   store.routesFC.features = store.routesFC.features.filter((f) => f.properties.group_id !== groupId);
   store.stationsFC.features = store.stationsFC.features.filter((f) => !routeIdsInGroup.includes(f.properties.route_id));
   routeIdsInGroup.forEach((rid) => store.hiddenRouteIds.delete(rid));
+  syncCountersFromLoadedFeatures();
   refreshSources();
 }
 
@@ -629,6 +672,7 @@ function deleteGroups(groupIds) {
   store.routesFC.features = store.routesFC.features.filter((f) => !idSet.has(f.properties.group_id));
   store.stationsFC.features = store.stationsFC.features.filter((f) => !routeIdsToDelete.includes(f.properties.route_id));
   routeIdsToDelete.forEach((rid) => store.hiddenRouteIds.delete(rid));
+  syncCountersFromLoadedFeatures();
   refreshSources();
 }
 
@@ -759,6 +803,8 @@ function endTempEditingAndCommit() {
   store.temp.editingSessions = [];
   store.temp.previewStations = [];
   store.temp.queuedStations = [];
+  normalizeAllTransferStations();
+  syncCountersFromLoadedFeatures();
   refreshSources();
   return { ok: true, newGroupIds };
 }
@@ -823,25 +869,112 @@ function addStationAt(route_id, coord, name = null, color = null, extraProps = {
   return station_id;
 }
 
-function addTransferStationAt(coord, routeIdA, routeIdB) {
-  const mergeRadiusMeters = 10;
-  const nearbyStations = store.stationsFC.features.filter((s) => {
-    return T.distance(T.point(s.geometry.coordinates), T.point(coord), { units: "meters" }) <= mergeRadiusMeters;
-  });
-  const nearbyIds = new Set(nearbyStations.map((s) => s.properties.station_id));
-  const mergedRouteIds = new Set([routeIdA, routeIdB]);
-  nearbyStations.forEach((s) => {
-    if (typeof s.properties?.route_id === "string") mergedRouteIds.add(s.properties.route_id);
-    if (s.properties?.is_transfer_fixed && Array.isArray(s.properties.transfer_routes)) {
-      s.properties.transfer_routes.forEach((rid) => {
-        if (typeof rid === "string") mergedRouteIds.add(rid);
-      });
-    }
-  });
+function expandMergedRouteIdsFromStation(station, mergedRouteIds) {
+  if (typeof station?.properties?.route_id === "string") mergedRouteIds.add(station.properties.route_id);
+  const transferRoutes = station?.properties?.transfer_routes;
+  if (Array.isArray(transferRoutes)) {
+    transferRoutes.forEach((rid) => {
+      if (typeof rid === "string") mergedRouteIds.add(rid);
+    });
+  }
+}
 
-  // Requirement: when creating a transfer at this point, remove original stations and keep only one transfer station.
-  store.stationsFC.features = store.stationsFC.features.filter((s) => !nearbyIds.has(s.properties.station_id));
+/** 轉乘點應吸收的一般站（含重疊的 s5/s6、路線頭尾站）。 */
+function collectStationIdsToAbsorbForTransfer(coord, mergedRouteIds) {
+  const toRemove = new Set();
+  const routeIds = new Set(mergedRouteIds);
+  const transferPoint = T.point(coord);
+
+  const markForAbsorb = (s) => {
+    if (!s?.properties?.station_id) return;
+    if (s.properties.is_transfer_fixed) return;
+    toRemove.add(s.properties.station_id);
+    expandMergedRouteIdsFromStation(s, routeIds);
+  };
+
+  for (const s of store.stationsFC.features) {
+    const d = T.distance(T.point(s.geometry.coordinates), transferPoint, { units: "meters" });
+    if (d <= TRANSFER_ABSORB_METERS) markForAbsorb(s);
+  }
+
+  for (const routeId of routeIds) {
+    const route = store.routesFC.features.find((f) => f.properties.route_id === routeId);
+    if (!route?.geometry?.coordinates || route.geometry.coordinates.length < 2) continue;
+    const coords = route.geometry.coordinates;
+    const line = T.lineString(coords);
+    const ends = [coords[0], coords[coords.length - 1]];
+
+    for (const endCoord of ends) {
+      const endNearTransfer =
+        T.distance(T.point(endCoord), transferPoint, { units: "meters" }) <= TRANSFER_ABSORB_METERS;
+      if (!endNearTransfer) continue;
+
+      for (const s of store.stationsFC.features) {
+        if (s.properties?.route_id !== routeId) continue;
+        const sc = s.geometry.coordinates;
+        const dEnd = T.distance(T.point(sc), T.point(endCoord), { units: "meters" });
+        const dTr = T.distance(T.point(sc), transferPoint, { units: "meters" });
+        if (dEnd <= TRANSFER_ABSORB_METERS || dTr <= TRANSFER_ABSORB_METERS) markForAbsorb(s);
+      }
+    }
+
+    for (const s of store.stationsFC.features) {
+      if (s.properties?.route_id !== routeId) continue;
+      if (s.properties?.is_transfer_fixed) continue;
+      const snapped = T.nearestPointOnLine(line, s.geometry.coordinates, { units: "meters" });
+      const dAlong = snapped.properties.dist ?? Infinity;
+      const dToTransfer = T.distance(T.point(s.geometry.coordinates), transferPoint, { units: "meters" });
+      if (dAlong <= TRANSFER_ABSORB_METERS && dToTransfer <= TRANSFER_ABSORB_METERS) markForAbsorb(s);
+    }
+  }
+
+  return { stationIds: toRemove, routeIds };
+}
+
+function hasTransferCoveringRoutePoint(routeId, pt, radiusMeters = TRANSFER_ABSORB_METERS) {
+  const p = T.point(pt);
+  return store.stationsFC.features.some((s) => {
+    if (!s.properties?.is_transfer_fixed) return false;
+    const routes = s.properties.transfer_routes || [];
+    const coversRoute =
+      s.properties.route_id === routeId || (Array.isArray(routes) && routes.includes(routeId));
+    if (!coversRoute) return false;
+    return T.distance(T.point(s.geometry.coordinates), p, { units: "meters" }) <= radiusMeters;
+  });
+}
+
+function applyTransferAbsorption(coord, mergedRouteIds) {
+  const { stationIds, routeIds } = collectStationIdsToAbsorbForTransfer(coord, mergedRouteIds);
+  store.stationsFC.features = store.stationsFC.features.filter(
+    (s) => !stationIds.has(s.properties.station_id),
+  );
+  return routeIds;
+}
+
+function normalizeAllTransferStations() {
+  const transfers = store.stationsFC.features.filter((s) => s.properties?.is_transfer_fixed);
+  for (const tr of transfers) {
+    const coord = tr.geometry.coordinates;
+    const routes = new Set(
+      Array.isArray(tr.properties.transfer_routes) ? tr.properties.transfer_routes.filter(Boolean) : [],
+    );
+    if (typeof tr.properties.route_id === "string") routes.add(tr.properties.route_id);
+    const routeIds = applyTransferAbsorption(coord, routes);
+    tr.properties.transfer_routes = Array.from(routeIds);
+    tr.properties.is_transfer_fixed = true;
+  }
+}
+
+function addTransferStationAt(coord, routeIdA, routeIdB) {
+  const mergedRouteIds = new Set([routeIdA, routeIdB]);
+  const nearbyStations = store.stationsFC.features.filter((s) => {
+    return T.distance(T.point(s.geometry.coordinates), T.point(coord), { units: "meters" }) <= TRANSFER_ABSORB_METERS;
+  });
+  nearbyStations.forEach((s) => expandMergedRouteIdsFromStation(s, mergedRouteIds));
+
   const existingTransfer = nearbyStations.find((s) => s.properties?.is_transfer_fixed);
+  const finalRouteIds = applyTransferAbsorption(coord, mergedRouteIds);
+
   const routeFeature = store.routesFC.features.find((f) => f.properties.route_id === routeIdA);
   const color = routeFeature?.properties?.color || "#5e35b1";
   if (existingTransfer) {
@@ -849,16 +982,19 @@ function addTransferStationAt(coord, routeIdA, routeIdB) {
     existingTransfer.properties.route_id = routeIdA;
     existingTransfer.properties.color = color;
     existingTransfer.properties.is_transfer_fixed = true;
-    existingTransfer.properties.transfer_routes = Array.from(mergedRouteIds);
-    store.stationsFC.features.push(existingTransfer);
+    existingTransfer.properties.transfer_routes = Array.from(finalRouteIds);
+    normalizeAllTransferStations();
     refreshSources();
     return existingTransfer.properties.station_id;
   }
 
-  return addStationAt(routeIdA, coord, null, color, {
+  const stationId = addStationAt(routeIdA, coord, null, color, {
     is_transfer_fixed: true,
-    transfer_routes: Array.from(mergedRouteIds),
+    transfer_routes: Array.from(finalRouteIds),
   });
+  normalizeAllTransferStations();
+  refreshSources();
+  return stationId;
 }
 
 function removeStation(station_id) {
@@ -871,6 +1007,7 @@ function removeStation(station_id) {
     return false;
   }
   store.stationsFC.features = store.stationsFC.features.filter((f) => f.properties.station_id !== station_id);
+  syncCountersFromLoadedFeatures();
   refreshSources();
   return true;
 }
@@ -908,7 +1045,9 @@ function setStationLabelPosition(station_id, labelCoord) {
 function ensureEndpointStations(route_id, coords) {
   const ends = [coords[0], coords[coords.length - 1]];
   ends.forEach((pt) => {
+    if (hasTransferCoveringRoutePoint(route_id, pt)) return;
     const exists = store.stationsFC.features.some((f) => {
+      if (f.properties?.is_transfer_fixed) return false;
       return T.distance(T.point(f.geometry.coordinates), T.point(pt), { units: "meters" }) <= 5;
     });
     if (!exists) addStationAt(route_id, pt);
@@ -1045,6 +1184,7 @@ function mergeRoutes(routeIdA, routeIdB) {
 
   const unifiedColor = routeA_feature.properties.color || routeB_feature.properties.color || "#1e88e5";
   setGroupColor(targetGroupId, unifiedColor);
+  syncCountersFromLoadedFeatures();
   return { ok: true };
 }
 
@@ -1197,86 +1337,69 @@ function clearUserContent() {
   syncCountersFromLoadedFeatures();
 }
 
-function normalizeGroupName(name) {
-  return String(name ?? "").trim();
-}
-
-/** @param {import('geojson').Feature[]} routes */
-function collectGroupNamesByGroupId(routes) {
-  const map = new Map();
-  for (const f of routes) {
-    const gid = f.properties?.group_id;
-    if (typeof gid !== "string") continue;
-    if (!map.has(gid)) {
-      map.set(gid, normalizeGroupName(f.properties?.name));
-    }
-  }
-  return map;
-}
-
-function getExistingUserGroupNameSet() {
-  const userRoutes = store.routesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
-  const names = new Set();
-  for (const name of collectGroupNamesByGroupId(userRoutes).values()) {
-    if (name) names.add(name);
-  }
-  return names;
-}
-
-/** Display names of import groups that match an existing user group name. */
-function getImportDuplicateGroupNames(userRoutes) {
-  const existing = getExistingUserGroupNameSet();
-  const duplicates = [];
-  const seen = new Set();
-  for (const name of collectGroupNamesByGroupId(userRoutes).values()) {
-    if (!name || !existing.has(name) || seen.has(name)) continue;
-    seen.add(name);
-    duplicates.push(name);
-  }
-  return duplicates.sort((a, b) => a.localeCompare(b, "zh-Hant"));
-}
-
-function deleteUserGroupsByNames(names) {
-  const nameSet = new Set(names);
-  if (!nameSet.size) return;
-  const groupIds = [];
-  const seenGroupIds = new Set();
+function getExistingUserGroupIdSet() {
+  const ids = new Set();
   for (const f of store.routesFC.features) {
     if (routeKindOf(f) !== ROUTE_KIND_USER) continue;
     const gid = f.properties?.group_id;
-    if (typeof gid !== "string" || seenGroupIds.has(gid)) continue;
-    seenGroupIds.add(gid);
-    const n = normalizeGroupName(f.properties?.name);
-    if (n && nameSet.has(n)) groupIds.push(gid);
+    if (typeof gid === "string") ids.add(gid);
   }
-  if (groupIds.length) deleteGroups(groupIds);
+  return ids;
 }
 
-function countRoutesInGroupsByNames(userRoutes, groupNames) {
-  const nameSet = new Set(groupNames);
-  const groupIds = new Set();
-  for (const [gid, name] of collectGroupNamesByGroupId(userRoutes)) {
-    if (name && nameSet.has(name)) groupIds.add(gid);
+/** group_id values in the import file that already exist among user routes. */
+function getImportDuplicateGroupIds(userRoutes) {
+  const existing = getExistingUserGroupIdSet();
+  const duplicates = [];
+  const seen = new Set();
+  for (const f of userRoutes) {
+    const gid = f.properties?.group_id;
+    if (typeof gid !== "string" || !existing.has(gid) || seen.has(gid)) continue;
+    seen.add(gid);
+    duplicates.push(gid);
   }
-  return userRoutes.filter((f) => groupIds.has(f.properties?.group_id)).length;
+  return duplicates.sort((a, b) => a.localeCompare(b, "en"));
 }
 
-/** Import duplicate detection uses group names internally; UI messages use route segment counts only. */
-function buildImportResultStats(userRoutes, userStations, mode, duplicateGroupNames) {
-  const groupNameById = collectGroupNamesByGroupId(userRoutes);
-  const importGroupCount = groupNameById.size;
-  const duplicateSet = new Set(duplicateGroupNames);
-  const addedGroupNames = [...new Set(groupNameById.values())].filter((n) => n && !duplicateSet.has(n));
-  const replacedRouteCount = countRoutesInGroupsByNames(userRoutes, duplicateGroupNames);
-  const addedRouteCount = countRoutesInGroupsByNames(userRoutes, addedGroupNames);
+function deleteUserGroupsByIds(groupIds) {
+  if (!Array.isArray(groupIds) || !groupIds.length) return;
+  const idSet = new Set(groupIds);
+  const toDelete = [];
+  const seen = new Set();
+  for (const f of store.routesFC.features) {
+    if (routeKindOf(f) !== ROUTE_KIND_USER) continue;
+    const gid = f.properties?.group_id;
+    if (typeof gid === "string" && idSet.has(gid) && !seen.has(gid)) {
+      seen.add(gid);
+      toDelete.push(gid);
+    }
+  }
+  if (toDelete.length) deleteGroups(toDelete);
+}
+
+function countRoutesInGroupsByIds(userRoutes, groupIds) {
+  const idSet = new Set(groupIds);
+  return userRoutes.filter((f) => idSet.has(f.properties?.group_id)).length;
+}
+
+function buildImportResultStats(userRoutes, userStations, mode, duplicateGroupIds) {
+  const importGroupIds = new Set();
+  for (const f of userRoutes) {
+    const gid = f.properties?.group_id;
+    if (typeof gid === "string") importGroupIds.add(gid);
+  }
+  const duplicateSet = new Set(duplicateGroupIds);
+  const addedGroupIds = [...importGroupIds].filter((id) => !duplicateSet.has(id));
+  const replacedRouteCount = countRoutesInGroupsByIds(userRoutes, duplicateGroupIds);
+  const addedRouteCount = countRoutesInGroupsByIds(userRoutes, addedGroupIds);
 
   return {
     mode,
     routeCount: userRoutes.length,
     stationCount: userStations.length,
-    groupCount: importGroupCount,
-    replacedGroupCount: duplicateGroupNames.length,
-    addedGroupCount: addedGroupNames.length,
+    groupCount: importGroupIds.size,
+    replacedGroupCount: duplicateGroupIds.length,
+    addedGroupCount: addedGroupIds.length,
     replacedRouteCount,
     addedRouteCount,
   };
@@ -1361,13 +1484,13 @@ function exportGroupsJSON(groupIds) {
 
 /**
  * @param {string} jsonString
- * @returns {{ ok: true, duplicateGroupNames: string[] } | { ok: false, error: string }}
+ * @returns {{ ok: true, duplicateGroupIds: string[] } | { ok: false, error: string }}
  */
 function analyzeImportJSON(jsonString) {
   try {
     const data = JSON.parse(jsonString);
     const { userRoutes } = parseImportPayload(data);
-    return { ok: true, duplicateGroupNames: getImportDuplicateGroupNames(userRoutes) };
+    return { ok: true, duplicateGroupIds: getImportDuplicateGroupIds(userRoutes) };
   } catch (e) {
     const code = e instanceof Error && e.message ? e.message : "import_failed";
     return { ok: false, error: code };
@@ -1388,24 +1511,17 @@ function importUserStateJSON(jsonString, options = {}) {
     const data = JSON.parse(jsonString);
     const { userRoutes, userStations, hiddenRouteIds, counters, settings, mapView } = parseImportPayload(data);
     const mode = options.mode ?? "merge";
-    const duplicateGroupNames =
-      mode === "replaceMatching" ? getImportDuplicateGroupNames(userRoutes) : [];
+    const duplicateGroupIds =
+      mode === "replaceMatching" ? getImportDuplicateGroupIds(userRoutes) : [];
     if (mode === "replaceAll") {
       clearUserContent();
     } else if (mode === "replaceMatching") {
-      deleteUserGroupsByNames(duplicateGroupNames);
+      deleteUserGroupsByIds(duplicateGroupIds);
     }
     mergeUserStateIntoStore(userRoutes, userStations);
     if (Array.isArray(hiddenRouteIds)) {
       for (const rid of hiddenRouteIds) {
         if (typeof rid === "string") store.hiddenRouteIds.add(rid);
-      }
-    }
-    if (counters && typeof counters === "object") {
-      if (typeof counters.route === "number") store.counters.route = Math.max(store.counters.route, counters.route);
-      if (typeof counters.group === "number") store.counters.group = Math.max(store.counters.group, counters.group);
-      if (typeof counters.station === "number") {
-        store.counters.station = Math.max(store.counters.station, counters.station);
       }
     }
     if (settings && typeof settings.stationMinPerRoute === "number") {
@@ -1417,7 +1533,7 @@ function importUserStateJSON(jsonString, options = {}) {
     refreshSources();
     notifyImportUndoListeners();
     scheduleImportMapView(mapView);
-    return { ok: true, mapView, ...buildImportResultStats(userRoutes, userStations, mode, duplicateGroupNames) };
+    return { ok: true, mapView, ...buildImportResultStats(userRoutes, userStations, mode, duplicateGroupIds) };
   } catch (e) {
     restoreUserStateSnapshot(snapshotBeforeImport);
     lastImportUndoSnapshot = null;

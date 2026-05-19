@@ -36,6 +36,11 @@ function readStoredRouteListWidth() {
   return Math.min(320, routeListMaxPx());
 }
 
+const LOCALE_OPTIONS = [
+  { id: "zh-Hant", labelKey: "lang.zh" },
+  { id: "en", labelKey: "lang.en" },
+];
+
 function App() {
   const { t, locale, setLocale } = useI18n();
   const [mode, setModeState] = useState("general");
@@ -51,6 +56,8 @@ function App() {
   const [pendingImport, setPendingImport] = useState(null);
   const [importUndoAvailable, setImportUndoAvailable] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const langMenuRef = useRef(null);
   const [statusDialog, setStatusDialog] = useState(null);
 
   const startRouteListResize = useCallback((clientX) => {
@@ -129,6 +136,24 @@ function App() {
   }, [mode, editToolsOpen]);
 
   useEffect(() => {
+    if (!langMenuOpen) return;
+    const closeIfOutside = (e) => {
+      if (langMenuRef.current && !langMenuRef.current.contains(e.target)) {
+        setLangMenuOpen(false);
+      }
+    };
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setLangMenuOpen(false);
+    };
+    document.addEventListener("mousedown", closeIfOutside);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", closeIfOutside);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [langMenuOpen]);
+
+  useEffect(() => {
     setListTick((x) => x + 1);
   }, [locale]);
 
@@ -147,6 +172,8 @@ function App() {
   const showMergeCancel = mode === "merge" || mode === "ungroup";
   const routeListEditActions =
     mode === "edit-route-select" || mode === "edit-route-active";
+  const mergeSelectMode = mode === "merge";
+  const ungroupSelectMode = mode === "ungroup";
   const isEditRouteMode = mode === "edit-route-select" || mode === "edit-route-active";
   const showEditStationSubmodeButtons = mode === "edit-station";
 
@@ -246,7 +273,11 @@ function App() {
         alert(importErrorMessage(analysis.error));
         return;
       }
-      setPendingImport({ text, duplicateGroupNames: analysis.duplicateGroupNames });
+      if (analysis.duplicateGroupIds.length === 0) {
+        applyImport(text, "merge");
+        return;
+      }
+      setPendingImport({ text, duplicateGroupIds: analysis.duplicateGroupIds });
       return;
     }
     applyImport(text, "merge");
@@ -306,17 +337,38 @@ function App() {
             <p className="app-site-tagline">{t("app.headerTagline")}</p>
           </div>
           <div className="app-header-actions">
-            <div className="app-lang-switch" role="group" aria-label="Language">
+            <div className="app-lang-dropdown" ref={langMenuRef}>
               <button
                 type="button"
-                className={locale === "zh-Hant" ? "active" : ""}
-                onClick={() => setLocale("zh-Hant")}
+                className="app-lang-dropdown-trigger"
+                aria-haspopup="listbox"
+                aria-expanded={langMenuOpen}
+                aria-label={t("lang.ariaLabel")}
+                onClick={() => setLangMenuOpen((open) => !open)}
               >
-                {t("lang.zh")}
+                <span>{locale === "en" ? t("lang.en") : t("lang.zh")}</span>
+                <span className="app-lang-dropdown-chevron" aria-hidden="true" />
               </button>
-              <button type="button" className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>
-                {t("lang.en")}
-              </button>
+              {langMenuOpen && (
+                <ul className="app-lang-dropdown-menu" role="listbox" aria-label={t("lang.ariaLabel")}>
+                  {LOCALE_OPTIONS.map((opt) => (
+                    <li key={opt.id} role="presentation">
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={locale === opt.id}
+                        className={locale === opt.id ? "is-active" : ""}
+                        onClick={() => {
+                          setLocale(opt.id);
+                          setLangMenuOpen(false);
+                        }}
+                      >
+                        {t(opt.labelKey)}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>
@@ -333,6 +385,8 @@ function App() {
               key={listTick}
               onRefresh={bumpRouteList}
               showRouteActions={routeListEditActions}
+              mergeSelectMode={mergeSelectMode}
+              ungroupSelectMode={ungroupSelectMode}
               onEditRouteMetadata={openRouteMetadataDialog}
             />
           </div>
@@ -547,18 +601,12 @@ function App() {
               {t("app.importModeTitle")}
             </h2>
             <p className="app-import-dialog-message">{t("app.importModeMessage")}</p>
-            {pendingImport.duplicateGroupNames.length > 0 && (
-              <p className="app-import-dialog-duplicates">
-                {t("app.importDuplicateHint", {
-                  names: pendingImport.duplicateGroupNames.join("、"),
-                })}
-              </p>
-            )}
+            <p className="app-import-dialog-duplicates">
+              {t("app.importDuplicateHint", {
+                ids: pendingImport.duplicateGroupIds.join("、"),
+              })}
+            </p>
             <div className="app-import-dialog-options">
-              <button type="button" className="app-import-option" onClick={() => confirmImportWithMode("replaceAll")}>
-                <span className="app-import-option-label">{t("app.importReplaceAll")}</span>
-                <span className="app-import-option-hint">{t("app.importReplaceAllHint")}</span>
-              </button>
               <button type="button" className="app-import-option" onClick={() => confirmImportWithMode("merge")}>
                 <span className="app-import-option-label">{t("app.importMergeDirect")}</span>
                 <span className="app-import-option-hint">{t("app.importMergeDirectHint")}</span>
