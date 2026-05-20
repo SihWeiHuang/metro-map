@@ -77,7 +77,20 @@ function stepsForSegmentMeters(lenM) {
   return Math.min(MAX_STEPS, Math.max(MIN_STEPS, Math.round(MIN_STEPS + (lenM / 100) * STEPS_PER_100M)));
 }
 
-export function smoothLineStringForDisplay(coords) {
+/** Cache keyed by coordinate signature — avoids re-smoothing the same polyline many times per frame. */
+const smoothLineCache = new Map();
+
+function smoothLineSignature(coords) {
+  if (!coords || coords.length === 0) return "";
+  let sig = String(coords.length);
+  for (let i = 0; i < coords.length; i++) {
+    const c = coords[i];
+    sig += `;${c[0]},${c[1]}`;
+  }
+  return sig;
+}
+
+function computeSmoothLineStringForDisplay(coords) {
   if (!coords || coords.length <= 1) return coords ? coords.map((c) => [...c]) : coords;
   if (coords.length === 2) {
     return coords.map((c) => [...c]);
@@ -110,6 +123,18 @@ export function smoothLineStringForDisplay(coords) {
   }
 
   return out;
+}
+
+export function smoothLineStringForDisplay(coords) {
+  if (!coords || coords.length <= 1) return coords ? coords.map((c) => [...c]) : coords;
+
+  const sig = smoothLineSignature(coords);
+  const cached = smoothLineCache.get(sig);
+  if (cached) return cached;
+
+  const result = computeSmoothLineStringForDisplay(coords);
+  smoothLineCache.set(sig, result);
+  return result;
 }
 
 /**

@@ -92,6 +92,11 @@ const STATION_PRIORITY_ENTER_PX = 8;
 const STATION_PRIORITY_EXIT_PX = 14;
 let stationPriorityLock = false;
 
+let tempNodePreviewRaf = null;
+let stationDragPreviewRaf = null;
+let transferSnapHoverRaf = null;
+let pendingTransferSnapLngLat = null;
+
 const cur = () => Modes[M.mode];
 
 function getModeHintText() {
@@ -213,6 +218,10 @@ export function setCursorForMode(e) {
     return;
   }
   if (M.mode === "add-route" || M.mode === "edit-route-active") {
+    if (M.dragging.type === "temp-node") {
+      setCursor("grabbing");
+      return;
+    }
     cursor = "crosshair";
     if (e) {
       const onNode = map.queryRenderedFeatures(e.point, { layers: ["temp-edit-nodes-layer"] });
@@ -286,6 +295,16 @@ function updateTransferSnapHoverFromLngLat(lngLat) {
     return;
   }
 
+  pendingTransferSnapLngLat = lngLat;
+  if (transferSnapHoverRaf !== null) return;
+  transferSnapHoverRaf = requestAnimationFrame(() => {
+    transferSnapHoverRaf = null;
+    if (!pendingTransferSnapLngLat) return;
+    applyTransferSnapHoverFromLngLat(pendingTransferSnapLngLat);
+  });
+}
+
+function applyTransferSnapHoverFromLngLat(lngLat) {
   const found = findNearestTransferSnap(lngLat, TRANSFER_SNAP_HOVER_METERS);
   if (!found) {
     clearTransferSnapHintPopupOnly();
@@ -682,8 +701,51 @@ function onDragMoveAddRoute(e) {
   }
 
   if (!M.dragging.isClickCandidate) {
-    Route.moveTempNode(M.dragging.idx, [e.lngLat.lng, e.lngLat.lat], M.dragging.routeId);
+    Route.updateTempNodeCoord(M.dragging.idx, [e.lngLat.lng, e.lngLat.lat], M.dragging.routeId);
+    scheduleTempNodePreviewRefresh();
   }
+}
+
+function scheduleTempNodePreviewRefresh() {
+  if (tempNodePreviewRaf !== null) return;
+  tempNodePreviewRaf = requestAnimationFrame(() => {
+    tempNodePreviewRaf = null;
+    Route.refreshTempEditSources();
+  });
+}
+
+function finishTempNodeDrag() {
+  if (tempNodePreviewRaf !== null) {
+    cancelAnimationFrame(tempNodePreviewRaf);
+    tempNodePreviewRaf = null;
+  }
+  Route.refreshTempEditSources();
+  Route.refreshSources();
+}
+
+let pendingStationDragPreview = null;
+
+function applyStationDragPreview() {
+  if (!pendingStationDragPreview) return;
+  const { map, sid, lngLat } = pendingStationDragPreview;
+  const st = store.stationsFC.features.find((x) => x.properties.station_id === sid);
+  const rid = st?.properties?.route_id;
+  const route = rid ? store.routesFC.features.find((x) => x.properties?.route_id === rid) : null;
+  if (route?.geometry?.type === "LineString" && route.geometry.coordinates?.length >= 2) {
+    const snapped = nearestPointOnSmoothedRoute(route.geometry.coordinates, lngLat);
+    setStationPreviewCoord(map, sid, snapped?.geometry?.coordinates || lngLat);
+    return;
+  }
+  setStationPreviewCoord(map, sid, lngLat);
+}
+
+function scheduleStationDragPreview(map, sid, lngLat) {
+  pendingStationDragPreview = { map, sid, lngLat };
+  if (stationDragPreviewRaf !== null) return;
+  stationDragPreviewRaf = requestAnimationFrame(() => {
+    stationDragPreviewRaf = null;
+    applyStationDragPreview();
+  });
 }
 
 Modes.general = {
@@ -721,10 +783,6 @@ Modes["add-route"] = {
     clearStationHoverOnly();
   },
   onLeave() {},
-
-  onMapMove(e) {
-    setCursorForMode(e);
-  },
 
   onMapClick(e) {
     clearStationHoverOnly();
@@ -814,6 +872,7 @@ Modes["add-route"] = {
     map.on("mousemove", onDragMoveAddRoute);
     map.once("mouseup", () => {
       map.off("mousemove", onDragMoveAddRoute);
+      finishTempNodeDrag();
       M.dragging.type = null;
       M.dragging.isClickCandidate = false;
       M.dragging.downPoint = null;
@@ -845,12 +904,10 @@ Modes["edit-route-select"] = {
   onEnter() {},
   onLeave() {},
 
-  onMapMove(e) {
-    setCursorForMode(e);
-  },
-
   onRouteMove(e) {
     const rid = e.features[0].properties.route_id;
+    if (M.hover.routeId === rid) return;
+    M.hover.routeId = rid;
     Route.highlightRoute(rid);
     popupRoute(e.lngLat, rid);
   },
@@ -907,7 +964,6 @@ Modes["edit-station"] = {
   },
 
   onMapMove(e) {
-    setCursorForMode(e);
     updateTransferSnapHoverFromLngLat(e.lngLat);
   },
 
@@ -977,15 +1033,7 @@ Modes["edit-station"] = {
 
     const onDragStation = (ev) => {
       if (M.dragging.type !== "station") return;
-      const st = store.stationsFC.features.find((x) => x.properties.station_id === sid);
-      const rid = st?.properties?.route_id;
-      const route = rid ? store.routesFC.features.find((x) => x.properties?.route_id === rid) : null;
-      if (route?.geometry?.type === "LineString" && route.geometry.coordinates?.length >= 2) {
-        const snapped = nearestPointOnSmoothedRoute(route.geometry.coordinates, [ev.lngLat.lng, ev.lngLat.lat]);
-        setStationPreviewCoord(map, sid, snapped?.geometry?.coordinates || [ev.lngLat.lng, ev.lngLat.lat]);
-        return;
-      }
-      setStationPreviewCoord(map, sid, [ev.lngLat.lng, ev.lngLat.lat]);
+      scheduleStationDragPreview(map, sid, [ev.lngLat.lng, ev.lngLat.lat]);
     };
 
     if (map.getLayer("stations-label")) {
@@ -996,6 +1044,14 @@ Modes["edit-station"] = {
 
     map.once("mouseup", () => {
       map.off("mousemove", onDragStation);
+      if (stationDragPreviewRaf !== null) {
+        cancelAnimationFrame(stationDragPreviewRaf);
+        stationDragPreviewRaf = null;
+      }
+      if (pendingStationDragPreview?.sid === sid) {
+        applyStationDragPreview();
+        pendingStationDragPreview = null;
+      }
       const finalCoord = getDisplayedStationCenter(map, sid, feature.geometry.coordinates);
       Route.moveStationAlongRoute(sid, finalCoord);
       if (map.getLayer("stations-label")) {
@@ -1070,11 +1126,17 @@ Modes["edit-station"] = {
 
     if (M.dragging.type) return;
     const rid = e.features[0].properties.route_id;
-    Route.highlightRoute(rid);
     const snapNear = findNearestTransferSnap(e.lngLat, TRANSFER_SNAP_HOVER_METERS);
     if (snapNear && !isTransferSnapOccupied(snapNear.feature)) {
+      if (M.hover.routeId !== rid) {
+        M.hover.routeId = rid;
+        Route.highlightRoute(rid);
+      }
       return;
     }
+    if (M.hover.routeId === rid) return;
+    M.hover.routeId = rid;
+    Route.highlightRoute(rid);
     popupRoute(e.lngLat, rid);
   },
 

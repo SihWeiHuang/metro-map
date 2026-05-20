@@ -388,7 +388,25 @@ export function isTransferSnapOccupied(snapFeature) {
   });
 }
 
+let transferSnapCacheKey = null;
+let transferSnapCacheFC = null;
+
+function routesGeometryCacheKey() {
+  return store.routesFC.features
+    .map((f) => {
+      const c = f.geometry?.coordinates;
+      if (!c || c.length < 2) return "";
+      return `${f.properties?.route_id ?? ""}:${JSON.stringify(c)}`;
+    })
+    .join("\n");
+}
+
 function buildTransferSnapPointsFC() {
+  const cacheKey = routesGeometryCacheKey();
+  if (transferSnapCacheKey === cacheKey && transferSnapCacheFC) {
+    return transferSnapCacheFC;
+  }
+
   const features = [];
   const seen = [];
   const routes = store.routesFC.features.filter((f) => f.geometry?.type === "LineString" && f.geometry.coordinates.length >= 2);
@@ -418,7 +436,10 @@ function buildTransferSnapPointsFC() {
       });
     }
   }
-  return { type: "FeatureCollection", features };
+  const fc = { type: "FeatureCollection", features };
+  transferSnapCacheKey = cacheKey;
+  transferSnapCacheFC = fc;
+  return fc;
 }
 
 /** Snapshot taken immediately before the most recent successful import. */
@@ -483,22 +504,7 @@ function undoLastImport() {
   }
 }
 
-function refreshSources() {
-  if (!skipImportUndoInvalidate && lastImportUndoSnapshot) {
-    lastImportUndoSnapshot = null;
-    notifyImportUndoListeners();
-  }
-  schedulePersistToStorage();
-
-  const map = getMap();
-  if (!map) return;
-  const { stationsDisplayFC, stationLabelsFC } = buildStationDisplayCollections(store.stationsFC, store.routesFC);
-  map.getSource("routes") &&
-    map.getSource("routes").setData(featureCollectionWithSmoothedLineStrings(store.routesFC));
-  map.getSource("stations") && map.getSource("stations").setData(stationsDisplayFC);
-  map.getSource("station-labels") && map.getSource("station-labels").setData(stationLabelsFC);
-  map.getSource("transfer-snaps") && map.getSource("transfer-snaps").setData(buildTransferSnapPointsFC());
-
+function buildTempEditFeatureCollections() {
   const tempLines = [];
   const tempNodes = [];
 
@@ -519,14 +525,42 @@ function refreshSources() {
     });
   });
 
-  map.getSource("temp-edit-line") &&
-    map.getSource("temp-edit-line").setData({
+  return {
+    tempLineFC: {
       type: "FeatureCollection",
       features: tempLineFeaturesWithSmoothedGeometry(tempLines),
-    });
+    },
+    tempNodesFC: { type: "FeatureCollection", features: tempNodes },
+  };
+}
 
-  map.getSource("temp-edit-nodes") &&
-    map.getSource("temp-edit-nodes").setData({ type: "FeatureCollection", features: tempNodes });
+function refreshTempEditSources() {
+  const map = getMap();
+  if (!map) return;
+  const { tempLineFC, tempNodesFC } = buildTempEditFeatureCollections();
+  map.getSource("temp-edit-line") && map.getSource("temp-edit-line").setData(tempLineFC);
+  map.getSource("temp-edit-nodes") && map.getSource("temp-edit-nodes").setData(tempNodesFC);
+}
+
+function refreshSources() {
+  if (!skipImportUndoInvalidate && lastImportUndoSnapshot) {
+    lastImportUndoSnapshot = null;
+    notifyImportUndoListeners();
+  }
+  schedulePersistToStorage();
+
+  const map = getMap();
+  if (!map) return;
+  const { stationsDisplayFC, stationLabelsFC } = buildStationDisplayCollections(store.stationsFC, store.routesFC);
+  map.getSource("routes") &&
+    map.getSource("routes").setData(featureCollectionWithSmoothedLineStrings(store.routesFC));
+  map.getSource("stations") && map.getSource("stations").setData(stationsDisplayFC);
+  map.getSource("station-labels") && map.getSource("station-labels").setData(stationLabelsFC);
+  map.getSource("transfer-snaps") && map.getSource("transfer-snaps").setData(buildTransferSnapPointsFC());
+
+  const { tempLineFC, tempNodesFC } = buildTempEditFeatureCollections();
+  map.getSource("temp-edit-line") && map.getSource("temp-edit-line").setData(tempLineFC);
+  map.getSource("temp-edit-nodes") && map.getSource("temp-edit-nodes").setData(tempNodesFC);
 
   const hiddenIds = Array.from(store.hiddenRouteIds);
   const visibleRouteIds = Array.from(
@@ -839,11 +873,17 @@ function deleteTempNodeByIndex(idx, routeId) {
   refreshSources();
 }
 
-function moveTempNode(idx, coord, routeId) {
+function updateTempNodeCoord(idx, coord, routeId) {
   const session = routeId ? store.temp.editingSessions.find((s) => s.routeId === routeId) : store.temp.editingSessions[0];
-  if (!session || idx < 0 || idx >= session.nodes.length) return;
+  if (!session || idx < 0 || idx >= session.nodes.length) return false;
   session.nodes[idx] = coord;
-  refreshSources();
+  return true;
+}
+
+function moveTempNode(idx, coord, routeId, options = {}) {
+  if (!updateTempNodeCoord(idx, coord, routeId)) return;
+  if (options.preview) refreshTempEditSources();
+  else refreshSources();
 }
 
 function insertTempNodeOnSegment(pointPx, routeId) {
@@ -1571,6 +1611,7 @@ export const Route = {
   addTempNodeAt,
   deleteTempNodeByIndex,
   moveTempNode,
+  updateTempNodeCoord,
   insertTempNodeOnSegment,
   queueStationFromExisting,
   addStationAt,
@@ -1585,6 +1626,7 @@ export const Route = {
   setStationName,
   setStationLabelPosition,
   refreshSources,
+  refreshTempEditSources,
   hasUserContent,
   analyzeImportJSON,
   exportUserStateJSON,
