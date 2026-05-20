@@ -233,6 +233,7 @@ function mergeUserStateIntoStore(userRoutes, userStations) {
 
   store.routesFC.features.push(...mergedRoutes);
   store.stationsFC.features.push(...mergedStations);
+  if (mergedRoutes.length) bumpRoutesGeometryRevision();
   syncCountersFromLoadedFeatures();
 }
 
@@ -388,22 +389,18 @@ export function isTransferSnapOccupied(snapFeature) {
   });
 }
 
-let transferSnapCacheKey = null;
+let routesGeometryRevision = 0;
+let transferSnapCacheRevision = -1;
 let transferSnapCacheFC = null;
 
-function routesGeometryCacheKey() {
-  return store.routesFC.features
-    .map((f) => {
-      const c = f.geometry?.coordinates;
-      if (!c || c.length < 2) return "";
-      return `${f.properties?.route_id ?? ""}:${JSON.stringify(c)}`;
-    })
-    .join("\n");
+function bumpRoutesGeometryRevision() {
+  routesGeometryRevision++;
+  transferSnapCacheRevision = -1;
+  transferSnapCacheFC = null;
 }
 
 function buildTransferSnapPointsFC() {
-  const cacheKey = routesGeometryCacheKey();
-  if (transferSnapCacheKey === cacheKey && transferSnapCacheFC) {
+  if (transferSnapCacheFC && transferSnapCacheRevision === routesGeometryRevision) {
     return transferSnapCacheFC;
   }
 
@@ -437,9 +434,15 @@ function buildTransferSnapPointsFC() {
     }
   }
   const fc = { type: "FeatureCollection", features };
-  transferSnapCacheKey = cacheKey;
+  transferSnapCacheRevision = routesGeometryRevision;
   transferSnapCacheFC = fc;
   return fc;
+}
+
+function refreshTransferSnapSource() {
+  const map = getMap();
+  if (!map?.getSource("transfer-snaps")) return;
+  map.getSource("transfer-snaps").setData(buildTransferSnapPointsFC());
 }
 
 /** Snapshot taken immediately before the most recent successful import. */
@@ -556,7 +559,6 @@ function refreshSources() {
     map.getSource("routes").setData(featureCollectionWithSmoothedLineStrings(store.routesFC));
   map.getSource("stations") && map.getSource("stations").setData(stationsDisplayFC);
   map.getSource("station-labels") && map.getSource("station-labels").setData(stationLabelsFC);
-  map.getSource("transfer-snaps") && map.getSource("transfer-snaps").setData(buildTransferSnapPointsFC());
 
   const { tempLineFC, tempNodesFC } = buildTempEditFeatureCollections();
   map.getSource("temp-edit-line") && map.getSource("temp-edit-line").setData(tempLineFC);
@@ -680,6 +682,7 @@ function deleteRoute(route_id) {
   store.stationsFC.features = store.stationsFC.features.filter((f) => f.properties.route_id !== route_id);
   store.hiddenRouteIds.delete(route_id);
   syncCountersFromLoadedFeatures();
+  bumpRoutesGeometryRevision();
   refreshSources();
 }
 
@@ -692,6 +695,7 @@ function deleteGroup(groupId) {
   store.stationsFC.features = store.stationsFC.features.filter((f) => !routeIdsInGroup.includes(f.properties.route_id));
   routeIdsInGroup.forEach((rid) => store.hiddenRouteIds.delete(rid));
   syncCountersFromLoadedFeatures();
+  bumpRoutesGeometryRevision();
   refreshSources();
 }
 
@@ -707,6 +711,7 @@ function deleteGroups(groupIds) {
   store.stationsFC.features = store.stationsFC.features.filter((f) => !routeIdsToDelete.includes(f.properties.route_id));
   routeIdsToDelete.forEach((rid) => store.hiddenRouteIds.delete(rid));
   syncCountersFromLoadedFeatures();
+  bumpRoutesGeometryRevision();
   refreshSources();
 }
 
@@ -839,6 +844,7 @@ function endTempEditingAndCommit() {
   store.temp.queuedStations = [];
   normalizeAllTransferStations();
   syncCountersFromLoadedFeatures();
+  bumpRoutesGeometryRevision();
   refreshSources();
   return { ok: true, newGroupIds };
 }
@@ -897,7 +903,7 @@ function insertTempNodeOnSegment(pointPx, routeId) {
   addTempNodeAt(snapped.geometry.coordinates, session.routeId, insertIdx);
 }
 
-function addStationAt(route_id, coord, name = null, color = null, extraProps = {}) {
+function addStationAt(route_id, coord, name = null, color = null, extraProps = {}, options = {}) {
   const station_id = nextStationId();
   const stationName = name || t("routeModel.stationDefault", { id: station_id });
   store.stationsFC.features.push({
@@ -905,7 +911,7 @@ function addStationAt(route_id, coord, name = null, color = null, extraProps = {
     geometry: { type: "Point", coordinates: coord },
     properties: { station_id, route_id, name: stationName, color: color, ...extraProps },
   });
-  refreshSources();
+  if (!options.skipRefresh) refreshSources();
   return station_id;
 }
 
@@ -1090,7 +1096,7 @@ function ensureEndpointStations(route_id, coords) {
       if (f.properties?.is_transfer_fixed) return false;
       return T.distance(T.point(f.geometry.coordinates), T.point(pt), { units: "meters" }) <= 5;
     });
-    if (!exists) addStationAt(route_id, pt);
+    if (!exists) addStationAt(route_id, pt, null, null, {}, { skipRefresh: true });
   });
 }
 
@@ -1241,6 +1247,7 @@ function ungroupRoute(routeId) {
   routesInGroup.forEach((route) => {
     route.properties.group_id = nextGroupId();
   });
+  bumpRoutesGeometryRevision();
   refreshSources();
   return { ok: true };
 }
@@ -1627,6 +1634,7 @@ export const Route = {
   setStationLabelPosition,
   refreshSources,
   refreshTempEditSources,
+  refreshTransferSnapSource,
   hasUserContent,
   analyzeImportJSON,
   exportUserStateJSON,

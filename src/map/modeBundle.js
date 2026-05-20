@@ -945,6 +945,7 @@ Modes["edit-route-active"] = {
 Modes["edit-station"] = {
   name: "edit-station",
   onEnter() {
+    Route.refreshTransferSnapSource();
     onEditStationSubmodeChange(editStationSubmode);
     applyEditStationSubmode();
     clearStationHoverOnly();
