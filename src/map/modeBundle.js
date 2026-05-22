@@ -594,6 +594,48 @@ export function cancelMerge() {
   setMode("general");
 }
 
+function cancelTempRouteEditingSession() {
+  if (tempNodePreviewRaf !== null) {
+    cancelAnimationFrame(tempNodePreviewRaf);
+    tempNodePreviewRaf = null;
+  }
+  if (M.dragging.type === "temp-node") {
+    const map = getMap();
+    map?.off("mousemove", onDragMoveAddRoute);
+    M.dragging.type = null;
+    M.dragging.idx = null;
+    M.dragging.routeId = null;
+    M.dragging.isClickCandidate = false;
+    M.dragging.downPoint = null;
+  }
+  M.suppressNextEditMapClick = false;
+  Route.cancelTempEditing();
+  setMode("general");
+  return { ok: true };
+}
+
+/** @deprecated use cancelRouteEditing */
+export function cancelAddRoute() {
+  if (M.mode !== "add-route") return { ok: false };
+  return cancelTempRouteEditingSession();
+}
+
+export function cancelEditRoute() {
+  if (M.mode !== "edit-route-select" && M.mode !== "edit-route-active") return { ok: false };
+  return cancelTempRouteEditingSession();
+}
+
+export function cancelRouteEditing() {
+  if (
+    M.mode !== "add-route" &&
+    M.mode !== "edit-route-select" &&
+    M.mode !== "edit-route-active"
+  ) {
+    return { ok: false };
+  }
+  return cancelTempRouteEditingSession();
+}
+
 function onMapClickWhileEditing(e) {
   if (M.suppressNextEditMapClick) {
     M.suppressNextEditMapClick = false;

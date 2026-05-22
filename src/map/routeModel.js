@@ -849,6 +849,25 @@ function endTempEditingAndCommit() {
   return { ok: true, newGroupIds };
 }
 
+function cancelTempEditing() {
+  const previewIds = new Set(store.temp.previewStations || []);
+  store.stationsFC.features = store.stationsFC.features.filter((s) => {
+    const sid = s.properties?.station_id;
+    if (sid && previewIds.has(sid)) return false;
+    if (s.properties?.route_id === "__temp_preview__") return false;
+    return true;
+  });
+
+  store.hiddenRouteIds.clear();
+  store.temp.editingSessions = [];
+  store.temp.previewStations = [];
+  store.temp.queuedStations = [];
+  store.temp.routeIdEditing = null;
+  syncCountersFromLoadedFeatures();
+  refreshSources();
+  return { ok: true };
+}
+
 function getGroupStatus(groupId) {
   const route = store.routesFC.features.find((f) => f.properties?.group_id === groupId);
   return normalizeStatus(route?.properties?.status);
@@ -1615,6 +1634,7 @@ export const Route = {
   startNewTempRoute,
   startEditGroup,
   endTempEditingAndCommit,
+  cancelTempEditing,
   addTempNodeAt,
   deleteTempNodeByIndex,
   moveTempNode,

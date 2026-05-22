@@ -7,6 +7,7 @@ import {
   setMode,
   finishEditing,
   cancelMerge,
+  cancelRouteEditing,
   setEditStationSubmode,
   registerEditStationSubmodeChange,
   registerModeHintChange,
@@ -158,11 +159,18 @@ function App() {
   }, [locale]);
 
   useEffect(() => {
-    const t = requestAnimationFrame(() => {
+    const id = requestAnimationFrame(() => {
       resizeMap();
     });
-    return () => cancelAnimationFrame(t);
+    return () => cancelAnimationFrame(id);
   }, [routeListWidthPx]);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      resizeMap();
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   const showFinish =
     mode === "add-route" ||
@@ -170,6 +178,8 @@ function App() {
     mode === "edit-route-active" ||
     mode === "edit-station";
   const showMergeCancel = mode === "merge" || mode === "ungroup";
+  const showModeCommitActions =
+    mode === "add-route" || mode === "edit-route-select" || mode === "edit-route-active";
   const routeListEditActions =
     mode === "edit-route-select" || mode === "edit-route-active";
   const mergeSelectMode = mode === "merge";
@@ -194,6 +204,11 @@ function App() {
     if (result?.ok && result.newGroupIds?.length > 0) {
       setStatusDialog({ groupIds: result.newGroupIds, isNewRoute: true });
     }
+    bumpRouteList();
+  };
+
+  const handleCancelRouteEditing = () => {
+    cancelRouteEditing();
     bumpRouteList();
   };
 
@@ -520,12 +535,33 @@ function App() {
               {t("app.hintPrefix")}
               {modeHint}
             </div>
-          </div>
-          <div className="app-map-finish-slot">
             {showFinish && editToolsOpen && (
-              <button type="button" id="finishModeButton" className="mode-finish-bar" onClick={handleFinishEditing}>
-                {t("app.finish")}
-              </button>
+              <div className={`app-map-finish-slot${showModeCommitActions ? " app-map-finish-slot--pair" : ""}`}>
+                {showModeCommitActions ? (
+                  <>
+                    <button
+                      type="button"
+                      id="finishModeButton"
+                      className="mode-finish-bar"
+                      onClick={handleFinishEditing}
+                    >
+                      {t("app.finish")}
+                    </button>
+                    <button
+                      type="button"
+                      id="cancelModeButton"
+                      className="mode-cancel-bar"
+                      onClick={handleCancelRouteEditing}
+                    >
+                      {t("app.cancel")}
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" id="finishModeButton" className="mode-finish-bar" onClick={handleFinishEditing}>
+                    {t("app.finish")}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
