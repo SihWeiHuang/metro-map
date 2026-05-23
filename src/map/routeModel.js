@@ -12,6 +12,13 @@ import { DEFAULT_BUILTIN_MAP_DATA } from "./defaultBuiltinData.js";
 import { computeMapViewFromFeatures, normalizeImportedMapView } from "./mapGeoBounds.js";
 import { scheduleImportMapView } from "./mapViewState.js";
 
+/**
+ * Terminology (user-facing):
+ * - `group_id` in GeoJSON = 路線 (line)
+ * - `route_id` in GeoJSON = 子路線 (sub-route)
+ * JSON field names are kept for file compatibility.
+ */
+
 export const store = {
   routesFC: { type: "FeatureCollection", features: [] },
   stationsFC: { type: "FeatureCollection", features: [] },
@@ -44,7 +51,7 @@ export const ROUTE_KIND_DEFAULT = "default";
 /** 使用者自行繪製的路線（付費／編輯產生）。 */
 export const ROUTE_KIND_USER = "user";
 
-/** 路線營運狀態（群組層級，與 route_kind 分開）。 */
+/** 路線營運狀態（路線層級，與 route_kind 分開）。 */
 export const ROUTE_STATUS_OPERATING = "operating";
 export const ROUTE_STATUS_PLANNING = "planning";
 export const ROUTE_STATUS_CONSTRUCTION = "construction";
@@ -343,7 +350,7 @@ function normalizeAllRoutesMetadata() {
   }
 }
 
-function syncGroupRouteMetadata(groupId, sourceProps) {
+function syncLineSubRouteMetadata(groupId, sourceProps) {
   const kind =
     sourceProps?.route_kind === ROUTE_KIND_DEFAULT || sourceProps?.route_kind === ROUTE_KIND_USER
       ? sourceProps.route_kind
@@ -634,7 +641,7 @@ function clearHover() {
   map.getLayer("stations-label-hover") && map.setFilter("stations-label-hover", ["==", ["get", "station_id"], ""]);
 }
 
-function getGroupList() {
+function getLineList() {
   const groups = {};
   store.routesFC.features.forEach((f) => {
     const p = f.properties;
@@ -646,7 +653,7 @@ function getGroupList() {
     if (!groups[p.group_id]) groups[p.group_id] = [];
     groups[p.group_id].push({
       route_id: p.route_id,
-      name: p.name || t("routeModel.routeDefault", { id: p.route_id }),
+      name: p.name || t("routeModel.subRouteDefault", { id: p.route_id }),
       color: p.color || "#1e88e5",
       route_kind: rk,
       country,
@@ -654,11 +661,11 @@ function getGroupList() {
       status,
     });
   });
-  return Object.entries(groups).map(([group_id, routes]) => {
-    const head = routes[0];
+  return Object.entries(groups).map(([line_id, sub_routes]) => {
+    const head = sub_routes[0];
     return {
-      group_id,
-      routes,
+      line_id,
+      sub_routes,
       route_kind: head?.route_kind ?? ROUTE_KIND_USER,
       country: head?.country ?? "",
       region: head?.region ?? "",
@@ -667,7 +674,7 @@ function getGroupList() {
   });
 }
 
-function getActiveEditGroupId() {
+function getActiveEditLineId() {
   if (!Array.isArray(store.temp.editingSessions) || store.temp.editingSessions.length === 0) return null;
   for (const session of store.temp.editingSessions) {
     if (!session?.routeId) continue;
@@ -686,7 +693,7 @@ function deleteRoute(route_id) {
   refreshSources();
 }
 
-function deleteGroup(groupId) {
+function deleteLine(groupId) {
   const routeIdsInGroup = store.routesFC.features.filter((f) => f.properties.group_id === groupId).map((f) => f.properties.route_id);
 
   if (routeIdsInGroup.length === 0) return;
@@ -699,7 +706,7 @@ function deleteGroup(groupId) {
   refreshSources();
 }
 
-function deleteGroups(groupIds) {
+function deleteLines(groupIds) {
   if (!Array.isArray(groupIds) || groupIds.length === 0) return;
   const idSet = new Set(groupIds);
   const routeIdsToDelete = store.routesFC.features
@@ -715,7 +722,7 @@ function deleteGroups(groupIds) {
   refreshSources();
 }
 
-function setGroupHidden(groupId, hidden) {
+function setLineHidden(groupId, hidden) {
   const routeIds = store.routesFC.features.filter((f) => f.properties.group_id === groupId).map((f) => f.properties.route_id);
   if (!routeIds.length) return;
   routeIds.forEach((rid) => {
@@ -728,7 +735,7 @@ function setGroupHidden(groupId, hidden) {
   }
 }
 
-function isGroupHidden(groupId) {
+function isLineHidden(groupId) {
   const routeIds = store.routesFC.features.filter((f) => f.properties.group_id === groupId).map((f) => f.properties.route_id);
   if (!routeIds.length) return false;
   return routeIds.every((rid) => store.hiddenRouteIds.has(rid));
@@ -742,7 +749,7 @@ function startNewTempRoute() {
   refreshSources();
 }
 
-function startEditGroup(groupId) {
+function startEditLine(groupId) {
   const routesInGroup = store.routesFC.features.filter((f) => f.properties.group_id === groupId);
   if (!routesInGroup.length) return;
   store.temp.editingSessions = [];
@@ -759,11 +766,11 @@ function startEditGroup(groupId) {
 
 function endTempEditingAndCommit() {
   if (!store.temp.editingSessions || store.temp.editingSessions.length === 0) {
-    return { ok: true, newGroupIds: [] };
+    return { ok: true, newLineIds: [] };
   }
 
   const newRouteIdMap = new Map();
-  const newGroupIds = [];
+  const newLineIds = [];
 
   store.temp.editingSessions.forEach((session) => {
     const { routeId, nodes } = session;
@@ -784,14 +791,14 @@ function endTempEditingAndCommit() {
       const new_route_id = nextRouteId();
       const new_group_id = nextGroupId();
       newRouteIdMap.set(session, new_route_id);
-      newGroupIds.push(new_group_id);
+      newLineIds.push(new_group_id);
       store.routesFC.features.push({
         type: "Feature",
         geometry: { type: "LineString", coordinates: nodes },
         properties: {
           route_id: new_route_id,
           group_id: new_group_id,
-          name: t("routeModel.routeDefault", { id: new_route_id }),
+          name: t("routeModel.subRouteDefault", { id: new_route_id }),
           route_kind: ROUTE_KIND_USER,
           country: "",
           region: "",
@@ -846,7 +853,7 @@ function endTempEditingAndCommit() {
   syncCountersFromLoadedFeatures();
   bumpRoutesGeometryRevision();
   refreshSources();
-  return { ok: true, newGroupIds };
+  return { ok: true, newLineIds };
 }
 
 function cancelTempEditing() {
@@ -868,12 +875,12 @@ function cancelTempEditing() {
   return { ok: true };
 }
 
-function getGroupStatus(groupId) {
+function getLineStatus(groupId) {
   const route = store.routesFC.features.find((f) => f.properties?.group_id === groupId);
   return normalizeStatus(route?.properties?.status);
 }
 
-function setGroupStatus(groupId, status) {
+function setLineStatus(groupId, status) {
   const next = normalizeStatus(status);
   const routes = store.routesFC.features.filter((f) => f.properties.group_id === groupId);
   if (!routes.length) return;
@@ -1233,34 +1240,34 @@ function mergeRoutes(routeIdA, routeIdB) {
       store.stationsFC.features = store.stationsFC.features.filter((f) => f.properties.station_id !== stationToRemoveId);
     }
   }
-  const targetGroupId = routeA_feature.properties.group_id;
-  const sourceGroupId = routeB_feature.properties.group_id;
+  const targetLineId = routeA_feature.properties.group_id;
+  const sourceLineId = routeB_feature.properties.group_id;
 
-  // Merge by whole group (not single picked route), so selection order does not split groups.
-  if (sourceGroupId !== targetGroupId) {
+  // Merge whole lines (not a single sub-route pick), so selection order does not split lines.
+  if (sourceLineId !== targetLineId) {
     store.routesFC.features.forEach((route) => {
-      if (route.properties.group_id === sourceGroupId) {
-        route.properties.group_id = targetGroupId;
+      if (route.properties.group_id === sourceLineId) {
+        route.properties.group_id = targetLineId;
       }
     });
   }
 
-  syncGroupRouteMetadata(targetGroupId, routeA_feature.properties);
+  syncLineSubRouteMetadata(targetLineId, routeA_feature.properties);
 
   const unifiedColor = routeA_feature.properties.color || routeB_feature.properties.color || "#1e88e5";
-  setGroupColor(targetGroupId, unifiedColor);
+  setLineColor(targetLineId, unifiedColor);
   syncCountersFromLoadedFeatures();
   return { ok: true };
 }
 
-function ungroupRoute(routeId) {
+function splitLine(routeId) {
   const target = store.routesFC.features.find((f) => f.properties.route_id === routeId);
-  if (!target) return { ok: false, msg: t("routeModel.ungroupNotFound") };
+  if (!target) return { ok: false, msg: t("routeModel.splitLineNotFound") };
 
   const groupId = target.properties.group_id;
   const routesInGroup = store.routesFC.features.filter((f) => f.properties.group_id === groupId);
   if (routesInGroup.length <= 1) {
-    return { ok: false, msg: t("routeModel.ungroupSingle") };
+    return { ok: false, msg: t("routeModel.splitLineSingle") };
   }
 
   routesInGroup.forEach((route) => {
@@ -1284,7 +1291,7 @@ function setRouteColor(routeId, color) {
   }
 }
 
-function setGroupColor(groupId, color) {
+function setLineColor(groupId, color) {
   const routesInGroup = store.routesFC.features.filter((f) => f.properties.group_id === groupId);
   if (!routesInGroup.length) return;
   const routeIdsInGroup = routesInGroup.map((f) => f.properties.route_id);
@@ -1299,7 +1306,7 @@ function setGroupColor(groupId, color) {
   refreshSources();
 }
 
-function setGroupName(groupId, newName) {
+function setLineName(groupId, newName) {
   const next = clampName15(newName);
   store.routesFC.features.forEach((f) => {
     if (f.properties.group_id === groupId) {
@@ -1317,7 +1324,7 @@ function setStationName(stationId, newName) {
   refreshSources();
 }
 
-function setGroupMetadata(groupId, patch) {
+function setLineMetadata(groupId, patch) {
   if (!patch || typeof patch !== "object") return;
   const routes = store.routesFC.features.filter((f) => f.properties.group_id === groupId);
   if (!routes.length) return;
@@ -1403,7 +1410,7 @@ function clearUserContent() {
   syncCountersFromLoadedFeatures();
 }
 
-function getExistingUserGroupIdSet() {
+function getExistingUserLineIdSet() {
   const ids = new Set();
   for (const f of store.routesFC.features) {
     if (routeKindOf(f) !== ROUTE_KIND_USER) continue;
@@ -1413,9 +1420,9 @@ function getExistingUserGroupIdSet() {
   return ids;
 }
 
-/** group_id values in the import file that already exist among user routes. */
-function getImportDuplicateGroupIds(userRoutes) {
-  const existing = getExistingUserGroupIdSet();
+/** `group_id` values in the import file that already exist among user lines. */
+function getImportDuplicateLineIds(userRoutes) {
+  const existing = getExistingUserLineIdSet();
   const duplicates = [];
   const seen = new Set();
   for (const f of userRoutes) {
@@ -1427,7 +1434,7 @@ function getImportDuplicateGroupIds(userRoutes) {
   return duplicates.sort((a, b) => a.localeCompare(b, "en"));
 }
 
-function deleteUserGroupsByIds(groupIds) {
+function deleteUserLinesByIds(groupIds) {
   if (!Array.isArray(groupIds) || !groupIds.length) return;
   const idSet = new Set(groupIds);
   const toDelete = [];
@@ -1440,34 +1447,34 @@ function deleteUserGroupsByIds(groupIds) {
       toDelete.push(gid);
     }
   }
-  if (toDelete.length) deleteGroups(toDelete);
+  if (toDelete.length) deleteLines(toDelete);
 }
 
-function countRoutesInGroupsByIds(userRoutes, groupIds) {
+function countSubRoutesInLinesByIds(userRoutes, groupIds) {
   const idSet = new Set(groupIds);
   return userRoutes.filter((f) => idSet.has(f.properties?.group_id)).length;
 }
 
-function buildImportResultStats(userRoutes, userStations, mode, duplicateGroupIds) {
-  const importGroupIds = new Set();
+function buildImportResultStats(userRoutes, userStations, mode, duplicateLineIds) {
+  const importLineIds = new Set();
   for (const f of userRoutes) {
     const gid = f.properties?.group_id;
-    if (typeof gid === "string") importGroupIds.add(gid);
+    if (typeof gid === "string") importLineIds.add(gid);
   }
-  const duplicateSet = new Set(duplicateGroupIds);
-  const addedGroupIds = [...importGroupIds].filter((id) => !duplicateSet.has(id));
-  const replacedRouteCount = countRoutesInGroupsByIds(userRoutes, duplicateGroupIds);
-  const addedRouteCount = countRoutesInGroupsByIds(userRoutes, addedGroupIds);
+  const duplicateSet = new Set(duplicateLineIds);
+  const addedLineIds = [...importLineIds].filter((id) => !duplicateSet.has(id));
+  const replacedSubRouteCount = countSubRoutesInLinesByIds(userRoutes, duplicateLineIds);
+  const addedSubRouteCount = countSubRoutesInLinesByIds(userRoutes, addedLineIds);
 
   return {
     mode,
-    routeCount: userRoutes.length,
+    subRouteCount: userRoutes.length,
     stationCount: userStations.length,
-    groupCount: importGroupIds.size,
-    replacedGroupCount: duplicateGroupIds.length,
-    addedGroupCount: addedGroupIds.length,
-    replacedRouteCount,
-    addedRouteCount,
+    lineCount: importLineIds.size,
+    replacedLineCount: duplicateLineIds.length,
+    addedLineCount: addedLineIds.length,
+    replacedSubRouteCount,
+    addedSubRouteCount,
   };
 }
 
@@ -1525,38 +1532,38 @@ function getExportFileName() {
   return `metro-map-${exportStamp()}.json`;
 }
 
-function getExportFileNameForSelectedGroups(groupCount) {
-  return `metro-map-selected-${groupCount}-${exportStamp()}.json`;
+function getExportFileNameForSelectedLines(lineCount) {
+  return `metro-map-selected-${lineCount}-${exportStamp()}.json`;
 }
 
 /**
- * @param {string[]} groupIds
+ * @param {string[]} lineIds
  * @returns {{ ok: true, json: string, fileName: string } | { ok: false, error: string }}
  */
-function exportGroupsJSON(groupIds) {
-  if (!Array.isArray(groupIds) || groupIds.length === 0) {
-    return { ok: false, error: "no_groups" };
+function exportLinesJSON(lineIds) {
+  if (!Array.isArray(lineIds) || lineIds.length === 0) {
+    return { ok: false, error: "no_lines" };
   }
-  const payload = buildUserExportPayload(groupIds);
+  const payload = buildUserExportPayload(lineIds);
   if (!payload.userRoutesFC.features.length) {
     return { ok: false, error: "no_user_routes" };
   }
   return {
     ok: true,
     json: JSON.stringify(payload, null, 2),
-    fileName: getExportFileNameForSelectedGroups(groupIds.length),
+    fileName: getExportFileNameForSelectedLines(lineIds.length),
   };
 }
 
 /**
  * @param {string} jsonString
- * @returns {{ ok: true, duplicateGroupIds: string[] } | { ok: false, error: string }}
+ * @returns {{ ok: true, duplicateLineIds: string[] } | { ok: false, error: string }}
  */
 function analyzeImportJSON(jsonString) {
   try {
     const data = JSON.parse(jsonString);
     const { userRoutes } = parseImportPayload(data);
-    return { ok: true, duplicateGroupIds: getImportDuplicateGroupIds(userRoutes) };
+    return { ok: true, duplicateLineIds: getImportDuplicateLineIds(userRoutes) };
   } catch (e) {
     const code = e instanceof Error && e.message ? e.message : "import_failed";
     return { ok: false, error: code };
@@ -1577,12 +1584,12 @@ function importUserStateJSON(jsonString, options = {}) {
     const data = JSON.parse(jsonString);
     const { userRoutes, userStations, hiddenRouteIds, counters, settings, mapView } = parseImportPayload(data);
     const mode = options.mode ?? "merge";
-    const duplicateGroupIds =
-      mode === "replaceMatching" ? getImportDuplicateGroupIds(userRoutes) : [];
+    const duplicateLineIds =
+      mode === "replaceMatching" ? getImportDuplicateLineIds(userRoutes) : [];
     if (mode === "replaceAll") {
       clearUserContent();
     } else if (mode === "replaceMatching") {
-      deleteUserGroupsByIds(duplicateGroupIds);
+      deleteUserLinesByIds(duplicateLineIds);
     }
     mergeUserStateIntoStore(userRoutes, userStations);
     if (Array.isArray(hiddenRouteIds)) {
@@ -1599,7 +1606,7 @@ function importUserStateJSON(jsonString, options = {}) {
     refreshSources();
     notifyImportUndoListeners();
     scheduleImportMapView(mapView);
-    return { ok: true, mapView, ...buildImportResultStats(userRoutes, userStations, mode, duplicateGroupIds) };
+    return { ok: true, mapView, ...buildImportResultStats(userRoutes, userStations, mode, duplicateLineIds) };
   } catch (e) {
     restoreUserStateSnapshot(snapshotBeforeImport);
     lastImportUndoSnapshot = null;
@@ -1619,20 +1626,20 @@ export const Route = {
   ROUTE_STATUS_PLANNING,
   ROUTE_STATUS_CONSTRUCTION,
   ROUTE_STATUS_CUSTOM,
-  getGroupList,
-  getGroupStatus,
-  setGroupStatus,
-  getActiveEditGroupId,
-  setGroupMetadata,
+  getLineList,
+  getLineStatus,
+  setLineStatus,
+  getActiveEditLineId,
+  setLineMetadata,
   deleteRoute,
-  deleteGroup,
-  deleteGroups,
-  setGroupHidden,
-  isGroupHidden,
+  deleteLine,
+  deleteLines,
+  setLineHidden,
+  isLineHidden,
   highlightRoute,
   clearHover,
   startNewTempRoute,
-  startEditGroup,
+  startEditLine,
   endTempEditingAndCommit,
   cancelTempEditing,
   addTempNodeAt,
@@ -1646,10 +1653,10 @@ export const Route = {
   removeStation,
   moveStationAlongRoute,
   mergeRoutes,
-  ungroupRoute,
+  splitLine,
   setRouteColor,
-  setGroupColor,
-  setGroupName,
+  setLineColor,
+  setLineName,
   setStationName,
   setStationLabelPosition,
   refreshSources,
@@ -1658,7 +1665,7 @@ export const Route = {
   hasUserContent,
   analyzeImportJSON,
   exportUserStateJSON,
-  exportGroupsJSON,
+  exportLinesJSON,
   getExportFileName,
   importUserStateJSON,
   canUndoLastImport,

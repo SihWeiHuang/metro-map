@@ -394,7 +394,7 @@ async function main() {
   fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
   fs.writeFileSync(OUT_PATH, JSON.stringify(payload, null, 2), "utf8");
 
-  console.log(`已轉換 ${routeFeatures.length} 條路線（${groupMeta.length} 個路線群組）`);
+  console.log(`已轉換 ${routeFeatures.length} 條子路線（${groupMeta.length} 條路線）`);
   if (stationMeta.count > 0) {
     console.log(`已併入 ${stationMeta.count} 個車站（其中 ${stationMeta.transfers} 個轉乘站）`);
     if (stationMeta.unmatched.length) {
@@ -403,7 +403,7 @@ async function main() {
   }
   console.log(`輸出：${OUT_PATH}`);
   console.log("");
-  console.log("路線群組：");
+  console.log("路線：");
   for (const g of groupMeta) {
     const statusNote = g.status === "operating" ? "營運中" : g.status === "construction" ? "興建中" : g.status;
     console.log(`  ${g.system} / ${g.lineName} → ${g.parts} 段 (${g.groupId}) [${statusNote}]`);

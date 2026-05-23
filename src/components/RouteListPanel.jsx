@@ -5,7 +5,7 @@ import {
   getMergePickRouteIds,
   M,
   pickRouteForMerge,
-  pickRouteForUngroup,
+  pickSubRouteForSplitLine,
   registerMergePickChange,
   setMode,
 } from "../map/modeBundle.js";
@@ -14,7 +14,7 @@ import {
   defaultRouteListColumns,
 } from "./routeListColumnPrefs.js";
 
-function getGroupMergePickOrder(routes, mergePickRouteIds) {
+function getLineMergePickOrder(routes, mergePickRouteIds) {
   for (let i = 0; i < mergePickRouteIds.length; i++) {
     if (routes.some((r) => r.route_id === mergePickRouteIds[i])) return i + 1;
   }
@@ -25,12 +25,12 @@ export default function RouteListPanel({
   onRefresh,
   showRouteActions = false,
   mergeSelectMode = false,
-  ungroupSelectMode = false,
+  splitLineSelectMode = false,
   onEditRouteMetadata,
 }) {
   const { t } = useI18n();
-  const groupList = Route.getGroupList();
-  const [selectedGroupIds, setSelectedGroupIds] = useState(() => new Set());
+  const lineList = Route.getLineList();
+  const [selectedLineIds, setSelectedLineIds] = useState(() => new Set());
   const [mergePickRouteIds, setMergePickRouteIds] = useState(() => getMergePickRouteIds());
   const [columnVisibility] = useState(defaultRouteListColumns);
 
@@ -49,15 +49,15 @@ export default function RouteListPanel({
   const gridStyle = useMemo(() => ({ gridTemplateColumns }), [gridTemplateColumns]);
 
   useEffect(() => {
-    const valid = new Set(groupList.map((g) => g.group_id));
-    setSelectedGroupIds((prev) => {
+    const valid = new Set(lineList.map((g) => g.line_id));
+    setSelectedLineIds((prev) => {
       const next = new Set(Array.from(prev).filter((id) => valid.has(id)));
       return next;
     });
-  }, [groupList]);
+  }, [lineList]);
 
   useEffect(() => {
-    if (!showRouteActions) setSelectedGroupIds(new Set());
+    if (!showRouteActions) setSelectedLineIds(new Set());
   }, [showRouteActions]);
 
   useEffect(() => {
@@ -68,65 +68,65 @@ export default function RouteListPanel({
     if (!mergeSelectMode) setMergePickRouteIds([]);
   }, [mergeSelectMode]);
 
-  const allSelected = groupList.length > 0 && selectedGroupIds.size === groupList.length;
-  const selectedCount = selectedGroupIds.size;
-  const activeEditGroupId = showRouteActions ? Route.getActiveEditGroupId() : null;
-  const toolbarLocked = !!activeEditGroupId;
+  const allSelected = lineList.length > 0 && selectedLineIds.size === lineList.length;
+  const selectedCount = selectedLineIds.size;
+  const activeEditLineId = showRouteActions ? Route.getActiveEditGroupId() : null;
+  const toolbarLocked = !!activeEditLineId;
   /** 已勾選至少一條時，禁止點列進入臨時編輯，僅能繼續勾選 */
-  const blockRowEdit = showRouteActions && selectedGroupIds.size > 0;
+  const blockRowEdit = showRouteActions && selectedLineIds.size > 0;
 
-  const visibleGroupList = groupList;
+  const visibleLineList = lineList;
 
-  const toggleGroupSelect = (groupId) => {
-    setSelectedGroupIds((prev) => {
+  const toggleLineSelect = (lineId) => {
+    setSelectedLineIds((prev) => {
       const next = new Set(prev);
-      if (next.has(groupId)) next.delete(groupId);
-      else next.add(groupId);
+      if (next.has(lineId)) next.delete(lineId);
+      else next.add(lineId);
       return next;
     });
   };
 
   const toggleSelectAll = () => {
-    setSelectedGroupIds((prev) => {
-      if (groupList.length > 0 && prev.size === groupList.length) return new Set();
-      return new Set(groupList.map((g) => g.group_id));
+    setSelectedLineIds((prev) => {
+      if (lineList.length > 0 && prev.size === lineList.length) return new Set();
+      return new Set(lineList.map((g) => g.line_id));
     });
   };
 
   const hideSelected = () => {
-    selectedGroupIds.forEach((gid) => Route.setGroupHidden(gid, true));
+    selectedLineIds.forEach((gid) => Route.setLineHidden(gid, true));
     onRefresh();
   };
 
   const showSelected = () => {
-    selectedGroupIds.forEach((gid) => Route.setGroupHidden(gid, false));
+    selectedLineIds.forEach((gid) => Route.setLineHidden(gid, false));
     onRefresh();
   };
 
   const deleteSelected = () => {
-    if (selectedGroupIds.size === 0) return;
-    if (!confirm(t("routeList.confirmDeleteMany", { count: selectedGroupIds.size }))) return;
-    Route.deleteGroups(Array.from(selectedGroupIds));
-    setSelectedGroupIds(new Set());
+    if (selectedLineIds.size === 0) return;
+    if (!confirm(t("routeList.confirmDeleteMany", { count: selectedLineIds.size }))) return;
+    Route.deleteLines(Array.from(selectedLineIds));
+    setSelectedLineIds(new Set());
     onRefresh();
   };
 
-  const handleMergeGroupPick = (group) => {
-    const routeId = group.routes[0]?.route_id;
-    if (!routeId) return;
-    const result = pickRouteForMerge(routeId);
+  const handleMergeLinePick = (line) => {
+    const subRouteId = line.sub_routes[0]?.route_id;
+    if (!subRouteId) return;
+    const result = pickRouteForMerge(subRouteId);
     if (result.merged) onRefresh();
   };
 
-  const handleUngroupGroupPick = (group) => {
-    const routeId = group.routes[0]?.route_id;
-    if (!routeId) return;
-    const result = pickRouteForUngroup(routeId);
+  const handleSplitLinePick = (line) => {
+    const subRouteId = line.sub_routes[0]?.route_id;
+    if (!subRouteId) return;
+    const result = pickSubRouteForSplitLine(subRouteId);
     if (result.ok) onRefresh();
   };
 
   const exportSelected = () => {
-    const result = Route.exportGroupsJSON(Array.from(selectedGroupIds));
+    const result = Route.exportLinesJSON(Array.from(selectedLineIds));
     if (!result.ok) {
       if (result.error === "no_user_routes") {
         alert(t("routeList.exportNoUserRoutes"));
@@ -150,9 +150,9 @@ export default function RouteListPanel({
           <span className="route-selected-count">{t("routeList.mergePickProgress", { n: mergePickRouteIds.length })}</span>
         </div>
       )}
-      {ungroupSelectMode && (
+      {splitLineSelectMode && (
         <div className="route-batch-toolbar route-merge-toolbar">
-          <span className="route-merge-toolbar-hint">{t("routeList.ungroupPickHint")}</span>
+          <span className="route-merge-toolbar-hint">{t("routeList.splitLinePickHint")}</span>
         </div>
       )}
       {showRouteActions && (
@@ -202,24 +202,24 @@ export default function RouteListPanel({
           </div>
         )}
       </div>
-      {visibleGroupList.map((g) => {
-        const currentName = g.routes[0]?.name || t("routeList.groupFallback", { id: g.group_id });
-        const mergePickOrder = mergeSelectMode ? getGroupMergePickOrder(g.routes, mergePickRouteIds) : 0;
+      {visibleLineList.map((g) => {
+        const currentName = g.sub_routes[0]?.name || t("routeList.lineFallback", { id: g.line_id });
+        const mergePickOrder = mergeSelectMode ? getLineMergePickOrder(g.sub_routes, mergePickRouteIds) : 0;
         return (
-          <GroupRow
-            key={g.group_id}
+          <LineRow
+            key={g.line_id}
             g={g}
             currentName={currentName}
             onRefresh={onRefresh}
-            selected={selectedGroupIds.has(g.group_id)}
-            onToggleSelect={() => toggleGroupSelect(g.group_id)}
+            selected={selectedLineIds.has(g.line_id)}
+            onToggleSelect={() => toggleLineSelect(g.line_id)}
             showRouteActions={showRouteActions}
             mergeSelectMode={mergeSelectMode}
-            ungroupSelectMode={ungroupSelectMode}
+            splitLineSelectMode={splitLineSelectMode}
             mergePickOrder={mergePickOrder}
-            onMergePick={() => handleMergeGroupPick(g)}
-            onUngroupPick={() => handleUngroupGroupPick(g)}
-            activeEditGroupId={activeEditGroupId}
+            onMergePick={() => handleMergeLinePick(g)}
+            onSplitLinePick={() => handleSplitLinePick(g)}
+            activeEditLineId={activeEditLineId}
             blockRowEdit={blockRowEdit}
             cols={listCols}
             gridStyle={gridStyle}
@@ -232,7 +232,7 @@ export default function RouteListPanel({
   );
 }
 
-function GroupRow({
+function LineRow({
   g,
   currentName,
   onRefresh,
@@ -240,11 +240,11 @@ function GroupRow({
   onToggleSelect,
   showRouteActions,
   mergeSelectMode = false,
-  ungroupSelectMode = false,
+  splitLineSelectMode = false,
   mergePickOrder = 0,
   onMergePick,
-  onUngroupPick,
-  activeEditGroupId,
+  onSplitLinePick,
+  activeEditLineId,
   blockRowEdit = false,
   cols,
   gridStyle,
@@ -252,14 +252,14 @@ function GroupRow({
   onEditRouteMetadata,
 }) {
   const handleMouseEnter = () => {
-    Route.highlightRoute(g.routes[0].route_id);
+    Route.highlightRoute(g.sub_routes[0].route_id);
   };
   const handleMouseLeave = () => {
     Route.clearHover();
   };
 
-  const isActiveEditingRow = !!activeEditGroupId && activeEditGroupId === g.group_id;
-  const isLockedByOtherRow = !!activeEditGroupId && activeEditGroupId !== g.group_id;
+  const isActiveEditingRow = !!activeEditLineId && activeEditLineId === g.line_id;
+  const isLockedByOtherRow = !!activeEditLineId && activeEditLineId !== g.line_id;
   const disableHideShow = isLockedByOtherRow || isActiveEditingRow;
   const disableRowActions = isLockedByOtherRow;
 
@@ -268,7 +268,7 @@ function GroupRow({
     if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT" || e.target.tagName === "B") return;
     Route.clearHover();
     M.suppressNextEditMapClick = true;
-    Route.startEditGroup(g.group_id);
+    Route.startEditLine(g.line_id);
   };
 
   const endMouseUp = (e) => {
@@ -289,13 +289,13 @@ function GroupRow({
     onMergePick?.();
   };
 
-  const handleUngroupRowClick = (e) => {
-    if (!ungroupSelectMode) return;
+  const handleSplitLineRowClick = (e) => {
+    if (!splitLineSelectMode) return;
     if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT" || e.target.tagName === "B") return;
-    onUngroupPick?.();
+    onSplitLinePick?.();
   };
 
-  const listPickMode = mergeSelectMode || ungroupSelectMode;
+  const listPickMode = mergeSelectMode || splitLineSelectMode;
   const rowClass =
     `group-header route-item route-list-row-grid${showRouteActions ? (blockRowEdit ? " route-item-batch-select" : "") : listPickMode ? " route-item-merge-select" : " route-item-readonly"}${isActiveEditingRow ? " route-item-active-edit" : ""}${isLockedByOtherRow ? " route-item-disabled" : ""}${mergePickOrder > 0 ? " route-item-merge-picked" : ""}`;
 
@@ -337,13 +337,13 @@ function GroupRow({
       <input
         type="color"
         className="group-color-input"
-        defaultValue={g.routes[0]?.color || "#1e88e5"}
+        defaultValue={g.sub_routes[0]?.color || "#1e88e5"}
         title={t("routeList.colorTitle")}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         disabled={disableRowActions}
         onChange={(e) => {
-          Route.setGroupColor(g.group_id, e.target.value);
+          Route.setLineColor(g.line_id, e.target.value);
           Route.clearHover();
           onRefresh();
         }}
@@ -359,7 +359,7 @@ function GroupRow({
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
-          onEditRouteMetadata?.(g.group_id);
+          onEditRouteMetadata?.(g.line_id);
         }}
       >
         {t("routeList.routeInfo")}
@@ -367,11 +367,11 @@ function GroupRow({
       <button
         type="button"
         className="route-row-action-btn"
-        disabled={disableHideShow || Route.isGroupHidden(g.group_id)}
+        disabled={disableHideShow || Route.isLineHidden(g.line_id)}
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
-          Route.setGroupHidden(g.group_id, true);
+          Route.setLineHidden(g.line_id, true);
           onRefresh();
         }}
       >
@@ -380,11 +380,11 @@ function GroupRow({
       <button
         type="button"
         className="route-row-action-btn"
-        disabled={disableHideShow || !Route.isGroupHidden(g.group_id)}
+        disabled={disableHideShow || !Route.isLineHidden(g.line_id)}
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
-          Route.setGroupHidden(g.group_id, false);
+          Route.setLineHidden(g.line_id, false);
           onRefresh();
         }}
       >
@@ -397,13 +397,13 @@ function GroupRow({
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
-          if (confirm(t("routeList.confirmDeleteGroup", { id: g.group_id }))) {
-            Route.deleteGroup(g.group_id);
+          if (confirm(t("routeList.confirmDeleteLine", { id: g.line_id }))) {
+            Route.deleteLine(g.line_id);
             onRefresh();
           }
         }}
       >
-        {t("routeList.deleteGroup")}
+        {t("routeList.deleteLine")}
       </button>
     </div>
   );
@@ -419,8 +419,8 @@ function GroupRow({
       onClick={
         mergeSelectMode
           ? handleMergeRowClick
-          : ungroupSelectMode
-            ? handleUngroupRowClick
+          : splitLineSelectMode
+            ? handleSplitLineRowClick
             : blockRowEdit
               ? handleBatchRowClick
               : undefined
@@ -430,7 +430,7 @@ function GroupRow({
         {listPickMode ? (
           <span
             className="route-color-swatch"
-            style={{ backgroundColor: g.routes[0]?.color || "#1e88e5" }}
+            style={{ backgroundColor: g.sub_routes[0]?.color || "#1e88e5" }}
             aria-hidden
           />
         ) : showRouteActions ? (
@@ -445,14 +445,14 @@ function GroupRow({
         ) : (
           <span
             className="route-color-swatch"
-            style={{ backgroundColor: g.routes[0]?.color || "#1e88e5" }}
+            style={{ backgroundColor: g.sub_routes[0]?.color || "#1e88e5" }}
             aria-hidden
           />
         )}
       </div>
       <div className="route-row-name-col route-row-title-text">
-        <GroupName
-          groupId={g.group_id}
+        <LineName
+          lineId={g.line_id}
           initialName={currentName}
           onSaved={onRefresh}
           allowRename={showRouteActions}
@@ -464,7 +464,7 @@ function GroupRow({
   );
 }
 
-function GroupName({ groupId, initialName, onSaved, allowRename }) {
+function LineName({ lineId, initialName, onSaved, allowRename }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(initialName);
   const inputRef = useRef(null);
@@ -494,13 +494,13 @@ function GroupName({ groupId, initialName, onSaved, allowRename }) {
         maxLength={15}
         onChange={(e) => setName(e.target.value.slice(0, 15))}
         onBlur={() => {
-          Route.setGroupName(groupId, name);
+          Route.setLineName(lineId, name);
           setEditing(false);
           onSaved();
         }}
         onKeyDown={(ev) => {
           if (ev.key === "Enter") {
-            Route.setGroupName(groupId, name);
+            Route.setLineName(lineId, name);
             setEditing(false);
             onSaved();
           } else if (ev.key === "Escape") {

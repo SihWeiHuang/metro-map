@@ -177,13 +177,13 @@ function App() {
     mode === "edit-route-select" ||
     mode === "edit-route-active" ||
     mode === "edit-station";
-  const showMergeCancel = mode === "merge" || mode === "ungroup";
+  const showMergeCancel = mode === "merge" || mode === "split-line";
   const showModeCommitActions =
     mode === "add-route" || mode === "edit-route-select" || mode === "edit-route-active";
   const routeListEditActions =
     mode === "edit-route-select" || mode === "edit-route-active";
   const mergeSelectMode = mode === "merge";
-  const ungroupSelectMode = mode === "ungroup";
+  const splitLineSelectMode = mode === "split-line";
   const isEditRouteMode = mode === "edit-route-select" || mode === "edit-route-active";
   const showEditStationSubmodeButtons = mode === "edit-station";
 
@@ -201,8 +201,8 @@ function App() {
 
   const handleFinishEditing = () => {
     const result = finishEditing();
-    if (result?.ok && result.newGroupIds?.length > 0) {
-      setStatusDialog({ groupIds: result.newGroupIds, isNewRoute: true });
+    if (result?.ok && result.newLineIds?.length > 0) {
+      setStatusDialog({ lineIds: result.newLineIds, isNewRoute: true });
     }
     bumpRouteList();
   };
@@ -212,8 +212,8 @@ function App() {
     bumpRouteList();
   };
 
-  const openRouteMetadataDialog = (groupId) => {
-    setStatusDialog({ groupIds: [groupId], isNewRoute: false });
+  const openRouteMetadataDialog = (lineId) => {
+    setStatusDialog({ lineIds: [lineId], isNewRoute: false });
   };
 
   const closeStatusDialog = () => setStatusDialog(null);
@@ -261,12 +261,12 @@ function App() {
     const successVars =
       result.mode === "replaceMatching"
         ? {
-            replacedRoutes: result.replacedRouteCount,
-            addedRoutes: result.addedRouteCount,
+            replacedSubRoutes: result.replacedSubRouteCount,
+            addedSubRoutes: result.addedSubRouteCount,
             stations: result.stationCount,
           }
         : {
-            routes: result.routeCount,
+            subRoutes: result.subRouteCount,
             stations: result.stationCount,
           };
     alert(t(successKey, successVars));
@@ -288,11 +288,11 @@ function App() {
         alert(importErrorMessage(analysis.error));
         return;
       }
-      if (analysis.duplicateGroupIds.length === 0) {
+      if (analysis.duplicateLineIds.length === 0) {
         applyImport(text, "merge");
         return;
       }
-      setPendingImport({ text, duplicateGroupIds: analysis.duplicateGroupIds });
+      setPendingImport({ text, duplicateLineIds: analysis.duplicateLineIds });
       return;
     }
     applyImport(text, "merge");
@@ -401,7 +401,7 @@ function App() {
               onRefresh={bumpRouteList}
               showRouteActions={routeListEditActions}
               mergeSelectMode={mergeSelectMode}
-              ungroupSelectMode={ungroupSelectMode}
+              splitLineSelectMode={splitLineSelectMode}
               onEditRouteMetadata={openRouteMetadataDialog}
             />
           </div>
@@ -470,11 +470,11 @@ function App() {
                 </button>
                 <button
                   type="button"
-                  disabled={modeBtnDisabled(mode === "ungroup")}
-                  className={mode === "ungroup" ? "active-button" : ""}
-                  onClick={() => setMode("ungroup")}
+                  disabled={modeBtnDisabled(mode === "split-line")}
+                  className={mode === "split-line" ? "active-button" : ""}
+                  onClick={() => setMode("split-line")}
                 >
-                  {t("app.modeUngroup")}
+                  {t("app.modeSplitLine")}
                 </button>
                 <button
                   type="button"
@@ -581,7 +581,7 @@ function App() {
       />
       {statusDialog != null && (
         <RouteStatusDialog
-          groupIds={statusDialog.groupIds}
+          lineIds={statusDialog.lineIds}
           isNewRoute={statusDialog.isNewRoute}
           onClose={closeStatusDialog}
           onSaved={bumpRouteList}
@@ -639,7 +639,7 @@ function App() {
             <p className="app-import-dialog-message">{t("app.importModeMessage")}</p>
             <p className="app-import-dialog-duplicates">
               {t("app.importDuplicateHint", {
-                ids: pendingImport.duplicateGroupIds.join("、"),
+                ids: pendingImport.duplicateLineIds.join("、"),
               })}
             </p>
             <div className="app-import-dialog-options">

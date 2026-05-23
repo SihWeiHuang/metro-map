@@ -1,14 +1,6 @@
 /**
- * Mapbox layer filter helpers for station/route hover visuals.
- * Keeps filter expressions in one place (behavior must match prior inline setFilter calls).
+ * Mapbox layer filter helpers for station hover visuals (edit-station single-station emphasis).
  */
-
-/** Clear routes-line-hover to show no highlighted route line (matches existing empty filter). */
-export function clearRoutesLineHoverFilter(map) {
-  if (map.getLayer("routes-line-hover")) {
-    map.setFilter("routes-line-hover", ["==", ["get", "route_id"], ""]);
-  }
-}
 
 /**
  * Highlight a single station on both circle + label hover layers, or clear when stationId is "".

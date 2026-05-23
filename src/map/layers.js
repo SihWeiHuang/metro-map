@@ -191,7 +191,7 @@ export function initializeLayers(map, store) {
         "circle-stroke-width": ["case", ["==", ["get", "is_transfer_fixed"], true], 3, 2],
         "circle-stroke-color": ["case", ["==", ["get", "is_transfer_fixed"], true], "#000000", "#ffffff"],
       },
-      filter: ["==", ["get", "route_id"], ""],
+      filter: ["==", ["get", "station_id"], ""],
     });
   }
 
