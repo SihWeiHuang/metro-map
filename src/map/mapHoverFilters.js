@@ -1,3 +1,5 @@
+import { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER } from "./layers.js";
+
 /**
  * Mapbox layer filter helpers for station hover visuals (edit-station single-station emphasis).
  */
@@ -8,10 +10,10 @@
 export function setStationHoverPairFilters(map, stationId) {
   const f = ["==", ["get", "station_id"], stationId];
   if (map.getLayer("stations-circle-hover")) {
-    map.setFilter("stations-circle-hover", f);
+    map.setFilter("stations-circle-hover", ["all", REGULAR_STATION_LAYER_FILTER, f]);
   }
   if (map.getLayer("transfer-stations-circle-hover")) {
-    map.setFilter("transfer-stations-circle-hover", f);
+    map.setFilter("transfer-stations-circle-hover", ["all", TRANSFER_STATION_LAYER_FILTER, f]);
   }
   if (map.getLayer("stations-label-hover")) {
     map.setFilter("stations-label-hover", f);

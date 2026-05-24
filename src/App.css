@@ -28,7 +28,7 @@
   flex-shrink: 0;
   overflow: visible;
   border-bottom: 0.5px solid var(--color-border-primary);
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%);
   color: white;
   box-shadow: var(--shadow-md);
 }
@@ -227,12 +227,14 @@
   overflow-y: auto;
   overflow-x: hidden;
   overflow-anchor: none;
+  background: var(--color-background-primary);
 }
 
 .app-side-panel-footer {
   flex-shrink: 0;
   padding: var(--spacing-lg);
   border-top: 0.5px solid var(--color-border-primary);
+  background: var(--color-background-secondary);
 }
 
 /* Mode Tools */
@@ -894,8 +896,9 @@ html[lang="en"] .route-list-inner {
 }
 
 .route-batch-toolbar--edit {
-  min-height: 72px;
-  align-content: flex-start;
+  flex-direction: column;
+  align-items: stretch;
+  align-content: stretch;
 }
 
 .route-batch-toolbar--edit button:disabled {
@@ -911,11 +914,26 @@ html[lang="en"] .route-list-inner {
   flex-shrink: 0;
 }
 
+.route-batch-toolbar-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px 10px;
+  min-width: 0;
+}
+
 .route-selected-count {
   font-size: 13px;
   color: var(--color-text-secondary);
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.route-batch-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding-top: 2px;
 }
 
 .route-batch-toolbar button {
@@ -1145,9 +1163,19 @@ html[lang="en"] .route-list-badge {
 }
 
 .group-header.route-item.route-item-merge-picked {
-  background: #fff8e1;
-  outline: 2px solid #ffa000;
-  outline-offset: -2px;
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.22);
+  color: #1f2937;
+}
+
+.group-header.route-item.route-item-merge-picked:hover {
+  background: #fef3c7;
+}
+
+.group-header.route-item.route-item-merge-picked .route-row-title-text,
+.group-header.route-item.route-item-merge-picked .route-row-title-text b {
+  color: #1f2937;
 }
 
 .route-merge-toolbar {
@@ -1169,8 +1197,9 @@ html[lang="en"] .route-list-badge {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #ffa000;
-  color: #fff;
+  background: #fef3c7;
+  color: #92400e;
+  border: 0.5px solid #f59e0b;
   font-size: 12px;
   font-weight: 700;
   flex-shrink: 0;
@@ -1345,6 +1374,10 @@ html[lang="en"] .route-list-badge {
    Transfer snap hint popup
    ========================================== */
 
+.transfer-snap-hint-popup.mapboxgl-popup {
+  z-index: 13;
+}
+
 .transfer-snap-hint-popup.mapboxgl-popup,
 .transfer-snap-hint-popup .mapboxgl-popup-content {
   padding: 0;
@@ -1493,6 +1526,7 @@ html[lang="en"] .route-list-badge {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  background: var(--color-background-primary);
 }
 
 .app-side-panel-footer,
@@ -1500,7 +1534,7 @@ html[lang="en"] .route-list-badge {
   flex-shrink: 0;
   padding: var(--spacing-lg);
   border-top: 0.5px solid var(--color-border-primary);
-  background: var(--color-background-primary);
+  background: var(--color-background-secondary);
   max-height: min(48vh, 420px);
   overflow-y: auto;
   box-sizing: border-box;
@@ -1526,7 +1560,7 @@ html[lang="en"] .route-list-badge {
   padding: var(--spacing-md);
   border-radius: var(--radius-md);
   border: 0.5px solid var(--color-border-primary);
-  background: var(--color-background-secondary);
+  background: var(--color-background-primary);
   color: var(--color-text-primary);
   font-size: 0.875rem;
   font-weight: 500;
@@ -1605,10 +1639,9 @@ html[lang="en"] .route-list-badge {
   pointer-events: none;
 }
 
-.mode-buttons,
-.submode-buttons {
-  display: flex;
-  flex-direction: column;
+.mode-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: var(--spacing-sm);
 }
 
@@ -1620,7 +1653,7 @@ html[lang="en"] .route-list-badge {
   font-weight: 500;
   border: 0.5px solid var(--color-border-primary);
   border-radius: var(--radius-md);
-  background: var(--color-background-secondary);
+  background: var(--color-background-primary);
   color: var(--color-text-primary);
   cursor: pointer;
   width: 100%;

@@ -157,32 +157,36 @@ export default function RouteListPanel({
       )}
       {showRouteActions && (
         <div className="route-batch-toolbar route-batch-toolbar--edit">
-          <label className="route-select-all">
-            <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} disabled={toolbarLocked} />
-            {t("routeList.selectAll")}
-          </label>
-          <span className="route-selected-count">{t("routeList.selected", { n: selectedCount })}</span>
+          <div className="route-batch-toolbar-summary">
+            <label className="route-select-all">
+              <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} disabled={toolbarLocked} />
+              {t("routeList.selectAll")}
+            </label>
+            <span className="route-selected-count">{t("routeList.selected", { n: selectedCount })}</span>
+          </div>
           {selectedCount >= 1 && (
-            <button
-              type="button"
-              onClick={exportSelected}
-              title={t("routeList.exportSelectedTitle")}
-            >
-              {t("routeList.exportSelected")}
-            </button>
-          )}
-          {selectedCount >= 2 && (
-            <>
-              <button type="button" onClick={hideSelected} disabled={toolbarLocked}>
-                {t("routeList.hideRoutes")}
+            <div className="route-batch-toolbar-actions">
+              <button
+                type="button"
+                onClick={exportSelected}
+                title={t("routeList.exportSelectedTitle")}
+              >
+                {t("routeList.exportSelected")}
               </button>
-              <button type="button" onClick={showSelected} disabled={toolbarLocked}>
-                {t("routeList.showRoutes")}
-              </button>
-              <button type="button" onClick={deleteSelected} disabled={toolbarLocked}>
-                {t("routeList.deleteSelected")}
-              </button>
-            </>
+              {selectedCount >= 2 && (
+                <>
+                  <button type="button" onClick={hideSelected} disabled={toolbarLocked}>
+                    {t("routeList.hideRoutes")}
+                  </button>
+                  <button type="button" onClick={showSelected} disabled={toolbarLocked}>
+                    {t("routeList.showRoutes")}
+                  </button>
+                  <button type="button" onClick={deleteSelected} disabled={toolbarLocked}>
+                    {t("routeList.deleteSelected")}
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </div>
       )}

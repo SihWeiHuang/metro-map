@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "fit:mrt": "node scripts/fit-mrt-routes.mjs"
+    "fit:mrt": "node scripts/fit-mrt-routes.mjs",
+    "test:names": "node scripts/test-default-names.mjs"
   },
   "dependencies": {
     "@mapbox/mapbox-gl-language": "^1.0.1",
