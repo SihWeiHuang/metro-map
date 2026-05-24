@@ -10,9 +10,6 @@ export function setStationHoverPairFilters(map, stationId) {
   if (map.getLayer("stations-circle-hover")) {
     map.setFilter("stations-circle-hover", f);
   }
-  if (map.getLayer("transfer-stations-circle-hover")) {
-    map.setFilter("transfer-stations-circle-hover", f);
-  }
   if (map.getLayer("stations-label-hover")) {
     map.setFilter("stations-label-hover", f);
   }

@@ -9,8 +9,6 @@ const POPUP_COLLISION_LAYERS = [
   "routes-line-hover",
   "stations-circle",
   "stations-circle-hover",
-  "transfer-stations-circle",
-  "transfer-stations-circle-hover",
   "stations-label",
   "stations-label-hover",
 ];

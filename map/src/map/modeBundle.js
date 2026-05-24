@@ -23,7 +23,6 @@ import {
   popupScreenPoint,
   resolvePopupPlacement,
 } from "./popupPlacement.js";
-import { resolveLineDisplayNameFromProps, resolveStationDisplayName } from "./defaultNames.js";
 
 let onModeChange = () => {};
 let onEditStationSubmodeChange = () => {};
@@ -94,8 +93,7 @@ let lastTransferSnapHintId = "";
 const LABEL_DRAG_RADIUS_METERS = 500;
 let editStationSubmode = "station";
 
-const STATION_CIRCLE_LAYERS = ["stations-circle", "transfer-stations-circle"];
-const HOVER_PICK_LAYERS = [...STATION_CIRCLE_LAYERS, "stations-label", "routes-line"];
+const HOVER_PICK_LAYERS = ["stations-circle", "stations-label", "routes-line"];
 
 let tempNodePreviewRaf = null;
 let stationDragPreviewRaf = null;
@@ -188,9 +186,6 @@ function applyEditStationSubmode() {
     if (map.getLayer("stations-circle-hover")) {
       map.setFilter("stations-circle-hover", ["==", ["get", "station_id"], ""]);
     }
-    if (map.getLayer("transfer-stations-circle-hover")) {
-      map.setFilter("transfer-stations-circle-hover", ["==", ["get", "station_id"], ""]);
-    }
     setStationLabelMoveFrameVisibility(true);
     if (map.getLayer("stations-label")) {
       map.setLayoutProperty("stations-label", "text-allow-overlap", true);
@@ -236,7 +231,7 @@ export function setCursorForMode(e) {
       if (onNode.length) {
         cursor = "grab";
       } else {
-        const onStation = map.queryRenderedFeatures(e.point, { layers: STATION_CIRCLE_LAYERS });
+        const onStation = map.queryRenderedFeatures(e.point, { layers: ["stations-circle"] });
         if (onStation.length) {
           cursor = "pointer";
         } else {
@@ -254,7 +249,7 @@ export function setCursorForMode(e) {
     cursor = "grab";
     if (e) {
       const onRoute = map.queryRenderedFeatures(e.point, { layers: ["routes-line"] });
-      const onStation = map.queryRenderedFeatures(e.point, { layers: STATION_CIRCLE_LAYERS });
+      const onStation = map.queryRenderedFeatures(e.point, { layers: ["stations-circle"] });
       const onStationLabel = map.queryRenderedFeatures(e.point, { layers: ["stations-label"] });
       if (editStationSubmode !== "move-label" && onRoute.length) cursor = "pointer";
       if (onStation.length) cursor = "grab";
@@ -335,13 +330,14 @@ function applyTransferSnapHoverFromLngLat(lngLat) {
       closeOnClick: false,
       offset: 14,
       anchor: "left",
-      className: "transfer-snap-hint-popup",
     });
   }
   M.popups.transferSnapHint
     .setLngLat(found.feature.geometry.coordinates)
     .setHTML(
-      `<div class="transfer-snap-hint-popup__body">${t("popup.transferAdd")}</div>`
+      `<div style="font-size:12px;padding:4px 8px;background:#fffce7;border:1px solid #333;border-radius:4px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.2);">${t(
+        "popup.transferAdd"
+      )}</div>`
     )
     .addTo(getMap());
 }
@@ -369,7 +365,7 @@ function pickHoverTarget(map, point) {
   if (!hits.length) return null;
   const top = hits[0];
   const layerId = top.layer.id;
-  if (layerId === "stations-circle" || layerId === "transfer-stations-circle" || layerId === "stations-label") {
+  if (layerId === "stations-circle" || layerId === "stations-label") {
     return { type: "station", feature: top };
   }
   if (layerId === "routes-line") {
@@ -503,8 +499,6 @@ function updateHoverFromPointer(e) {
   }
 }
 
-const MAP_HOVER_POPUP_CLASS = "map-hover-popup";
-
 export function popupRoute(lngLat, routeId, point) {
   const map = getMap();
   if (!map) return;
@@ -513,14 +507,13 @@ export function popupRoute(lngLat, routeId, point) {
 
   const lineId = currentRoute.properties.group_id;
   const subRoutesInLine = store.routesFC.features.filter((f) => f.properties.group_id === lineId);
-  const headRoute = subRoutesInLine[0];
-  const lineDisplayName = resolveLineDisplayNameFromProps(headRoute?.properties);
+  const lineDisplayName = subRoutesInLine[0]?.properties?.name || t("routeList.lineFallback", { id: lineId });
   const estHeight = 36;
   const estWidth = Math.min(280, Math.max(120, lineDisplayName.length * 14 + 24));
   const screenPoint = popupScreenPoint(map, lngLat, point);
   const placement = resolvePopupPlacement(map, screenPoint, { estHeight, estWidth });
 
-  const html = `<div class="map-hover-popup__body map-hover-popup__body--route-only"><div class="map-hover-popup__title">${lineDisplayName}</div></div>`;
+  const html = `<div><b>${lineDisplayName}</b></div>`;
   if (M.popups.route?.isOpen?.()) {
     M.popups.route.setLngLat(lngLat).setOffset(placement.offset).setHTML(html);
     return;
@@ -535,7 +528,6 @@ export function popupRoute(lngLat, routeId, point) {
     closeOnClick: false,
     anchor: placement.anchor,
     offset: placement.offset,
-    className: MAP_HOVER_POPUP_CLASS,
   });
   M.popups.route.setLngLat(lngLat).setHTML(html).addTo(map);
 }
@@ -593,7 +585,8 @@ function collectLineNamesForSubRouteIds(subRouteIds) {
     const lineId = parentSubRoute.properties.group_id;
     if (typeof lineId !== "string" || lines.has(lineId)) return;
     const firstSubRouteInLine = store.routesFC.features.find((f) => f.properties.group_id === lineId);
-    const lineDisplayName = resolveLineDisplayNameFromProps(firstSubRouteInLine?.properties);
+    const lineDisplayName =
+      firstSubRouteInLine?.properties?.name || t("routeList.lineFallback", { id: lineId });
     lines.set(lineId, lineDisplayName);
   });
   return lines;
@@ -608,9 +601,9 @@ function buildPassingRouteLabels(passingRouteIds) {
     if (route?.properties?.group_id) {
       const gid = route.properties.group_id;
       const firstInLine = store.routesFC.features.find((f) => f.properties.group_id === gid);
-      return resolveLineDisplayNameFromProps(firstInLine?.properties);
+      return firstInLine?.properties?.name || t("routeList.lineFallback", { id: gid });
     }
-    return resolveLineDisplayNameFromProps(route?.properties);
+    return route?.properties?.name || t("routeModel.subRouteDefault", { id: rid });
   });
 }
 
@@ -621,14 +614,12 @@ export function popupStation(lngLat, st, point) {
   const passingRouteIds = collectPassingRouteIdsForPopup(st);
   const routeLabels = buildPassingRouteLabels(passingRouteIds);
 
-  const stationNameHTML = `<div class="map-hover-popup__title">${resolveStationDisplayName(p)}</div>`;
+  const stationNameHTML = `<b>${p.name || p.station_id}</b>`;
   let lineInfoHTML = "";
 
   if (routeLabels.length > 0) {
     lineInfoHTML =
-      `<div class="map-hover-popup__divider"></div>` +
-      `<div class="map-hover-popup__section-label">${t("popup.routesPassingHeader")}</div>` +
-      `<ul class="map-hover-popup__list">` +
+      `<hr style="margin:2px 0;">${t("popup.routesPassingHeader")}<ul style="margin:0; padding-left:20px;">` +
       routeLabels.map((name) => `<li>${name}</li>`).join("") +
       "</ul>";
   }
@@ -644,21 +635,14 @@ export function popupStation(lngLat, st, point) {
     closeOnClick: false,
     anchor: placement.anchor,
     offset: placement.offset,
-    className: MAP_HOVER_POPUP_CLASS,
   });
 
-  M.popups.station
-    .setLngLat(lngLat)
-    .setHTML(`<div class="map-hover-popup__body">${stationNameHTML}${lineInfoHTML}</div>`)
-    .addTo(map);
+  M.popups.station.setLngLat(lngLat).setHTML(`<div>${stationNameHTML}${lineInfoHTML}</div>`).addTo(map);
 }
 
 export function popupStationForEditing(station) {
-  dismissRoutePopup();
-  dismissBrowseStationPopup();
-
   const p = station.properties;
-  const currentName = resolveStationDisplayName(p);
+  const currentName = p.name || p.station_id;
 
   const saveLabel = t("popup.save");
   const deleteLabel = t("popup.delete");
@@ -854,7 +838,7 @@ function onMapClickWhileEditing(e) {
   };
 
   const hitFeatures = map.queryRenderedFeatures(e.point, {
-    layers: ["temp-edit-nodes-layer", "temp-edit-line-layer", ...STATION_CIRCLE_LAYERS, "routes-line"],
+    layers: ["temp-edit-nodes-layer", "temp-edit-line-layer", "stations-circle", "routes-line"],
   });
 
   if (hitFeatures.length) {
@@ -869,8 +853,7 @@ function onMapClickWhileEditing(e) {
       case "temp-edit-line-layer":
         Route.insertTempNodeOnSegment(e.point, properties.route_id);
         return;
-      case "stations-circle":
-      case "transfer-stations-circle": {
+      case "stations-circle": {
         const stationCoord = topFeature.geometry.coordinates;
         if (isNearAnyEndpoint(stationCoord)) return;
         Route.queueStationFromExisting(stationCoord);
@@ -969,7 +952,7 @@ Modes["add-route"] = {
   onMapClick(e) {
     const map = getMap();
     const hitFeatures = map.queryRenderedFeatures(e.point, {
-      layers: ["temp-edit-nodes-layer", "temp-edit-line-layer", ...STATION_CIRCLE_LAYERS, "routes-line"],
+      layers: ["temp-edit-nodes-layer", "temp-edit-line-layer", "stations-circle", "routes-line"],
     });
 
     if (hitFeatures.length) {
@@ -984,7 +967,6 @@ Modes["add-route"] = {
           Route.insertTempNodeOnSegment(e.point, properties.route_id);
           break;
         case "stations-circle":
-        case "transfer-stations-circle":
           Route.queueStationFromExisting(hitFeatures[0].geometry.coordinates);
           break;
         case "routes-line": {
@@ -1131,7 +1113,7 @@ Modes["edit-station"] = {
   onMapClick(e) {
     const map = getMap();
     const hitFeatures = map.queryRenderedFeatures(e.point, {
-      layers: [...STATION_CIRCLE_LAYERS, "stations-label", "transfer-snaps-layer", "routes-line"],
+      layers: ["stations-circle", "stations-label", "transfer-snaps-layer", "routes-line"],
     });
 
     if (hitFeatures.length) {
@@ -1141,7 +1123,6 @@ Modes["edit-station"] = {
 
       switch (topLayerId) {
         case "stations-circle":
-        case "transfer-stations-circle":
           popupStationForEditing(topFeature);
           break;
         case "stations-label":
@@ -1346,14 +1327,12 @@ export function initializeEventListeners() {
   map.on("click", (e) => cur()?.onMapClick?.(e));
   map.on("click", "routes-line", (e) => cur()?.onRouteClick?.(e));
   map.on("click", "stations-circle", (e) => cur()?.onStationClick?.(e));
-  map.on("click", "transfer-stations-circle", (e) => cur()?.onStationClick?.(e));
   map.on("click", "stations-label", (e) => cur()?.onStationClick?.(e));
   map.on("click", "temp-edit-line-layer", (e) => cur()?.onTempLineClick?.(e));
 
   map.on("mousedown", "routes-line", (e) => cur()?.onRouteDown?.(e));
   map.on("mousedown", "temp-edit-nodes-layer", (e) => cur()?.onTempNodeDown?.(e));
   map.on("mousedown", "stations-circle", (e) => cur()?.onStationDown?.(e));
-  map.on("mousedown", "transfer-stations-circle", (e) => cur()?.onStationDown?.(e));
   map.on("mousedown", "stations-label", (e) => cur()?.onStationLabelDown?.(e));
   updateTransferSnapVisibility();
 }

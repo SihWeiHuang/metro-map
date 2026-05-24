@@ -388,17 +388,14 @@ function App() {
           </div>
         </div>
       </header>
-      <div className="app-content-wrapper app-main-layout">
+      <div className="app-main-layout">
         <aside
           id="route-list-container"
-          className="app-side-panel route-list-sidebar"
+          className="route-list-sidebar"
           style={{ width: routeListWidthPx }}
           aria-label={t("app.routeListAria")}
         >
-          <div className="app-side-panel-header">
-            <h2>{t("app.routeListAria")}</h2>
-          </div>
-          <div className="app-side-panel-content route-list-sidebar-scroll">
+          <div className="route-list-sidebar-scroll">
             <RouteListPanel
               key={listTick}
               onRefresh={bumpRouteList}
@@ -408,8 +405,7 @@ function App() {
               onEditRouteMetadata={openRouteMetadataDialog}
             />
           </div>
-          <div className={`app-side-panel-footer app-controls-dock${editToolsOpen ? " app-controls-dock-open" : ""}`}>
-            <div className="app-mode-tools">
+          <div className={`app-controls-dock${editToolsOpen ? " app-controls-dock-open" : ""}`}>
             <button
               id="edit-mode-toggle"
               type="button"
@@ -516,7 +512,6 @@ function App() {
               )}
               </div>
             </div>
-            </div>
           </div>
         </aside>
         <div
@@ -524,7 +519,6 @@ function App() {
           role="separator"
           aria-orientation="vertical"
           aria-label={t("app.resizeAria")}
-          title={t("app.resizeAria")}
           onMouseDown={(e) => {
             e.preventDefault();
             startRouteListResize(e.clientX);
@@ -533,13 +527,7 @@ function App() {
             if (e.touches.length !== 1) return;
             startRouteListResize(e.touches[0].clientX);
           }}
-        >
-          <div className="route-list-resize-grip" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </div>
-        </div>
+        />
         <div className="app-main-column">
           <div className="app-map-stage">
             <MapView onModeChange={onModeChange} />
@@ -553,19 +541,19 @@ function App() {
                   <>
                     <button
                       type="button"
-                      id="cancelModeButton"
-                      className="mode-cancel-bar"
-                      onClick={handleCancelRouteEditing}
-                    >
-                      {t("app.cancel")}
-                    </button>
-                    <button
-                      type="button"
                       id="finishModeButton"
                       className="mode-finish-bar"
                       onClick={handleFinishEditing}
                     >
                       {t("app.finish")}
+                    </button>
+                    <button
+                      type="button"
+                      id="cancelModeButton"
+                      className="mode-cancel-bar"
+                      onClick={handleCancelRouteEditing}
+                    >
+                      {t("app.cancel")}
                     </button>
                   </>
                 ) : (

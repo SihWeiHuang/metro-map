@@ -156,7 +156,7 @@ export default function RouteListPanel({
         </div>
       )}
       {showRouteActions && (
-        <div className="route-batch-toolbar route-batch-toolbar--edit">
+        <div className="route-batch-toolbar">
           <label className="route-select-all">
             <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} disabled={toolbarLocked} />
             {t("routeList.selectAll")}
@@ -203,7 +203,7 @@ export default function RouteListPanel({
         )}
       </div>
       {visibleLineList.map((g) => {
-        const currentName = g.sub_routes[0]?.name ?? "";
+        const currentName = g.sub_routes[0]?.name || t("routeList.lineFallback", { id: g.line_id });
         const mergePickOrder = mergeSelectMode ? getLineMergePickOrder(g.sub_routes, mergePickRouteIds) : 0;
         return (
           <LineRow

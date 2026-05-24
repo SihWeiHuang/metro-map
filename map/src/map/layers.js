@@ -11,14 +11,7 @@ const METRO_GEOMETRY_LAYER_IDS = [
   "stations-circle",
   "stations-circle-hover",
   "transfer-snaps-layer",
-  "transfer-stations-circle",
-  "transfer-stations-circle-hover",
 ];
-
-const REGULAR_STATION_LAYER_FILTER = ["!=", ["coalesce", ["get", "is_transfer_fixed"], false], true];
-const TRANSFER_STATION_LAYER_FILTER = ["==", ["coalesce", ["get", "is_transfer_fixed"], false], true];
-
-export { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER };
 
 function styleUsesMapboxSlots(map) {
   const style = map.getStyle();
@@ -142,12 +135,11 @@ export function initializeLayers(map, store) {
     id: "stations-circle",
     type: "circle",
     source: "stations",
-    filter: REGULAR_STATION_LAYER_FILTER,
     paint: {
-      "circle-radius": 8,
-      "circle-color": ["coalesce", ["get", "color"], "#1e88e5"],
-      "circle-stroke-width": 1.5,
-      "circle-stroke-color": "#ffffff",
+      "circle-radius": ["case", ["==", ["get", "is_transfer_fixed"], true], 9.5, 8],
+      "circle-color": ["case", ["==", ["get", "is_transfer_fixed"], true], "#ffffff", ["coalesce", ["get", "color"], "#1e88e5"]],
+      "circle-stroke-width": ["case", ["==", ["get", "is_transfer_fixed"], true], 2.8, 1.5],
+      "circle-stroke-color": ["case", ["==", ["get", "is_transfer_fixed"], true], "#000000", "#ffffff"],
     },
   });
 
@@ -155,13 +147,13 @@ export function initializeLayers(map, store) {
     id: "stations-circle-hover",
     type: "circle",
     source: "stations",
-    filter: ["all", REGULAR_STATION_LAYER_FILTER, ["==", ["get", "station_id"], ""]],
     paint: {
-      "circle-radius": 12,
-      "circle-color": ["coalesce", ["get", "color"], "#1e88e5"],
-      "circle-stroke-width": 2,
-      "circle-stroke-color": "#ffffff",
+      "circle-radius": ["case", ["==", ["get", "is_transfer_fixed"], true], 14, 12],
+      "circle-color": ["case", ["==", ["get", "is_transfer_fixed"], true], "#ffffff", ["coalesce", ["get", "color"], "#1e88e5"]],
+      "circle-stroke-width": ["case", ["==", ["get", "is_transfer_fixed"], true], 3, 2],
+      "circle-stroke-color": ["case", ["==", ["get", "is_transfer_fixed"], true], "#000000", "#ffffff"],
     },
+    filter: ["==", ["get", "station_id"], ""],
   });
 
   addLayerBelowMapLabels(map, {
@@ -173,32 +165,6 @@ export function initializeLayers(map, store) {
       "circle-color": "#fdd835",
       "circle-stroke-width": 1.5,
       "circle-stroke-color": "#5d4037",
-    },
-  });
-
-  addLayerBelowMapLabels(map, {
-    id: "transfer-stations-circle",
-    type: "circle",
-    source: "stations",
-    filter: TRANSFER_STATION_LAYER_FILTER,
-    paint: {
-      "circle-radius": 9.5,
-      "circle-color": "#ffffff",
-      "circle-stroke-width": 2.8,
-      "circle-stroke-color": "#000000",
-    },
-  });
-
-  addLayerBelowMapLabels(map, {
-    id: "transfer-stations-circle-hover",
-    type: "circle",
-    source: "stations",
-    filter: ["all", TRANSFER_STATION_LAYER_FILTER, ["==", ["get", "station_id"], ""]],
-    paint: {
-      "circle-radius": 14,
-      "circle-color": "#ffffff",
-      "circle-stroke-width": 3,
-      "circle-stroke-color": "#000000",
     },
   });
 
