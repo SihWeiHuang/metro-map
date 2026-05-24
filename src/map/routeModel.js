@@ -1630,6 +1630,8 @@ export const Route = {
   getLineStatus,
   setLineStatus,
   getActiveEditLineId,
+  /** @deprecated use getActiveEditLineId */
+  getActiveEditGroupId: getActiveEditLineId,
   setLineMetadata,
   deleteRoute,
   deleteLine,

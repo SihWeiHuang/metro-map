@@ -70,7 +70,7 @@ export default function RouteListPanel({
 
   const allSelected = lineList.length > 0 && selectedLineIds.size === lineList.length;
   const selectedCount = selectedLineIds.size;
-  const activeEditLineId = showRouteActions ? Route.getActiveEditGroupId() : null;
+  const activeEditLineId = showRouteActions ? Route.getActiveEditLineId() : null;
   const toolbarLocked = !!activeEditLineId;
   /** 已勾選至少一條時，禁止點列進入臨時編輯，僅能繼續勾選 */
   const blockRowEdit = showRouteActions && selectedLineIds.size > 0;
