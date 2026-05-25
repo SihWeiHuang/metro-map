@@ -1031,47 +1031,92 @@ function expandMergedSubrouteIdsFromStation(station, mergedSubrouteIds) {
   }
 }
 
+function distanceMeters(coordA, coordB) {
+  return T.distance(T.point(coordA), T.point(coordB), { units: "meters" });
+}
+
+function stationDisplayCoordForAbsorption(station) {
+  const coord = station?.geometry?.coordinates;
+  if (!coord || station.properties?.is_transfer_fixed) return coord;
+
+  const subrouteId = station.properties?.subroute_id;
+  const route = store.subroutesFC.features.find((f) => f.properties?.subroute_id === subrouteId);
+  if (!route?.geometry?.coordinates || route.geometry.coordinates.length < 2) return coord;
+
+  const snapped = nearestPointOnSmoothedRoute(route.geometry.coordinates, coord);
+  return snapped?.geometry?.coordinates || coord;
+}
+
+function stationDistanceToCoordForAbsorption(station, coord) {
+  const rawCoord = station?.geometry?.coordinates;
+  if (!rawCoord) return Infinity;
+
+  const rawDistance = distanceMeters(rawCoord, coord);
+  const displayCoord = stationDisplayCoordForAbsorption(station);
+  if (!displayCoord) return rawDistance;
+
+  return Math.min(rawDistance, distanceMeters(displayCoord, coord));
+}
+
+function stationsCoincidentForAbsorption(a, b) {
+  const rawA = a?.geometry?.coordinates;
+  const rawB = b?.geometry?.coordinates;
+  if (!rawA || !rawB) return false;
+  if (distanceMeters(rawA, rawB) <= STATION_COINCIDENT_METERS) return true;
+
+  const displayA = stationDisplayCoordForAbsorption(a);
+  const displayB = stationDisplayCoordForAbsorption(b);
+  return Boolean(displayA && displayB && distanceMeters(displayA, displayB) <= STATION_COINCIDENT_METERS);
+}
+
 /** 轉乘點應吸收的一般站（含重疊的 s5/s6、路線頭尾站）。 */
 function collectStationIdsToAbsorbForTransfer(coord, mergedSubrouteIds) {
   const toRemove = new Set();
   const subrouteIds = new Set(mergedSubrouteIds);
-  const transferPoint = T.point(coord);
+  const queue = [];
+  const visited = new Set();
 
   const markForAbsorb = (s) => {
     if (!s?.properties?.station_id) return;
     if (s.properties.is_transfer_fixed) return;
+    if (toRemove.has(s.properties.station_id)) return;
     toRemove.add(s.properties.station_id);
     expandMergedSubrouteIdsFromStation(s, subrouteIds);
   };
 
-  const seedStations = [];
+  const markForAbsorbAndExpandCoincident = (s) => {
+    const sid = s?.properties?.station_id;
+    if (!sid || s.properties?.is_transfer_fixed) return;
+    markForAbsorb(s);
+    if (visited.has(sid)) return;
+    visited.add(sid);
+    queue.push(s);
+  };
+
+  const expandCoincidentStations = () => {
+    while (queue.length > 0) {
+      const current = queue.shift();
+      for (const s of store.stationsFC.features) {
+        if (s.properties?.is_transfer_fixed) continue;
+        const sid = s.properties.station_id;
+        if (!sid || visited.has(sid)) continue;
+        if (stationsCoincidentForAbsorption(s, current)) {
+          markForAbsorbAndExpandCoincident(s);
+        }
+      }
+    }
+  };
+
   for (const s of store.stationsFC.features) {
     if (s.properties?.is_transfer_fixed) continue;
-    const d = T.distance(T.point(s.geometry.coordinates), transferPoint, { units: "meters" });
+    const d = stationDistanceToCoordForAbsorption(s, coord);
     if (d <= TRANSFER_ABSORB_METERS) {
-      markForAbsorb(s);
-      seedStations.push(s);
+      markForAbsorbAndExpandCoincident(s);
     }
   }
 
   // Expand to every regular station coincident with any station at this overlap point.
-  const queue = [...seedStations];
-  const visited = new Set(seedStations.map((s) => s.properties.station_id));
-  while (queue.length > 0) {
-    const current = queue.shift();
-    const currentPoint = T.point(current.geometry.coordinates);
-    for (const s of store.stationsFC.features) {
-      if (s.properties?.is_transfer_fixed) continue;
-      const sid = s.properties.station_id;
-      if (!sid || visited.has(sid)) continue;
-      const d = T.distance(T.point(s.geometry.coordinates), currentPoint, { units: "meters" });
-      if (d <= STATION_COINCIDENT_METERS) {
-        visited.add(sid);
-        markForAbsorb(s);
-        queue.push(s);
-      }
-    }
-  }
+  expandCoincidentStations();
 
   for (const subrouteId of subrouteIds) {
     const route = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteId);
@@ -1081,16 +1126,18 @@ function collectStationIdsToAbsorbForTransfer(coord, mergedSubrouteIds) {
     const ends = [coords[0], coords[coords.length - 1]];
 
     for (const endCoord of ends) {
-      const endNearTransfer =
-        T.distance(T.point(endCoord), transferPoint, { units: "meters" }) <= TRANSFER_ABSORB_METERS;
+      const endNearTransfer = distanceMeters(endCoord, coord) <= TRANSFER_ABSORB_METERS;
       if (!endNearTransfer) continue;
 
       for (const s of store.stationsFC.features) {
         if (s.properties?.subroute_id !== subrouteId) continue;
         const sc = s.geometry.coordinates;
-        const dEnd = T.distance(T.point(sc), T.point(endCoord), { units: "meters" });
-        const dTr = T.distance(T.point(sc), transferPoint, { units: "meters" });
-        if (dEnd <= TRANSFER_ABSORB_METERS || dTr <= TRANSFER_ABSORB_METERS) markForAbsorb(s);
+        const dEnd = distanceMeters(sc, endCoord);
+        const dTr = stationDistanceToCoordForAbsorption(s, coord);
+        if (dEnd <= TRANSFER_ABSORB_METERS || dTr <= TRANSFER_ABSORB_METERS) {
+          markForAbsorbAndExpandCoincident(s);
+          expandCoincidentStations();
+        }
       }
     }
 
@@ -1099,8 +1146,13 @@ function collectStationIdsToAbsorbForTransfer(coord, mergedSubrouteIds) {
       if (s.properties?.is_transfer_fixed) continue;
       const snapped = T.nearestPointOnLine(line, s.geometry.coordinates, { units: "meters" });
       const dAlong = snapped.properties.dist ?? Infinity;
-      const dToTransfer = T.distance(T.point(s.geometry.coordinates), transferPoint, { units: "meters" });
-      if (dAlong <= TRANSFER_ABSORB_METERS && dToTransfer <= TRANSFER_ABSORB_METERS) markForAbsorb(s);
+      const dToTransfer = stationDistanceToCoordForAbsorption(s, coord);
+      const snappedNearTransfer =
+        snapped.geometry?.coordinates && distanceMeters(snapped.geometry.coordinates, coord) <= TRANSFER_ABSORB_METERS;
+      if (dAlong <= TRANSFER_ABSORB_METERS && (dToTransfer <= TRANSFER_ABSORB_METERS || snappedNearTransfer)) {
+        markForAbsorbAndExpandCoincident(s);
+        expandCoincidentStations();
+      }
     }
   }
 
@@ -1144,7 +1196,7 @@ function normalizeAllTransferStations() {
 function addTransferStationAt(coord, subrouteIdA, subrouteIdB) {
   const mergedSubrouteIds = new Set([subrouteIdA, subrouteIdB]);
   const nearbyStations = store.stationsFC.features.filter((s) => {
-    return T.distance(T.point(s.geometry.coordinates), T.point(coord), { units: "meters" }) <= TRANSFER_ABSORB_METERS;
+    return stationDistanceToCoordForAbsorption(s, coord) <= TRANSFER_ABSORB_METERS;
   });
   nearbyStations.forEach((s) => expandMergedSubrouteIdsFromStation(s, mergedSubrouteIds));
 

@@ -93,7 +93,7 @@ export const M = {
     downPoint: null,
   },
   pointer: { isDown: false },
-  hover: { subrouteId: "", stationId: "" },
+  hover: { subrouteId: "", stationId: "", transferSnapId: "" },
   /** 地圖選路線後略過緊接著的那次 click，避免誤加編輯點 */
   suppressNextEditMapClick: false,
 };
@@ -299,6 +299,7 @@ export function setCursorForMode(e) {
 export function clearHoverAndPopups() {
   M.hover.subrouteId = "";
   M.hover.stationId = "";
+  M.hover.transferSnapId = "";
   Route.clearHover();
   hideHoverPopups();
 }
@@ -399,6 +400,7 @@ function updateEditStationHover(e, target) {
     }
     M.hover.stationId = sid;
     M.hover.subrouteId = rid || "";
+    M.hover.transferSnapId = "";
     setStationHoverPairFilters(map, sid);
     hideStationBrowsePopup();
     hideTransferSnapHint();
@@ -407,8 +409,13 @@ function updateEditStationHover(e, target) {
 
   if (target.type === "transfer-snap") {
     if (!isTransferSnapOccupied(target.feature)) {
+      M.hover.stationId = "";
+      M.hover.transferSnapId = target.feature.properties?.snap_id || "";
       hideStationBrowsePopup();
       refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, { feature: target.feature });
+    } else {
+      M.hover.transferSnapId = "";
+      hideTransferSnapHint();
     }
     return;
   }
@@ -419,6 +426,8 @@ function updateEditStationHover(e, target) {
       M.hover.subrouteId = rid;
       Route.highlightRoute(rid);
     }
+    M.hover.stationId = "";
+    M.hover.transferSnapId = snapNear.feature.properties?.snap_id || "";
     hideStationBrowsePopup();
     refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, snapNear);
     return;
@@ -426,6 +435,8 @@ function updateEditStationHover(e, target) {
 
   const sameRoute = M.hover.subrouteId === rid;
   M.hover.subrouteId = rid;
+  M.hover.stationId = "";
+  M.hover.transferSnapId = "";
   if (!sameRoute) Route.highlightRoute(rid);
   hideStationBrowsePopup();
   refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, null);
@@ -524,6 +535,33 @@ function collectRouteNamesForSubrouteIds(subrouteIds) {
     routes.set(routeId, routeDisplayName);
   });
   return routes;
+}
+
+function addNearbyTransferStationFromClick(lngLat, highlightSubrouteId = "") {
+  const snapNear = findNearestTransferSnap(lngLat, TRANSFER_SNAP_CLICK_METERS);
+  if (!snapNear || isTransferSnapOccupied(snapNear.feature)) return false;
+  const snapId = snapNear.feature.properties?.snap_id || "";
+  if (!snapId || snapId !== M.hover.transferSnapId) return false;
+
+  const p = snapNear.feature.properties;
+  Route.addTransferStationAt(snapNear.feature.geometry.coordinates, p.subroute_id_a, p.subroute_id_b);
+  if (highlightSubrouteId) Route.highlightRoute(highlightSubrouteId);
+  return true;
+}
+
+function isStationLayerId(layerId) {
+  return (
+    layerId === "stations-circle" ||
+    layerId === "transfer-stations-circle" ||
+    layerId === "stations-label"
+  );
+}
+
+function findHoveredStationFeature(hitFeatures) {
+  if (!M.hover.stationId) return null;
+  return hitFeatures.find((feature) => {
+    return isStationLayerId(feature.layer?.id) && feature.properties?.station_id === M.hover.stationId;
+  });
 }
 
 /** 車站 popup 顯示用的路線名稱（至少一條）。 */
@@ -1043,6 +1081,12 @@ Modes["edit-station"] = {
     });
 
     if (hitFeatures.length) {
+      const hoveredStation = editStationSubmode !== "move-label" ? findHoveredStationFeature(hitFeatures) : null;
+      if (hoveredStation) {
+        popupStationForEditing(hoveredStation);
+        return;
+      }
+
       const topFeature = hitFeatures[0];
       const topLayerId = topFeature.layer.id;
       const properties = topFeature.properties;
@@ -1058,6 +1102,7 @@ Modes["edit-station"] = {
           }
           break;
         case "transfer-snaps-layer": {
+          if (M.hover.transferSnapId !== (properties.snap_id || "")) break;
           const coord = topFeature.geometry.coordinates;
           const ridA = properties.subroute_id_a;
           const ridB = properties.subroute_id_b;
@@ -1067,11 +1112,7 @@ Modes["edit-station"] = {
           break;
         }
         case "routes-line": {
-          const snapNear = findNearestTransferSnap(e.lngLat, TRANSFER_SNAP_CLICK_METERS);
-          if (snapNear && !isTransferSnapOccupied(snapNear.feature)) {
-            const p = snapNear.feature.properties;
-            Route.addTransferStationAt(snapNear.feature.geometry.coordinates, p.subroute_id_a, p.subroute_id_b);
-            Route.highlightRoute(properties.subroute_id);
+          if (addNearbyTransferStationFromClick(e.lngLat, properties.subroute_id)) {
             break;
           }
           const snapped = turf.nearestPointOnLine(getRouteFeature(properties.subroute_id), [e.lngLat.lng, e.lngLat.lat], {
