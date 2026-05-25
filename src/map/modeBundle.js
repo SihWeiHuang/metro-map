@@ -119,7 +119,15 @@ initMapPopups({
 });
 
 const STATION_CIRCLE_LAYERS = ["stations-circle", "transfer-stations-circle"];
-const HOVER_PICK_LAYERS = [...STATION_CIRCLE_LAYERS, "stations-label", "transfer-snaps-layer", "routes-line"];
+const STATION_HOVER_CIRCLE_LAYERS = ["stations-circle-hover", "transfer-stations-circle-hover"];
+const STATION_LABEL_LAYERS = ["stations-label", "stations-label-hover"];
+const HOVER_PICK_LAYERS = [
+  ...STATION_HOVER_CIRCLE_LAYERS,
+  ...STATION_CIRCLE_LAYERS,
+  ...STATION_LABEL_LAYERS,
+  "transfer-snaps-layer",
+  "routes-line",
+];
 
 let tempNodePreviewRaf = null;
 let stationDragPreviewRaf = null;
@@ -277,7 +285,7 @@ export function setCursorForMode(e) {
     if (e) {
       const onRoute = map.queryRenderedFeatures(e.point, { layers: ["routes-line"] });
       const onStation = map.queryRenderedFeatures(e.point, { layers: STATION_CIRCLE_LAYERS });
-      const onStationLabel = map.queryRenderedFeatures(e.point, { layers: ["stations-label"] });
+      const onStationLabel = map.queryRenderedFeatures(e.point, { layers: STATION_LABEL_LAYERS });
       if (editStationSubmode !== "move-label" && onRoute.length) cursor = "pointer";
       if (onStation.length) cursor = "grab";
       if (onStationLabel.length) cursor = "grab";
@@ -309,7 +317,14 @@ function pickHoverTarget(map, point) {
   if (!hits.length) return null;
   const top = hits[0];
   const layerId = top.layer.id;
-  if (layerId === "stations-circle" || layerId === "transfer-stations-circle" || layerId === "stations-label") {
+  if (
+    layerId === "stations-circle" ||
+    layerId === "transfer-stations-circle" ||
+    layerId === "stations-circle-hover" ||
+    layerId === "transfer-stations-circle-hover" ||
+    layerId === "stations-label" ||
+    layerId === "stations-label-hover"
+  ) {
     return { type: "station", feature: top };
   }
   if (layerId === "transfer-snaps-layer") {

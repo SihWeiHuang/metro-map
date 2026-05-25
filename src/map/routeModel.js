@@ -11,6 +11,7 @@ import {
 import { DEFAULT_BUILTIN_MAP_DATA } from "./defaultBuiltinData.js";
 import { computeMapViewFromFeatures, normalizeImportedMapView } from "./mapGeoBounds.js";
 import { scheduleImportMapView } from "./mapViewState.js";
+import { setStationLabelBaseMask } from "./mapHoverFilters.js";
 import { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER } from "./layers.js";
 import {
   allocateDefaultLineLabel,
@@ -700,6 +701,7 @@ function highlightRoute(routeId) {
   // (Do NOT set this in refreshSources; it must remain hover-driven.)
   map.getLayer("stations-label-hover") &&
     map.setFilter("stations-label-hover", stationHoverFilter);
+  setStationLabelBaseMask(map, visibleRouteIdsInGroup.length === 0 ? null : stationHoverFilter);
 }
 
 function clearHover() {
@@ -710,6 +712,7 @@ function clearHover() {
   map.getLayer("transfer-stations-circle-hover") &&
     map.setFilter("transfer-stations-circle-hover", ["==", ["get", "station_id"], ""]);
   map.getLayer("stations-label-hover") && map.setFilter("stations-label-hover", ["==", ["get", "station_id"], ""]);
+  setStationLabelBaseMask(map, null);
 }
 
 function getLineList() {
