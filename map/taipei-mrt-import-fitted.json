@@ -3,7 +3,7 @@
   "formatVersion": 2,
   "exportedAt": "2026-05-24T07:13:14.515Z",
   "v": 2,
-  "userRoutesFC": {
+  "userSubroutesFC": {
     "type": "FeatureCollection",
     "features": [
       {
@@ -210,8 +210,8 @@
           ]
         },
         "properties": {
-          "route_id": "r1",
-          "group_id": "g1",
+          "subroute_id": "r1",
+          "route_id": "g1",
           "name": "三鶯線",
           "color": "#9E9E9E",
           "route_kind": "user",
@@ -464,8 +464,8 @@
           ]
         },
         "properties": {
-          "route_id": "r4",
-          "group_id": "g2",
+          "subroute_id": "r4",
+          "route_id": "g2",
           "name": "環狀線",
           "color": "#FFDB00",
           "route_kind": "user",
@@ -522,8 +522,8 @@
           ]
         },
         "properties": {
-          "route_id": "r7",
-          "group_id": "g3",
+          "subroute_id": "r7",
+          "route_id": "g3",
           "name": "小碧潭線",
           "color": "#008659",
           "route_kind": "user",
@@ -652,8 +652,8 @@
           ]
         },
         "properties": {
-          "route_id": "r8",
-          "group_id": "g4",
+          "subroute_id": "r8",
+          "route_id": "g4",
           "name": "中和新蘆線",
           "color": "#F8B61C",
           "route_kind": "user",
@@ -734,8 +734,8 @@
           ]
         },
         "properties": {
-          "route_id": "r9",
-          "group_id": "g4",
+          "subroute_id": "r9",
+          "route_id": "g4",
           "name": "中和新蘆線",
           "color": "#F8B61C",
           "route_kind": "user",
@@ -1128,8 +1128,8 @@
           ]
         },
         "properties": {
-          "route_id": "r10",
-          "group_id": "g5",
+          "subroute_id": "r10",
+          "route_id": "g5",
           "name": "文湖線",
           "color": "#C48C31",
           "route_kind": "user",
@@ -1226,8 +1226,8 @@
           ]
         },
         "properties": {
-          "route_id": "r14",
-          "group_id": "g6",
+          "subroute_id": "r14",
+          "route_id": "g6",
           "name": "松山新店線",
           "color": "#008659",
           "route_kind": "user",
@@ -1344,8 +1344,8 @@
           ]
         },
         "properties": {
-          "route_id": "r15",
-          "group_id": "g7",
+          "subroute_id": "r15",
+          "route_id": "g7",
           "name": "板南線",
           "color": "#0070BD",
           "route_kind": "user",
@@ -1734,8 +1734,8 @@
           ]
         },
         "properties": {
-          "route_id": "r16",
-          "group_id": "g8",
+          "subroute_id": "r16",
+          "route_id": "g8",
           "name": "淡水信義線",
           "color": "#E3002C",
           "route_kind": "user",
@@ -1760,8 +1760,8 @@
           ]
         },
         "properties": {
-          "route_id": "r28",
-          "group_id": "g9",
+          "subroute_id": "r28",
+          "route_id": "g9",
           "name": "新北投線",
           "color": "#E3002C",
           "route_kind": "user",
@@ -1798,8 +1798,8 @@
           ]
         },
         "properties": {
-          "route_id": "r30",
-          "group_id": "g10",
+          "subroute_id": "r30",
+          "route_id": "g10",
           "name": "貓空纜車",
           "color": "#795548",
           "route_kind": "user",
@@ -1824,7 +1824,7 @@
         },
         "properties": {
           "station_id": "s1",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "七張站",
           "color": "#008659"
         }
@@ -1840,7 +1840,7 @@
         },
         "properties": {
           "station_id": "s2",
-          "route_id": "r4",
+          "subroute_id": "r4",
           "name": "十四張站",
           "color": "#FFDB00"
         }
@@ -1856,7 +1856,7 @@
         },
         "properties": {
           "station_id": "s3",
-          "route_id": "r8",
+          "subroute_id": "r8",
           "name": "三民高中站",
           "color": "#F8B61C"
         }
@@ -1872,7 +1872,7 @@
         },
         "properties": {
           "station_id": "s4",
-          "route_id": "r8",
+          "subroute_id": "r8",
           "name": "三和國中站",
           "color": "#F8B61C"
         }
@@ -1888,7 +1888,7 @@
         },
         "properties": {
           "station_id": "s5",
-          "route_id": "r9",
+          "subroute_id": "r9",
           "name": "三重站",
           "color": "#F8B61C"
         }
@@ -1904,7 +1904,7 @@
         },
         "properties": {
           "station_id": "s6",
-          "route_id": "r8",
+          "subroute_id": "r8",
           "name": "三重國小站",
           "color": "#F8B61C"
         }
@@ -1920,7 +1920,7 @@
         },
         "properties": {
           "station_id": "s7",
-          "route_id": "r1",
+          "subroute_id": "r1",
           "name": "三峽站(國家教育研究院)站",
           "color": "#9E9E9E"
         }
@@ -1936,7 +1936,7 @@
         },
         "properties": {
           "station_id": "s8",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "土城站",
           "color": "#0070BD"
         }
@@ -1952,7 +1952,7 @@
         },
         "properties": {
           "station_id": "s9",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "士林站",
           "color": "#E3002C"
         }
@@ -1968,7 +1968,7 @@
         },
         "properties": {
           "station_id": "s10",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "大安站",
           "color": "#C48C31",
           "is_transfer_fixed": true,
@@ -1988,7 +1988,7 @@
         },
         "properties": {
           "station_id": "s11",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "大安森林公園站",
           "color": "#E3002C"
         }
@@ -2004,7 +2004,7 @@
         },
         "properties": {
           "station_id": "s12",
-          "route_id": "r4",
+          "subroute_id": "r4",
           "name": "大坪林站",
           "color": "#FFDB00",
           "is_transfer_fixed": true,
@@ -2024,7 +2024,7 @@
         },
         "properties": {
           "station_id": "s13",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "大直站",
           "color": "#C48C31"
         }
@@ -2040,7 +2040,7 @@
         },
         "properties": {
           "station_id": "s14",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "大湖公園站",
           "color": "#C48C31"
         }
@@ -2056,7 +2056,7 @@
         },
         "properties": {
           "station_id": "s15",
-          "route_id": "r8",
+          "subroute_id": "r8",
           "name": "大橋頭站",
           "color": "#F8B61C"
         }
@@ -2072,7 +2072,7 @@
         },
         "properties": {
           "station_id": "s16",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "小南門站",
           "color": "#008659"
         }
@@ -2088,7 +2088,7 @@
         },
         "properties": {
           "station_id": "s17",
-          "route_id": "r7",
+          "subroute_id": "r7",
           "name": "小碧潭站",
           "color": "#008659"
         }
@@ -2104,7 +2104,7 @@
         },
         "properties": {
           "station_id": "s18",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "中山站",
           "color": "#E3002C",
           "is_transfer_fixed": true,
@@ -2124,7 +2124,7 @@
         },
         "properties": {
           "station_id": "s19",
-          "route_id": "r8",
+          "subroute_id": "r8",
           "name": "中山國小站",
           "color": "#F8B61C"
         }
@@ -2140,7 +2140,7 @@
         },
         "properties": {
           "station_id": "s20",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "中山國中站",
           "color": "#C48C31"
         }
@@ -2156,7 +2156,7 @@
         },
         "properties": {
           "station_id": "s21",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "中正紀念堂站",
           "color": "#008659",
           "is_transfer_fixed": true,
@@ -2176,7 +2176,7 @@
         },
         "properties": {
           "station_id": "s22",
-          "route_id": "r4",
+          "subroute_id": "r4",
           "name": "中和站",
           "color": "#FFDB00"
         }
@@ -2192,7 +2192,7 @@
         },
         "properties": {
           "station_id": "s23",
-          "route_id": "r4",
+          "subroute_id": "r4",
           "name": "中原站",
           "color": "#FFDB00"
         }
@@ -2208,7 +2208,7 @@
         },
         "properties": {
           "station_id": "s24",
-          "route_id": "r9",
+          "subroute_id": "r9",
           "name": "丹鳳站",
           "color": "#F8B61C"
         }
@@ -2224,7 +2224,7 @@
         },
         "properties": {
           "station_id": "s25",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "內湖站",
           "color": "#C48C31"
         }
@@ -2240,7 +2240,7 @@
         },
         "properties": {
           "station_id": "s26",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "公館站",
           "color": "#008659"
         }
@@ -2256,7 +2256,7 @@
         },
         "properties": {
           "station_id": "s27",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "六張犁站",
           "color": "#C48C31"
         }
@@ -2272,7 +2272,7 @@
         },
         "properties": {
           "station_id": "s28",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "文德站",
           "color": "#C48C31"
         }
@@ -2288,7 +2288,7 @@
         },
         "properties": {
           "station_id": "s29",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "木柵站",
           "color": "#C48C31"
         }
@@ -2304,7 +2304,7 @@
         },
         "properties": {
           "station_id": "s30",
-          "route_id": "r28",
+          "subroute_id": "r28",
           "name": "北投站",
           "color": "#E3002C",
           "is_transfer_fixed": true,
@@ -2324,7 +2324,7 @@
         },
         "properties": {
           "station_id": "s31",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "北門站",
           "color": "#008659"
         }
@@ -2340,7 +2340,7 @@
         },
         "properties": {
           "station_id": "s32",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "古亭站",
           "color": "#008659",
           "is_transfer_fixed": true,
@@ -2360,7 +2360,7 @@
         },
         "properties": {
           "station_id": "s33",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "台大醫院站",
           "color": "#E3002C"
         }
@@ -2376,7 +2376,7 @@
         },
         "properties": {
           "station_id": "s34",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "台北101/世貿站",
           "color": "#E3002C"
         }
@@ -2392,7 +2392,7 @@
         },
         "properties": {
           "station_id": "s35",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "台北小巨蛋站",
           "color": "#008659"
         }
@@ -2408,7 +2408,7 @@
         },
         "properties": {
           "station_id": "s36",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "台北車站",
           "color": "#E3002C",
           "is_transfer_fixed": true,
@@ -2428,7 +2428,7 @@
         },
         "properties": {
           "station_id": "s37",
-          "route_id": "r9",
+          "subroute_id": "r9",
           "name": "台北橋站",
           "color": "#F8B61C"
         }
@@ -2444,7 +2444,7 @@
         },
         "properties": {
           "station_id": "s38",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "台電大樓站",
           "color": "#008659"
         }
@@ -2460,7 +2460,7 @@
         },
         "properties": {
           "station_id": "s39",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "市政府站",
           "color": "#0070BD"
         }
@@ -2476,7 +2476,7 @@
         },
         "properties": {
           "station_id": "s40",
-          "route_id": "r8",
+          "subroute_id": "r8",
           "name": "民權西路站",
           "color": "#F8B61C",
           "is_transfer_fixed": true,
@@ -2496,7 +2496,7 @@
         },
         "properties": {
           "station_id": "s41",
-          "route_id": "r1",
+          "subroute_id": "r1",
           "name": "永吉公園站",
           "color": "#9E9E9E"
         }
@@ -2512,7 +2512,7 @@
         },
         "properties": {
           "station_id": "s42",
-          "route_id": "r8",
+          "subroute_id": "r8",
           "name": "永安市場站",
           "color": "#F8B61C"
         }
@@ -2528,7 +2528,7 @@
         },
         "properties": {
           "station_id": "s43",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "永春站",
           "color": "#0070BD"
         }
@@ -2544,7 +2544,7 @@
         },
         "properties": {
           "station_id": "s44",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "永寧站",
           "color": "#0070BD"
         }
@@ -2560,7 +2560,7 @@
         },
         "properties": {
           "station_id": "s45",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "石牌站",
           "color": "#E3002C"
         }
@@ -2576,7 +2576,7 @@
         },
         "properties": {
           "station_id": "s46",
-          "route_id": "r9",
+          "subroute_id": "r9",
           "name": "先嗇宮站",
           "color": "#F8B61C"
         }
@@ -2592,7 +2592,7 @@
         },
         "properties": {
           "station_id": "s47",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "江子翠站",
           "color": "#0070BD"
         }
@@ -2608,7 +2608,7 @@
         },
         "properties": {
           "station_id": "s48",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "竹圍站",
           "color": "#E3002C"
         }
@@ -2624,7 +2624,7 @@
         },
         "properties": {
           "station_id": "s49",
-          "route_id": "r8",
+          "subroute_id": "r8",
           "name": "行天宮站",
           "color": "#F8B61C"
         }
@@ -2640,7 +2640,7 @@
         },
         "properties": {
           "station_id": "s50",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "西門站",
           "color": "#008659",
           "is_transfer_fixed": true,
@@ -2660,7 +2660,7 @@
         },
         "properties": {
           "station_id": "s51",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "西湖站",
           "color": "#C48C31"
         }
@@ -2676,7 +2676,7 @@
         },
         "properties": {
           "station_id": "s52",
-          "route_id": "r4",
+          "subroute_id": "r4",
           "name": "秀朗橋站",
           "color": "#FFDB00"
         }
@@ -2692,7 +2692,7 @@
         },
         "properties": {
           "station_id": "s53",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "辛亥站",
           "color": "#C48C31"
         }
@@ -2708,7 +2708,7 @@
         },
         "properties": {
           "station_id": "s54",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "亞東醫院站",
           "color": "#0070BD"
         }
@@ -2724,7 +2724,7 @@
         },
         "properties": {
           "station_id": "s55",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "奇岩站",
           "color": "#E3002C"
         }
@@ -2740,7 +2740,7 @@
         },
         "properties": {
           "station_id": "s56",
-          "route_id": "r4",
+          "subroute_id": "r4",
           "name": "幸福站",
           "color": "#FFDB00"
         }
@@ -2756,7 +2756,7 @@
         },
         "properties": {
           "station_id": "s57",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "府中站",
           "color": "#0070BD"
         }
@@ -2772,7 +2772,7 @@
         },
         "properties": {
           "station_id": "s58",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "忠孝復興站",
           "color": "#C48C31",
           "is_transfer_fixed": true,
@@ -2792,7 +2792,7 @@
         },
         "properties": {
           "station_id": "s59",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "忠孝敦化站",
           "color": "#0070BD"
         }
@@ -2808,7 +2808,7 @@
         },
         "properties": {
           "station_id": "s60",
-          "route_id": "r8",
+          "subroute_id": "r8",
           "name": "忠孝新生站",
           "color": "#F8B61C",
           "is_transfer_fixed": true,
@@ -2828,7 +2828,7 @@
         },
         "properties": {
           "station_id": "s61",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "忠義站",
           "color": "#E3002C"
         }
@@ -2844,7 +2844,7 @@
         },
         "properties": {
           "station_id": "s62",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "昆陽站",
           "color": "#0070BD"
         }
@@ -2860,7 +2860,7 @@
         },
         "properties": {
           "station_id": "s63",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "明德站",
           "color": "#E3002C"
         }
@@ -2876,7 +2876,7 @@
         },
         "properties": {
           "station_id": "s64",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "東門站",
           "color": "#E3002C",
           "is_transfer_fixed": true,
@@ -2896,7 +2896,7 @@
         },
         "properties": {
           "station_id": "s65",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "東湖站",
           "color": "#C48C31"
         }
@@ -2912,7 +2912,7 @@
         },
         "properties": {
           "station_id": "s66",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "松山站",
           "color": "#008659"
         }
@@ -2928,7 +2928,7 @@
         },
         "properties": {
           "station_id": "s67",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "松山機場站",
           "color": "#C48C31"
         }
@@ -2944,7 +2944,7 @@
         },
         "properties": {
           "station_id": "s68",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "松江南京站",
           "color": "#008659",
           "is_transfer_fixed": true,
@@ -2964,7 +2964,7 @@
         },
         "properties": {
           "station_id": "s69",
-          "route_id": "r4",
+          "subroute_id": "r4",
           "name": "板新站",
           "color": "#FFDB00"
         }
@@ -2980,7 +2980,7 @@
         },
         "properties": {
           "station_id": "s70",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "板橋站",
           "color": "#0070BD"
         }
@@ -2996,7 +2996,7 @@
         },
         "properties": {
           "station_id": "s71",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "芝山站",
           "color": "#E3002C"
         }
@@ -3012,7 +3012,7 @@
         },
         "properties": {
           "station_id": "s72",
-          "route_id": "r1",
+          "subroute_id": "r1",
           "name": "長壽山站",
           "color": "#9E9E9E"
         }
@@ -3028,7 +3028,7 @@
         },
         "properties": {
           "station_id": "s73",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "信義安和站",
           "color": "#E3002C"
         }
@@ -3044,7 +3044,7 @@
         },
         "properties": {
           "station_id": "s74",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "南京三民站",
           "color": "#008659"
         }
@@ -3060,7 +3060,7 @@
         },
         "properties": {
           "station_id": "s75",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "南京復興站",
           "color": "#C48C31",
           "is_transfer_fixed": true,
@@ -3080,7 +3080,7 @@
         },
         "properties": {
           "station_id": "s76",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "南港展覽館站",
           "color": "#C48C31",
           "is_transfer_fixed": true,
@@ -3100,7 +3100,7 @@
         },
         "properties": {
           "station_id": "s77",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "南港站",
           "color": "#0070BD"
         }
@@ -3116,7 +3116,7 @@
         },
         "properties": {
           "station_id": "s78",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "南港軟體園區站",
           "color": "#C48C31"
         }
@@ -3132,7 +3132,7 @@
         },
         "properties": {
           "station_id": "s79",
-          "route_id": "r8",
+          "subroute_id": "r8",
           "name": "南勢角站",
           "color": "#F8B61C"
         }
@@ -3148,7 +3148,7 @@
         },
         "properties": {
           "station_id": "s80",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "後山埤站",
           "color": "#0070BD"
         }
@@ -3164,7 +3164,7 @@
         },
         "properties": {
           "station_id": "s81",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "科技大樓站",
           "color": "#C48C31"
         }
@@ -3180,7 +3180,7 @@
         },
         "properties": {
           "station_id": "s82",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "紅樹林站",
           "color": "#E3002C"
         }
@@ -3196,7 +3196,7 @@
         },
         "properties": {
           "station_id": "s83",
-          "route_id": "r8",
+          "subroute_id": "r8",
           "name": "徐匯中學站",
           "color": "#F8B61C"
         }
@@ -3212,7 +3212,7 @@
         },
         "properties": {
           "station_id": "s84",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "海山站",
           "color": "#0070BD"
         }
@@ -3228,7 +3228,7 @@
         },
         "properties": {
           "station_id": "s85",
-          "route_id": "r9",
+          "subroute_id": "r9",
           "name": "迴龍站",
           "color": "#F8B61C"
         }
@@ -3244,7 +3244,7 @@
         },
         "properties": {
           "station_id": "s86",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "動物園站",
           "color": "#C48C31"
         }
@@ -3260,7 +3260,7 @@
         },
         "properties": {
           "station_id": "s87",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "唭哩岸站",
           "color": "#E3002C"
         }
@@ -3276,7 +3276,7 @@
         },
         "properties": {
           "station_id": "s88",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "國父紀念館站",
           "color": "#0070BD"
         }
@@ -3292,7 +3292,7 @@
         },
         "properties": {
           "station_id": "s89",
-          "route_id": "r1",
+          "subroute_id": "r1",
           "name": "國華站",
           "color": "#9E9E9E"
         }
@@ -3308,7 +3308,7 @@
         },
         "properties": {
           "station_id": "s90",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "淡水站",
           "color": "#E3002C"
         }
@@ -3324,7 +3324,7 @@
         },
         "properties": {
           "station_id": "s91",
-          "route_id": "r1",
+          "subroute_id": "r1",
           "name": "陶瓷老街站",
           "color": "#9E9E9E"
         }
@@ -3340,7 +3340,7 @@
         },
         "properties": {
           "station_id": "s92",
-          "route_id": "r1",
+          "subroute_id": "r1",
           "name": "頂埔站",
           "color": "#9E9E9E",
           "is_transfer_fixed": true,
@@ -3360,7 +3360,7 @@
         },
         "properties": {
           "station_id": "s93",
-          "route_id": "r8",
+          "subroute_id": "r8",
           "name": "頂溪站",
           "color": "#F8B61C"
         }
@@ -3376,7 +3376,7 @@
         },
         "properties": {
           "station_id": "s94",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "善導寺站",
           "color": "#0070BD"
         }
@@ -3392,7 +3392,7 @@
         },
         "properties": {
           "station_id": "s95",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "復興崗站",
           "color": "#E3002C"
         }
@@ -3408,7 +3408,7 @@
         },
         "properties": {
           "station_id": "s96",
-          "route_id": "r4",
+          "subroute_id": "r4",
           "name": "景平站",
           "color": "#FFDB00"
         }
@@ -3424,7 +3424,7 @@
         },
         "properties": {
           "station_id": "s97",
-          "route_id": "r8",
+          "subroute_id": "r8",
           "name": "景安站",
           "color": "#F8B61C",
           "is_transfer_fixed": true,
@@ -3444,7 +3444,7 @@
         },
         "properties": {
           "station_id": "s98",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "景美站",
           "color": "#008659"
         }
@@ -3460,7 +3460,7 @@
         },
         "properties": {
           "station_id": "s99",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "港墘站",
           "color": "#C48C31"
         }
@@ -3476,7 +3476,7 @@
         },
         "properties": {
           "station_id": "s100",
-          "route_id": "r9",
+          "subroute_id": "r9",
           "name": "菜寮站",
           "color": "#F8B61C"
         }
@@ -3492,7 +3492,7 @@
         },
         "properties": {
           "station_id": "s101",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "象山站",
           "color": "#E3002C"
         }
@@ -3508,7 +3508,7 @@
         },
         "properties": {
           "station_id": "s102",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "圓山站",
           "color": "#E3002C"
         }
@@ -3524,7 +3524,7 @@
         },
         "properties": {
           "station_id": "s103",
-          "route_id": "r1",
+          "subroute_id": "r1",
           "name": "媽祖田站",
           "color": "#9E9E9E"
         }
@@ -3540,7 +3540,7 @@
         },
         "properties": {
           "station_id": "s104",
-          "route_id": "r28",
+          "subroute_id": "r28",
           "name": "新北投站",
           "color": "#E3002C"
         }
@@ -3556,7 +3556,7 @@
         },
         "properties": {
           "station_id": "s105",
-          "route_id": "r4",
+          "subroute_id": "r4",
           "name": "新北產業園區站",
           "color": "#FFDB00"
         }
@@ -3572,7 +3572,7 @@
         },
         "properties": {
           "station_id": "s106",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "新店站",
           "color": "#008659"
         }
@@ -3588,7 +3588,7 @@
         },
         "properties": {
           "station_id": "s107",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "新店區公所站",
           "color": "#008659"
         }
@@ -3604,7 +3604,7 @@
         },
         "properties": {
           "station_id": "s108",
-          "route_id": "r4",
+          "subroute_id": "r4",
           "name": "新埔民生站",
           "color": "#FFDB00"
         }
@@ -3620,7 +3620,7 @@
         },
         "properties": {
           "station_id": "s109",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "新埔站",
           "color": "#0070BD",
           "is_transfer_fixed": true,
@@ -3640,7 +3640,7 @@
         },
         "properties": {
           "station_id": "s110",
-          "route_id": "r9",
+          "subroute_id": "r9",
           "name": "新莊站",
           "color": "#F8B61C"
         }
@@ -3656,7 +3656,7 @@
         },
         "properties": {
           "station_id": "s111",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "萬芳社區站",
           "color": "#C48C31"
         }
@@ -3672,7 +3672,7 @@
         },
         "properties": {
           "station_id": "s112",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "萬芳醫院站",
           "color": "#C48C31"
         }
@@ -3688,7 +3688,7 @@
         },
         "properties": {
           "station_id": "s113",
-          "route_id": "r14",
+          "subroute_id": "r14",
           "name": "萬隆站",
           "color": "#008659"
         }
@@ -3704,7 +3704,7 @@
         },
         "properties": {
           "station_id": "s114",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "葫洲站",
           "color": "#C48C31"
         }
@@ -3720,7 +3720,7 @@
         },
         "properties": {
           "station_id": "s115",
-          "route_id": "r1",
+          "subroute_id": "r1",
           "name": "臺北大學站(恩主公醫院)站",
           "color": "#9E9E9E"
         }
@@ -3736,7 +3736,7 @@
         },
         "properties": {
           "station_id": "s116",
-          "route_id": "r9",
+          "subroute_id": "r9",
           "name": "輔大站",
           "color": "#F8B61C"
         }
@@ -3752,7 +3752,7 @@
         },
         "properties": {
           "station_id": "s117",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "劍南路站",
           "color": "#C48C31"
         }
@@ -3768,7 +3768,7 @@
         },
         "properties": {
           "station_id": "s118",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "劍潭站",
           "color": "#E3002C"
         }
@@ -3784,7 +3784,7 @@
         },
         "properties": {
           "station_id": "s119",
-          "route_id": "r4",
+          "subroute_id": "r4",
           "name": "橋和站",
           "color": "#FFDB00"
         }
@@ -3800,7 +3800,7 @@
         },
         "properties": {
           "station_id": "s120",
-          "route_id": "r1",
+          "subroute_id": "r1",
           "name": "橫溪站",
           "color": "#9E9E9E"
         }
@@ -3816,7 +3816,7 @@
         },
         "properties": {
           "station_id": "s121",
-          "route_id": "r4",
+          "subroute_id": "r4",
           "name": "頭前庄站",
           "color": "#FFDB00",
           "is_transfer_fixed": true,
@@ -3836,7 +3836,7 @@
         },
         "properties": {
           "station_id": "s122",
-          "route_id": "r15",
+          "subroute_id": "r15",
           "name": "龍山寺站",
           "color": "#0070BD"
         }
@@ -3852,7 +3852,7 @@
         },
         "properties": {
           "station_id": "s123",
-          "route_id": "r1",
+          "subroute_id": "r1",
           "name": "龍埔站(三峽廣行宮)站",
           "color": "#9E9E9E"
         }
@@ -3868,7 +3868,7 @@
         },
         "properties": {
           "station_id": "s124",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "雙連站",
           "color": "#E3002C"
         }
@@ -3884,7 +3884,7 @@
         },
         "properties": {
           "station_id": "s125",
-          "route_id": "r16",
+          "subroute_id": "r16",
           "name": "關渡站",
           "color": "#E3002C"
         }
@@ -3900,7 +3900,7 @@
         },
         "properties": {
           "station_id": "s126",
-          "route_id": "r8",
+          "subroute_id": "r8",
           "name": "蘆洲站",
           "color": "#F8B61C"
         }
@@ -3916,7 +3916,7 @@
         },
         "properties": {
           "station_id": "s127",
-          "route_id": "r1",
+          "subroute_id": "r1",
           "name": "鶯桃福德站",
           "color": "#9E9E9E"
         }
@@ -3932,7 +3932,7 @@
         },
         "properties": {
           "station_id": "s128",
-          "route_id": "r1",
+          "subroute_id": "r1",
           "name": "鶯歌車站",
           "color": "#9E9E9E"
         }
@@ -3948,17 +3948,17 @@
         },
         "properties": {
           "station_id": "s129",
-          "route_id": "r10",
+          "subroute_id": "r10",
           "name": "麟光站",
           "color": "#C48C31"
         }
       }
     ]
   },
-  "hiddenRouteIds": [],
+  "hiddenSubrouteIds": [],
   "counters": {
-    "route": 31,
-    "group": 11,
+    "subroute": 31,
+    "route": 11,
     "station": 130
   },
   "settings": {

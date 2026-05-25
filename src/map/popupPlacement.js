@@ -109,8 +109,8 @@ function featureCollisionKey(feature) {
   const props = feature.properties ?? {};
   const id =
     props.station_id ??
+    props.subroute_id ??
     props.route_id ??
-    props.group_id ??
     feature.id ??
     "";
   return `${layerId}:${id}`;

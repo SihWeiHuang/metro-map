@@ -201,8 +201,8 @@ function App() {
 
   const handleFinishEditing = () => {
     const result = finishEditing();
-    if (result?.ok && result.newLineIds?.length > 0) {
-      setStatusDialog({ lineIds: result.newLineIds, isNewRoute: true });
+    if (result?.ok && result.newRouteIds?.length > 0) {
+      setStatusDialog({ routeIds: result.newRouteIds, isNewRoute: true });
     }
     bumpRouteList();
   };
@@ -212,8 +212,8 @@ function App() {
     bumpRouteList();
   };
 
-  const openRouteMetadataDialog = (lineId) => {
-    setStatusDialog({ lineIds: [lineId], isNewRoute: false });
+  const openRouteMetadataDialog = (routeId) => {
+    setStatusDialog({ routeIds: [routeId], isNewRoute: false });
   };
 
   const closeStatusDialog = () => setStatusDialog(null);
@@ -252,8 +252,6 @@ function App() {
       alert(importErrorMessage(result.error));
       return;
     }
-    setMode("general");
-    setEditToolsOpen(false);
     bumpRouteList();
     const importedMapView = result.mapView;
     const successKey =
@@ -288,11 +286,11 @@ function App() {
         alert(importErrorMessage(analysis.error));
         return;
       }
-      if (analysis.duplicateLineIds.length === 0) {
+      if (analysis.duplicateRouteIds.length === 0) {
         applyImport(text, "merge");
         return;
       }
-      setPendingImport({ text, duplicateLineIds: analysis.duplicateLineIds });
+      setPendingImport({ text, duplicateRouteIds: analysis.duplicateRouteIds });
       return;
     }
     applyImport(text, "merge");
@@ -314,8 +312,6 @@ function App() {
   const handleUndoLastImport = () => {
     const result = Route.undoLastImport();
     if (!result.ok) return;
-    setMode("general");
-    setEditToolsOpen(false);
     bumpRouteList();
     const restoredMapView = result.mapView;
     alert(t("app.undoLastImportSuccess"));
@@ -388,14 +384,17 @@ function App() {
           </div>
         </div>
       </header>
-      <div className="app-main-layout">
+      <div className="app-content-wrapper app-main-layout">
         <aside
           id="route-list-container"
-          className="route-list-sidebar"
+          className="app-side-panel route-list-sidebar"
           style={{ width: routeListWidthPx }}
           aria-label={t("app.routeListAria")}
         >
-          <div className="route-list-sidebar-scroll">
+          <div className="app-side-panel-header">
+            <h2>{t("app.routeListAria")}</h2>
+          </div>
+          <div className="app-side-panel-content route-list-sidebar-scroll">
             <RouteListPanel
               key={listTick}
               onRefresh={bumpRouteList}
@@ -405,7 +404,8 @@ function App() {
               onEditRouteMetadata={openRouteMetadataDialog}
             />
           </div>
-          <div className={`app-controls-dock${editToolsOpen ? " app-controls-dock-open" : ""}`}>
+          <div className={`app-side-panel-footer app-controls-dock${editToolsOpen ? " app-controls-dock-open" : ""}`}>
+            <div className="app-mode-tools">
             <button
               id="edit-mode-toggle"
               type="button"
@@ -512,6 +512,7 @@ function App() {
               )}
               </div>
             </div>
+            </div>
           </div>
         </aside>
         <div
@@ -519,6 +520,7 @@ function App() {
           role="separator"
           aria-orientation="vertical"
           aria-label={t("app.resizeAria")}
+          title={t("app.resizeAria")}
           onMouseDown={(e) => {
             e.preventDefault();
             startRouteListResize(e.clientX);
@@ -527,7 +529,13 @@ function App() {
             if (e.touches.length !== 1) return;
             startRouteListResize(e.touches[0].clientX);
           }}
-        />
+        >
+          <div className="route-list-resize-grip" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+        </div>
         <div className="app-main-column">
           <div className="app-map-stage">
             <MapView onModeChange={onModeChange} />
@@ -541,19 +549,19 @@ function App() {
                   <>
                     <button
                       type="button"
-                      id="finishModeButton"
-                      className="mode-finish-bar"
-                      onClick={handleFinishEditing}
-                    >
-                      {t("app.finish")}
-                    </button>
-                    <button
-                      type="button"
                       id="cancelModeButton"
                       className="mode-cancel-bar"
                       onClick={handleCancelRouteEditing}
                     >
                       {t("app.cancel")}
+                    </button>
+                    <button
+                      type="button"
+                      id="finishModeButton"
+                      className="mode-finish-bar"
+                      onClick={handleFinishEditing}
+                    >
+                      {t("app.finish")}
                     </button>
                   </>
                 ) : (
@@ -581,7 +589,7 @@ function App() {
       />
       {statusDialog != null && (
         <RouteStatusDialog
-          lineIds={statusDialog.lineIds}
+          routeIds={statusDialog.routeIds}
           isNewRoute={statusDialog.isNewRoute}
           onClose={closeStatusDialog}
           onSaved={bumpRouteList}
@@ -639,7 +647,7 @@ function App() {
             <p className="app-import-dialog-message">{t("app.importModeMessage")}</p>
             <p className="app-import-dialog-duplicates">
               {t("app.importDuplicateHint", {
-                ids: pendingImport.duplicateLineIds.join("、"),
+                ids: pendingImport.duplicateRouteIds.join("、"),
               })}
             </p>
             <div className="app-import-dialog-options">

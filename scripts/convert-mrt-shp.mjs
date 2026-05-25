@@ -204,7 +204,7 @@ function buildStationCentroids(attributes, geometries) {
 }
 
 function findRouteMatches(coord, routeFeatures, maxMeters) {
-  /** @type {{ route_id: string, group_id: string, dist: number, color: string }[]} */
+  /** @type {{ subroute_id: string, route_id: string, dist: number, color: string }[]} */
   const hits = [];
   for (const route of routeFeatures) {
     const coords = route.geometry?.coordinates;
@@ -212,8 +212,8 @@ function findRouteMatches(coord, routeFeatures, maxMeters) {
     const snapped = turf.nearestPointOnLine(turf.lineString(coords), coord, { units: "meters" });
     if (snapped.properties.dist <= maxMeters) {
       hits.push({
+        subroute_id: route.properties.subroute_id,
         route_id: route.properties.route_id,
-        group_id: route.properties.group_id,
         dist: snapped.properties.dist,
         color: route.properties.color,
       });
@@ -223,13 +223,13 @@ function findRouteMatches(coord, routeFeatures, maxMeters) {
   return hits;
 }
 
-/** One route per line group (branch segments share group_id). */
-function dedupeMatchesByGroup(matches) {
+/** One match per route (branch subroutes share route_id). */
+function dedupeMatchesByRoute(matches) {
   const seen = new Set();
   const out = [];
   for (const m of matches) {
-    if (seen.has(m.group_id)) continue;
-    seen.add(m.group_id);
+    if (seen.has(m.route_id)) continue;
+    seen.add(m.route_id);
     out.push(m);
   }
   return out;
@@ -241,7 +241,7 @@ function buildStationFeatures(stationCentroids, routeFeatures) {
   const unmatched = [];
 
   for (const st of stationCentroids) {
-    const matches = dedupeMatchesByGroup(findRouteMatches(st.coord, routeFeatures, STATION_SNAP_METERS));
+    const matches = dedupeMatchesByRoute(findRouteMatches(st.coord, routeFeatures, STATION_SNAP_METERS));
     if (!matches.length) {
       unmatched.push(st.name);
       continue;
@@ -251,13 +251,13 @@ function buildStationFeatures(stationCentroids, routeFeatures) {
     const isTransfer = matches.length >= 2;
     const props = {
       station_id: `s${stationCounter++}`,
-      route_id: primary.route_id,
+      subroute_id: primary.subroute_id,
       name: st.name,
       color: primary.color,
     };
     if (isTransfer) {
       props.is_transfer_fixed = true;
-      props.transfer_routes = matches.slice(1).map((m) => m.route_id);
+      props.transfer_routes = matches.slice(1).map((m) => m.subroute_id);
     }
 
     features.push({
@@ -317,15 +317,15 @@ async function main() {
 
   const routeFeatures = [];
   const groupMeta = [];
+  let subrouteCounter = 1;
   let routeCounter = 1;
-  let groupCounter = 1;
 
   for (const [, group] of [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0], "zh-Hant"))) {
-    const groupId = `g${groupCounter++}`;
+    const routeId = `g${routeCounter++}`;
     const mergedLines = mergeSegments(group.segments);
     const groupStatus = combineSegmentStatuses(group.segments);
     groupMeta.push({
-      groupId,
+      routeId,
       lineName: group.lineName,
       system: group.system,
       parts: mergedLines.length,
@@ -339,8 +339,8 @@ async function main() {
         type: "Feature",
         geometry: { type: "LineString", coordinates: simplified },
         properties: {
-          route_id: `r${routeCounter++}`,
-          group_id: groupId,
+          subroute_id: `r${subrouteCounter++}`,
+          route_id: routeId,
           name: group.lineName,
           color: pickColor(group.lineName),
           route_kind: "user",
@@ -357,12 +357,12 @@ async function main() {
     formatVersion: 2,
     exportedAt: new Date().toISOString(),
     v: 2,
-    userRoutesFC: { type: "FeatureCollection", features: routeFeatures },
+    userSubroutesFC: { type: "FeatureCollection", features: routeFeatures },
     userStationsFC: { type: "FeatureCollection", features: [] },
-    hiddenRouteIds: [],
+    hiddenSubrouteIds: [],
     counters: {
+      subroute: subrouteCounter,
       route: routeCounter,
-      group: groupCounter,
       station: 1,
     },
     settings: { stationMinPerRoute: 1 },
@@ -406,7 +406,7 @@ async function main() {
   console.log("路線：");
   for (const g of groupMeta) {
     const statusNote = g.status === "operating" ? "營運中" : g.status === "construction" ? "興建中" : g.status;
-    console.log(`  ${g.system} / ${g.lineName} → ${g.parts} 段 (${g.groupId}) [${statusNote}]`);
+    console.log(`  ${g.system} / ${g.lineName} → ${g.parts} 段 (${g.routeId}) [${statusNote}]`);
   }
   console.log("");
   console.log("下一步：用 VS Code 開啟上述 JSON，或在網站選「匯入路線」上傳此檔。");

@@ -180,15 +180,15 @@ export function tempLineFeaturesWithSmoothedGeometry(features) {
  * Map display only: snap station points to the same smoothed polyline used for route rendering,
  * so markers sit on the visible curve. Does not mutate store or exported GeoJSON.
  */
-export function featureCollectionStationsSnappedToSmoothedRoutes(stationsFC, routesFC) {
-  const smoothedByRouteId = new Map();
-  for (const f of routesFC.features) {
+export function featureCollectionStationsSnappedToSmoothedRoutes(stationsFC, subroutesFC) {
+  const smoothedBySubrouteId = new Map();
+  for (const f of subroutesFC.features) {
     if (f.geometry?.type !== "LineString") continue;
     const c = f.geometry.coordinates;
     if (c.length < 2) continue;
-    const rid = f.properties?.route_id;
+    const rid = f.properties?.subroute_id;
     if (rid == null) continue;
-    smoothedByRouteId.set(rid, smoothLineStringForDisplay(c));
+    smoothedBySubrouteId.set(rid, smoothLineStringForDisplay(c));
   }
 
   const getLabelPlacementByRouteDirection = (coords, segmentIndex) => {
@@ -249,8 +249,8 @@ export function featureCollectionStationsSnappedToSmoothedRoutes(stationsFC, rou
           },
         };
       }
-      const rid = st.properties?.route_id;
-      const smoothed = smoothedByRouteId.get(rid);
+      const rid = st.properties?.subroute_id;
+      const smoothed = smoothedBySubrouteId.get(rid);
       if (!smoothed || smoothed.length < 2) return st;
       const line = turf.lineString(smoothed);
       const snapped = turf.nearestPointOnLine(line, st.geometry.coordinates, { units: "meters" });
@@ -276,8 +276,8 @@ export function featureCollectionStationsSnappedToSmoothedRoutes(stationsFC, rou
  * - station circles: snapped to smoothed route
  * - station labels: use per-station dragged label position when available
  */
-export function buildStationDisplayCollections(stationsFC, routesFC) {
-  const stationsDisplayFC = featureCollectionStationsSnappedToSmoothedRoutes(stationsFC, routesFC);
+export function buildStationDisplayCollections(stationsFC, subroutesFC) {
+  const stationsDisplayFC = featureCollectionStationsSnappedToSmoothedRoutes(stationsFC, subroutesFC);
   const displayByStationId = new Map();
   for (const st of stationsDisplayFC.features) {
     displayByStationId.set(st.properties?.station_id, st);

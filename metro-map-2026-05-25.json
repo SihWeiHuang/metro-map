@@ -1,0 +1,234 @@
+{
+  "format": "metro-map-x01",
+  "formatVersion": 2,
+  "exportedAt": "2026-05-25T06:29:17.723Z",
+  "v": 2,
+  "userSubroutesFC": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              121.2527257323959,
+              25.046300647910428
+            ],
+            [
+              121.27716587582347,
+              24.95376168685472
+            ],
+            [
+              121.4553073656947,
+              24.874457564276625
+            ]
+          ]
+        },
+        "properties": {
+          "subroute_id": "r1",
+          "route_id": "g1",
+          "name": "路線r1",
+          "user_default_route_label": 1,
+          "route_kind": "user",
+          "country": "",
+          "region": "",
+          "status": "custom"
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              121.13161124385573,
+              25.043840407857445
+            ],
+            [
+              121.19732807396105,
+              24.935048541287372
+            ]
+          ]
+        },
+        "properties": {
+          "subroute_id": "r2",
+          "route_id": "g2",
+          "name": "路線r2",
+          "user_default_route_label": 2,
+          "route_kind": "user",
+          "country": "",
+          "region": "",
+          "status": "custom"
+        }
+      }
+    ]
+  },
+  "userStationsFC": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            121.2527257323959,
+            25.046300647910428
+          ]
+        },
+        "properties": {
+          "station_id": "s1",
+          "subroute_id": "r1",
+          "name": "站s1",
+          "color": null,
+          "user_default_label": 1
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            121.4553073656947,
+            24.874457564276625
+          ]
+        },
+        "properties": {
+          "station_id": "s2",
+          "subroute_id": "r1",
+          "name": "站s2",
+          "color": null,
+          "user_default_label": 2
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            121.26605042225287,
+            24.995866471449304
+          ]
+        },
+        "properties": {
+          "station_id": "s3",
+          "subroute_id": "r1",
+          "name": "站s3",
+          "color": null,
+          "user_default_label": 3
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            121.32879446839371,
+            24.93081020396167
+          ]
+        },
+        "properties": {
+          "station_id": "s4",
+          "subroute_id": "r1",
+          "name": "站s4",
+          "color": null,
+          "user_default_label": 4
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            121.13161124385573,
+            25.043840407857445
+          ]
+        },
+        "properties": {
+          "station_id": "s5",
+          "subroute_id": "r2",
+          "name": "站s5",
+          "color": null,
+          "user_default_label": 5
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            121.19732807396105,
+            24.935048541287372
+          ]
+        },
+        "properties": {
+          "station_id": "s6",
+          "subroute_id": "r2",
+          "name": "站s6",
+          "color": null,
+          "user_default_label": 6
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            121.1480608724577,
+            25.016629412288925
+          ]
+        },
+        "properties": {
+          "station_id": "s7",
+          "subroute_id": "r2",
+          "name": "站s7",
+          "color": null,
+          "user_default_label": 7
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            121.16592309753739,
+            24.987065981997393
+          ]
+        },
+        "properties": {
+          "station_id": "s8",
+          "subroute_id": "r2",
+          "name": "站s8",
+          "color": null,
+          "user_default_label": 8
+        }
+      }
+    ]
+  },
+  "hiddenSubrouteIds": [],
+  "counters": {
+    "subroute": 3,
+    "route": 3,
+    "station": 9
+  },
+  "settings": {
+    "stationMinPerRoute": 1
+  },
+  "mapView": {
+    "center": [
+      121.29345930477521,
+      24.960379106093527
+    ],
+    "zoom": 10.610603334853746,
+    "bounds": [
+      [
+        121.13161124385573,
+        24.874457564276625
+      ],
+      [
+        121.4553073656947,
+        25.046300647910428
+      ]
+    ]
+  }
+}

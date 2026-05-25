@@ -30,7 +30,7 @@ let pendingImportMapViewApply = undefined;
 
 /** @returns {[[number, number], [number, number]] | null} */
 export function computeRoutesBounds() {
-  return computeBoundsFromFeatures(store.routesFC.features, store.stationsFC.features);
+  return computeBoundsFromFeatures(store.subroutesFC.features, store.stationsFC.features);
 }
 
 export function loadSavedMapView() {

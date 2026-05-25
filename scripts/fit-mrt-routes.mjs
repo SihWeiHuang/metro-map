@@ -24,8 +24,8 @@ const STATION_DBF_PATH = path.join(ROOT, "捷運車站_1150409", "MARK_捷運車
 const TWD97_TM2 = "+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=GRS80 +units=m +no_defs";
 const WGS84 = "EPSG:4326";
 
-/** Lines to rebuild as one fitted sub-route each. */
-const FIT_LINE_NAMES = new Set(["新北投線", "文湖線", "環狀線", "三鶯線", "淡水信義線"]);
+/** Routes to rebuild as one fitted subroute each. */
+const FIT_ROUTE_NAMES = new Set(["新北投線", "文湖線", "環狀線", "三鶯線", "淡水信義線"]);
 
 /** Official station code order (open path; 環狀線 intentionally not closed). */
 const STATION_CODE_ORDERS = {
@@ -42,7 +42,7 @@ const STATION_CODE_ORDERS = {
   三鶯線: ["LB02", "LB03", "LB04", "LB05", "LB06", "LB07", "LB08", "LB09", "LB10", "LB11", "LB12"],
 };
 
-const LINE_CODE_MATCHERS = {
+const ROUTE_CODE_MATCHERS = {
   新北投線: (code) => code === "R22" || code === "R22A",
   文湖線: (code) => /^BR\d/.test(code),
   環狀線: (code) => /^Y\d/.test(code),
@@ -97,11 +97,11 @@ async function readShapeGeometries(shpPath) {
   return geometries;
 }
 
-function buildLineStationRecords(stationAttributes, stationGeometries) {
+function buildRouteStationRecords(stationAttributes, stationGeometries) {
   /** @type {Map<string, Map<string, { code: string, key: string, name: string, coord: number[] }>>} */
-  const byLine = new Map();
-  for (const lineName of FIT_LINE_NAMES) {
-    byLine.set(lineName, new Map());
+  const byRoute = new Map();
+  for (const routeName of FIT_ROUTE_NAMES) {
+    byRoute.set(routeName, new Map());
   }
 
   for (let i = 0; i < stationAttributes.length; i++) {
@@ -119,12 +119,12 @@ function buildLineStationRecords(stationAttributes, stationGeometries) {
     if (geometry.type !== "Point") continue;
     const coord = toLngLat(geometry.coordinates);
 
-    for (const lineName of FIT_LINE_NAMES) {
-      const matcher = LINE_CODE_MATCHERS[lineName];
+    for (const routeName of FIT_ROUTE_NAMES) {
+      const matcher = ROUTE_CODE_MATCHERS[routeName];
       const matchedCode = codes.find(matcher);
       if (!matchedCode) continue;
 
-      byLine.get(lineName).set(normalizeStationCode(matchedCode), {
+      byRoute.get(routeName).set(normalizeStationCode(matchedCode), {
         code: matchedCode,
         key,
         name: stationDisplayName(key),
@@ -133,14 +133,14 @@ function buildLineStationRecords(stationAttributes, stationGeometries) {
     }
   }
 
-  return byLine;
+  return byRoute;
 }
 
-function getOrderedStationCoords(lineName, lineStationMap) {
-  const order = STATION_CODE_ORDERS[lineName] ?? [];
+function getOrderedStationCoords(routeName, routeStationMap) {
+  const order = STATION_CODE_ORDERS[routeName] ?? [];
   const coords = [];
   for (const code of order) {
-    const station = lineStationMap.get(normalizeStationCode(code));
+    const station = routeStationMap.get(normalizeStationCode(code));
     if (station) coords.push([...station.coord]);
   }
   return coords;
@@ -206,9 +206,9 @@ function simplifyCoords(coords, toleranceMeters = 6) {
   return simplified.geometry.coordinates;
 }
 
-function remapRouteId(routeId, routeIdRemap) {
-  if (typeof routeId !== "string") return routeId;
-  return routeIdRemap.get(routeId) ?? routeId;
+function remapSubrouteId(subrouteId, subrouteIdRemap) {
+  if (typeof subrouteId !== "string") return subrouteId;
+  return subrouteIdRemap.get(subrouteId) ?? subrouteId;
 }
 
 async function main() {
@@ -227,64 +227,64 @@ async function main() {
     readShapeGeometries(STATION_SHP_PATH),
   ]);
 
-  const stationsByLine = buildLineStationRecords(stationAttrs, stationGeoms);
+  const stationsByRoute = buildRouteStationRecords(stationAttrs, stationGeoms);
 
   /** @type {Map<string, string[]>} */
-  const oldRouteIdsByLine = new Map();
-  for (const feature of source.userRoutesFC.features) {
+  const oldSubrouteIdsByRoute = new Map();
+  for (const feature of source.userSubroutesFC.features) {
     const name = feature.properties?.name;
-    const routeId = feature.properties?.route_id;
-    if (!FIT_LINE_NAMES.has(name) || typeof routeId !== "string") continue;
-    if (!oldRouteIdsByLine.has(name)) oldRouteIdsByLine.set(name, []);
-    oldRouteIdsByLine.get(name).push(routeId);
+    const subrouteId = feature.properties?.subroute_id;
+    if (!FIT_ROUTE_NAMES.has(name) || typeof subrouteId !== "string") continue;
+    if (!oldSubrouteIdsByRoute.has(name)) oldSubrouteIdsByRoute.set(name, []);
+    oldSubrouteIdsByRoute.get(name).push(subrouteId);
   }
 
-  /** @type {Map<string, string>} old route_id -> consolidated route_id */
-  const routeIdRemap = new Map();
+  /** @type {Map<string, string>} old subroute_id -> consolidated subroute_id */
+  const subrouteIdRemap = new Map();
   /** @type {import('@turf/turf').Feature<import('@turf/turf').LineString>[]} */
-  const fittedRoutes = [];
+  const fittedSubroutes = [];
 
-  for (const lineName of [...FIT_LINE_NAMES].sort((a, b) => a.localeCompare(b, "zh-Hant"))) {
-    const oldIds = (oldRouteIdsByLine.get(lineName) ?? []).sort(
+  for (const routeName of [...FIT_ROUTE_NAMES].sort((a, b) => a.localeCompare(b, "zh-Hant"))) {
+    const oldIds = (oldSubrouteIdsByRoute.get(routeName) ?? []).sort(
       (a, b) => parseInt(a.slice(1), 10) - parseInt(b.slice(1), 10)
     );
     if (!oldIds.length) {
-      console.warn(`略過 ${lineName}：來源檔中找不到路線。`);
+      console.warn(`略過 ${routeName}：來源檔中找不到路線。`);
       continue;
     }
 
-    const template = source.userRoutesFC.features.find((f) => f.properties?.route_id === oldIds[0]);
+    const template = source.userSubroutesFC.features.find((f) => f.properties?.subroute_id === oldIds[0]);
     if (!template) continue;
 
-    const controlPoints = getOrderedStationCoords(lineName, stationsByLine.get(lineName) ?? new Map());
+    const controlPoints = getOrderedStationCoords(routeName, stationsByRoute.get(routeName) ?? new Map());
     if (controlPoints.length < 2) {
-      console.warn(`略過 ${lineName}：站點不足（${controlPoints.length}），無法擬合。`);
+      console.warn(`略過 ${routeName}：站點不足（${controlPoints.length}），無法擬合。`);
       continue;
     }
 
     const fitted = simplifyCoords(fitSplineThroughPoints(controlPoints));
-    const keepRouteId = oldIds[0];
+    const keepSubrouteId = oldIds[0];
     for (const oldId of oldIds) {
-      routeIdRemap.set(oldId, keepRouteId);
+      subrouteIdRemap.set(oldId, keepSubrouteId);
     }
 
-    fittedRoutes.push({
+    fittedSubroutes.push({
       type: "Feature",
       geometry: { type: "LineString", coordinates: fitted },
-      properties: { ...template.properties, route_id: keepRouteId },
+      properties: { ...template.properties, subroute_id: keepSubrouteId },
     });
 
     console.log(
-      `${lineName}：${oldIds.length} 段 → 1 段 (${keepRouteId})，${controlPoints.length} 站，${fitted.length} 點`
+      `${routeName}：${oldIds.length} 段 → 1 段 (${keepSubrouteId})，${controlPoints.length} 站，${fitted.length} 點`
     );
   }
 
-  const unchangedRoutes = source.userRoutesFC.features.filter((f) => !FIT_LINE_NAMES.has(f.properties?.name));
+  const unchangedSubroutes = source.userSubroutesFC.features.filter((f) => !FIT_ROUTE_NAMES.has(f.properties?.name));
 
-  const userRoutesFC = {
+  const userSubroutesFC = {
     type: "FeatureCollection",
-    features: [...unchangedRoutes, ...fittedRoutes].sort(
-      (a, b) => parseInt(a.properties.route_id.slice(1), 10) - parseInt(b.properties.route_id.slice(1), 10)
+    features: [...unchangedSubroutes, ...fittedSubroutes].sort(
+      (a, b) => parseInt(a.properties.subroute_id.slice(1), 10) - parseInt(b.properties.subroute_id.slice(1), 10)
     ),
   };
 
@@ -292,9 +292,9 @@ async function main() {
     type: "FeatureCollection",
     features: source.userStationsFC.features.map((feature) => {
       const props = { ...feature.properties };
-      props.route_id = remapRouteId(props.route_id, routeIdRemap);
+      props.subroute_id = remapSubrouteId(props.subroute_id, subrouteIdRemap);
       if (Array.isArray(props.transfer_routes)) {
-        props.transfer_routes = props.transfer_routes.map((id) => remapRouteId(id, routeIdRemap));
+        props.transfer_routes = props.transfer_routes.map((id) => remapSubrouteId(id, subrouteIdRemap));
       }
       return {
         ...feature,
@@ -308,25 +308,25 @@ async function main() {
     format: "metro-map-x01",
     formatVersion: 2,
     exportedAt: new Date().toISOString(),
-    fittedLines: [...FIT_LINE_NAMES],
+    fittedRoutes: [...FIT_ROUTE_NAMES],
     fittedFrom: path.basename(SOURCE_PATH),
-    userRoutesFC,
+    userSubroutesFC,
     userStationsFC,
   };
 
   fs.writeFileSync(OUT_PATH, JSON.stringify(payload, null, 2), "utf8");
 
-  const subRouteCounts = new Map();
-  for (const f of userRoutesFC.features) {
+  const subrouteCounts = new Map();
+  for (const f of userSubroutesFC.features) {
     const name = f.properties.name;
-    subRouteCounts.set(name, (subRouteCounts.get(name) ?? 0) + 1);
+    subrouteCounts.set(name, (subrouteCounts.get(name) ?? 0) + 1);
   }
 
   console.log("");
   console.log(`已輸出：${OUT_PATH}`);
   console.log("各路線子路線數：");
-  for (const [name, count] of [...subRouteCounts.entries()].sort((a, b) => a[0].localeCompare(b[0], "zh-Hant"))) {
-    const note = FIT_LINE_NAMES.has(name) ? "（已擬合）" : "";
+  for (const [name, count] of [...subrouteCounts.entries()].sort((a, b) => a[0].localeCompare(b[0], "zh-Hant"))) {
+    const note = FIT_ROUTE_NAMES.has(name) ? "（已擬合）" : "";
     console.log(`  ${name}：${count}${note}`);
   }
 }

@@ -1,6 +1,6 @@
-import mapboxgl from "mapbox-gl";
 import * as turf from "@turf/turf";
 import { getMap } from "./mapInstance.js";
+import { ensureMetroLayerStackOrder } from "./layers.js";
 import { nearestPointOnSmoothedRoute } from "./displayLineSmoothing.js";
 import { setStationHoverPairFilters } from "./mapHoverFilters.js";
 import {
@@ -19,10 +19,22 @@ import {
   setStationPreviewCoord,
 } from "./stationPreview.js";
 import { t } from "../i18n/i18n.js";
+import { resolveRouteDisplayNameFromProps, resolveStationDisplayName } from "./defaultNames.js";
 import {
-  popupScreenPoint,
-  resolvePopupPlacement,
-} from "./popupPlacement.js";
+  closeStationEditPopup,
+  hideHoverPopups,
+  hideRouteHoverPopup,
+  hideStationBrowsePopup,
+  hideTransferSnapHint,
+  initMapPopups,
+  isBrowseHoverMode,
+  isStationEditPopupOpen,
+  openStationEditPopup,
+  refreshEditStationTransferHint,
+  scheduleTransferSnapHintUpdate,
+  showRouteHoverPopup,
+  showStationBrowsePopup,
+} from "./mapPopups.js";
 
 let onModeChange = () => {};
 let onEditStationSubmodeChange = () => {};
@@ -51,15 +63,15 @@ function emitMergePickChange() {
   onMergePickChange();
 }
 
-export function getMergePickRouteIds() {
+export function getMergePickSubrouteIds() {
   return [...mergePick];
 }
 
 /** @returns {{ picked: boolean, merged?: boolean, ok?: boolean, msg?: string }} */
-export function pickRouteForMerge(routeId) {
-  if (M.mode !== "merge" || typeof routeId !== "string") return { picked: false };
-  if (!mergePick.includes(routeId)) mergePick.push(routeId);
-  Route.highlightRoute(routeId);
+export function pickRouteForMerge(subrouteId) {
+  if (M.mode !== "merge" || typeof subrouteId !== "string") return { picked: false };
+  if (!mergePick.includes(subrouteId)) mergePick.push(subrouteId);
+  Route.highlightRoute(subrouteId);
   emitModeHint();
   emitMergePickChange();
   if (mergePick.length < 2) return { picked: true, merged: false };
@@ -76,29 +88,49 @@ export const M = {
     type: null,
     idx: null,
     stationId: null,
-    routeId: null,
+    subrouteId: null,
     isClickCandidate: false,
     downPoint: null,
   },
   pointer: { isDown: false },
-  hover: { routeId: "", stationId: "" },
-  popups: { route: null, station: null, transferSnapHint: null },
+  hover: { subrouteId: "", stationId: "" },
   /** 地圖選路線後略過緊接著的那次 click，避免誤加編輯點 */
   suppressNextEditMapClick: false,
 };
 
+const TRANSFER_SNAP_HINT_DEPS = {
+  findNearest: findNearestTransferSnap,
+  isOccupied: isTransferSnapOccupied,
+  maxMeters: TRANSFER_SNAP_HOVER_METERS,
+};
+
 export const Modes = {};
 const mergePick = [];
-let lastTransferSnapHintId = "";
 const LABEL_DRAG_RADIUS_METERS = 500;
 let editStationSubmode = "station";
 
-const HOVER_PICK_LAYERS = ["stations-circle", "stations-label", "routes-line"];
+initMapPopups({
+  getMap,
+  getContext: () => ({
+    mode: M.mode,
+    editStationSubmode,
+    draggingType: M.dragging.type,
+  }),
+});
+
+const STATION_CIRCLE_LAYERS = ["stations-circle", "transfer-stations-circle"];
+const STATION_HOVER_CIRCLE_LAYERS = ["stations-circle-hover", "transfer-stations-circle-hover"];
+const STATION_LABEL_LAYERS = ["stations-label", "stations-label-hover"];
+const HOVER_PICK_LAYERS = [
+  "transfer-snaps-layer",
+  ...STATION_HOVER_CIRCLE_LAYERS,
+  ...STATION_CIRCLE_LAYERS,
+  ...STATION_LABEL_LAYERS,
+  "routes-line",
+];
 
 let tempNodePreviewRaf = null;
 let stationDragPreviewRaf = null;
-let transferSnapHoverRaf = null;
-let pendingTransferSnapLngLat = null;
 
 const cur = () => Modes[M.mode];
 
@@ -178,13 +210,16 @@ function applyEditStationSubmode() {
   if (!map || M.mode !== "edit-station") return;
   setZoomInteractionsEnabled(true);
   if (editStationSubmode === "move-label") {
-    clearTransferSnapHintPopupOnly();
+    hideTransferSnapHint();
     Route.clearHover();
     if (map.getLayer("routes-line-hover")) {
-      map.setFilter("routes-line-hover", ["==", ["get", "route_id"], ""]);
+      map.setFilter("routes-line-hover", ["==", ["get", "subroute_id"], ""]);
     }
     if (map.getLayer("stations-circle-hover")) {
       map.setFilter("stations-circle-hover", ["==", ["get", "station_id"], ""]);
+    }
+    if (map.getLayer("transfer-stations-circle-hover")) {
+      map.setFilter("transfer-stations-circle-hover", ["==", ["get", "station_id"], ""]);
     }
     setStationLabelMoveFrameVisibility(true);
     if (map.getLayer("stations-label")) {
@@ -231,7 +266,7 @@ export function setCursorForMode(e) {
       if (onNode.length) {
         cursor = "grab";
       } else {
-        const onStation = map.queryRenderedFeatures(e.point, { layers: ["stations-circle"] });
+        const onStation = map.queryRenderedFeatures(e.point, { layers: STATION_CIRCLE_LAYERS });
         if (onStation.length) {
           cursor = "pointer";
         } else {
@@ -249,8 +284,8 @@ export function setCursorForMode(e) {
     cursor = "grab";
     if (e) {
       const onRoute = map.queryRenderedFeatures(e.point, { layers: ["routes-line"] });
-      const onStation = map.queryRenderedFeatures(e.point, { layers: ["stations-circle"] });
-      const onStationLabel = map.queryRenderedFeatures(e.point, { layers: ["stations-label"] });
+      const onStation = map.queryRenderedFeatures(e.point, { layers: STATION_CIRCLE_LAYERS });
+      const onStationLabel = map.queryRenderedFeatures(e.point, { layers: STATION_LABEL_LAYERS });
       if (editStationSubmode !== "move-label" && onRoute.length) cursor = "pointer";
       if (onStation.length) cursor = "grab";
       if (onStationLabel.length) cursor = "grab";
@@ -262,98 +297,15 @@ export function setCursorForMode(e) {
 }
 
 export function clearHoverAndPopups() {
-  M.hover.routeId = "";
+  M.hover.subrouteId = "";
   M.hover.stationId = "";
   Route.clearHover();
-
-  if (M.popups.route) {
-    M.popups.route.remove();
-    M.popups.route = null;
-  }
-
-  if (M.popups.station && !M.popups.station.options.closeButton) {
-    M.popups.station.remove();
-    M.popups.station = null;
-  }
-}
-
-function clearTransferSnapHintPopupOnly() {
-  if (M.popups.transferSnapHint) {
-    M.popups.transferSnapHint.remove();
-    M.popups.transferSnapHint = null;
-  }
-  lastTransferSnapHintId = "";
-}
-
-function updateTransferSnapHoverFromLngLat(lngLat) {
-  if (M.mode !== "edit-station" || editStationSubmode === "move-label") {
-    clearTransferSnapHintPopupOnly();
-    return;
-  }
-  if (M.dragging.type) {
-    clearTransferSnapHintPopupOnly();
-    return;
-  }
-
-  pendingTransferSnapLngLat = lngLat;
-  if (transferSnapHoverRaf !== null) return;
-  transferSnapHoverRaf = requestAnimationFrame(() => {
-    transferSnapHoverRaf = null;
-    if (!pendingTransferSnapLngLat) return;
-    applyTransferSnapHoverFromLngLat(pendingTransferSnapLngLat);
-  });
-}
-
-function applyTransferSnapHoverFromLngLat(lngLat) {
-  const found = findNearestTransferSnap(lngLat, TRANSFER_SNAP_HOVER_METERS);
-  if (!found) {
-    clearTransferSnapHintPopupOnly();
-    return;
-  }
-  if (isTransferSnapOccupied(found.feature)) {
-    clearTransferSnapHintPopupOnly();
-    return;
-  }
-
-  const snapId = found.feature.properties?.snap_id || "";
-  if (snapId === lastTransferSnapHintId && M.popups.transferSnapHint?.isOpen()) return;
-  lastTransferSnapHintId = snapId;
-
-  if (M.popups.route) {
-    M.popups.route.remove();
-    M.popups.route = null;
-  }
-
-  if (!M.popups.transferSnapHint) {
-    M.popups.transferSnapHint = new mapboxgl.Popup({
-      closeButton: false,
-      closeOnClick: false,
-      offset: 14,
-      anchor: "left",
-    });
-  }
-  M.popups.transferSnapHint
-    .setLngLat(found.feature.geometry.coordinates)
-    .setHTML(
-      `<div style="font-size:12px;padding:4px 8px;background:#fffce7;border:1px solid #333;border-radius:4px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.2);">${t(
-        "popup.transferAdd"
-      )}</div>`
-    )
-    .addTo(getMap());
+  hideHoverPopups();
 }
 
 function clearStationHoverHighlight() {
   M.hover.stationId = "";
   setStationHoverPairFilters(getMap(), "");
-}
-
-function isBrowseHoverMode(mode = M.mode) {
-  return (
-    mode === "general" ||
-    mode === "edit-route-select" ||
-    mode === "merge" ||
-    mode === "split-line"
-  );
 }
 
 function isDraftingHoverMode(mode = M.mode) {
@@ -365,8 +317,18 @@ function pickHoverTarget(map, point) {
   if (!hits.length) return null;
   const top = hits[0];
   const layerId = top.layer.id;
-  if (layerId === "stations-circle" || layerId === "stations-label") {
+  if (
+    layerId === "stations-circle" ||
+    layerId === "transfer-stations-circle" ||
+    layerId === "stations-circle-hover" ||
+    layerId === "transfer-stations-circle-hover" ||
+    layerId === "stations-label" ||
+    layerId === "stations-label-hover"
+  ) {
     return { type: "station", feature: top };
+  }
+  if (layerId === "transfer-snaps-layer") {
+    return { type: "transfer-snap", feature: top };
   }
   if (layerId === "routes-line") {
     return { type: "route", feature: top };
@@ -374,60 +336,47 @@ function pickHoverTarget(map, point) {
   return null;
 }
 
-function primaryRouteIdForStation(stationFeature) {
-  const routeId = stationFeature?.properties?.route_id;
-  if (routeId) return routeId;
+function primarySubrouteIdForStation(stationFeature) {
+  const subrouteId = stationFeature?.properties?.subroute_id;
+  if (subrouteId) return subrouteId;
   const transferRoutes = stationFeature?.properties?.transfer_routes;
   if (Array.isArray(transferRoutes) && transferRoutes.length > 0) return transferRoutes[0];
   return "";
 }
 
-function dismissRoutePopup() {
-  if (!M.popups.route) return;
-  M.popups.route.remove();
-  M.popups.route = null;
-}
-
-function dismissBrowseStationPopup() {
-  if (M.popups.station && !M.popups.station.options.closeButton) {
-    M.popups.station.remove();
-    M.popups.station = null;
-  }
-}
-
 function applyBrowseRouteHover(lngLat, routeFeature, point) {
-  const rid = routeFeature.properties.route_id;
-  const sameRoute = M.hover.routeId === rid && M.hover.stationId === "";
-  M.hover.routeId = rid;
+  const rid = routeFeature.properties.subroute_id;
+  const sameRoute = M.hover.subrouteId === rid && M.hover.stationId === "";
+  M.hover.subrouteId = rid;
   M.hover.stationId = "";
   if (!sameRoute) Route.highlightRoute(rid);
-  dismissBrowseStationPopup();
+  hideStationBrowsePopup();
   popupRoute(lngLat, rid, point);
 }
 
 function applyBrowseStationHover(lngLat, stationFeature, point) {
   const sid = stationFeature.properties.station_id;
-  const rid = primaryRouteIdForStation(stationFeature);
+  const rid = primarySubrouteIdForStation(stationFeature);
   if (!rid) return;
-  if (M.hover.stationId === sid && M.hover.routeId === rid) return;
+  if (M.hover.stationId === sid && M.hover.subrouteId === rid) return;
   M.hover.stationId = sid;
-  M.hover.routeId = rid;
+  M.hover.subrouteId = rid;
   Route.highlightRoute(rid);
-  dismissBrowseStationPopup();
+  hideStationBrowsePopup();
   popupRoute(lngLat, rid, point);
 }
 
 function applyDraftingHover(target) {
   if (target?.type !== "station") return;
-  if (!M.hover.routeId && !M.hover.stationId) return;
-  M.hover.routeId = "";
+  if (!M.hover.subrouteId && !M.hover.stationId) return;
+  M.hover.subrouteId = "";
   M.hover.stationId = "";
   Route.clearHover();
 }
 
 function updateEditStationHover(e, target) {
   if (editStationSubmode === "move-label") return;
-  if (M.popups.station?.isOpen?.() && M.popups.station.options.closeButton) return;
+  if (isStationEditPopupOpen()) return;
   if (M.pointer.isDown) return;
   if (M.dragging.type === "station" || M.dragging.type === "station-label") return;
 
@@ -436,35 +385,50 @@ function updateEditStationHover(e, target) {
     return;
   }
 
+  const snapNear = findNearestTransferSnap(e.lngLat, TRANSFER_SNAP_HOVER_METERS);
+  const snapActive = snapNear && !isTransferSnapOccupied(snapNear.feature);
+
   if (target.type === "station") {
     const st = target.feature;
     const sid = st.properties.station_id;
-    const rid = primaryRouteIdForStation(st);
+    const rid = primarySubrouteIdForStation(st);
     const map = getMap();
-    if (M.hover.stationId === sid && M.hover.routeId === rid) return;
+    if (M.hover.stationId === sid && M.hover.subrouteId === rid) {
+      hideTransferSnapHint();
+      return;
+    }
     M.hover.stationId = sid;
-    M.hover.routeId = rid || "";
+    M.hover.subrouteId = rid || "";
     setStationHoverPairFilters(map, sid);
-    dismissBrowseStationPopup();
-    if (rid) popupRoute(e.lngLat, rid, e.point);
+    hideStationBrowsePopup();
+    hideTransferSnapHint();
     return;
   }
 
-  const rid = target.feature.properties.route_id;
-  const snapNear = findNearestTransferSnap(e.lngLat, TRANSFER_SNAP_HOVER_METERS);
-  if (snapNear && !isTransferSnapOccupied(snapNear.feature)) {
-    if (M.hover.routeId !== rid) {
-      M.hover.routeId = rid;
-      Route.highlightRoute(rid);
+  if (target.type === "transfer-snap") {
+    if (!isTransferSnapOccupied(target.feature)) {
+      hideStationBrowsePopup();
+      refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, { feature: target.feature });
     }
-    dismissBrowseStationPopup();
     return;
   }
-  const sameRoute = M.hover.routeId === rid;
-  M.hover.routeId = rid;
+
+  const rid = target.feature.properties.subroute_id;
+  if (snapActive) {
+    if (M.hover.subrouteId !== rid) {
+      M.hover.subrouteId = rid;
+      Route.highlightRoute(rid);
+    }
+    hideStationBrowsePopup();
+    refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, snapNear);
+    return;
+  }
+
+  const sameRoute = M.hover.subrouteId === rid;
+  M.hover.subrouteId = rid;
   if (!sameRoute) Route.highlightRoute(rid);
-  dismissBrowseStationPopup();
-  popupRoute(e.lngLat, rid, e.point);
+  hideStationBrowsePopup();
+  refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, null);
 }
 
 function updateHoverFromPointer(e) {
@@ -499,50 +463,21 @@ function updateHoverFromPointer(e) {
   }
 }
 
-export function popupRoute(lngLat, routeId, point) {
-  const map = getMap();
-  if (!map) return;
-  const currentRoute = store.routesFC.features.find((x) => x.properties.route_id === routeId);
-  if (!currentRoute) return;
-
-  const lineId = currentRoute.properties.group_id;
-  const subRoutesInLine = store.routesFC.features.filter((f) => f.properties.group_id === lineId);
-  const lineDisplayName = subRoutesInLine[0]?.properties?.name || t("routeList.lineFallback", { id: lineId });
-  const estHeight = 36;
-  const estWidth = Math.min(280, Math.max(120, lineDisplayName.length * 14 + 24));
-  const screenPoint = popupScreenPoint(map, lngLat, point);
-  const placement = resolvePopupPlacement(map, screenPoint, { estHeight, estWidth });
-
-  const html = `<div><b>${lineDisplayName}</b></div>`;
-  if (M.popups.route?.isOpen?.()) {
-    M.popups.route.setLngLat(lngLat).setOffset(placement.offset).setHTML(html);
-    return;
-  }
-
-  if (M.popups.route) {
-    M.popups.route.remove();
-    M.popups.route = null;
-  }
-  M.popups.route = new mapboxgl.Popup({
-    closeButton: false,
-    closeOnClick: false,
-    anchor: placement.anchor,
-    offset: placement.offset,
-  });
-  M.popups.route.setLngLat(lngLat).setHTML(html).addTo(map);
+export function popupRoute(lngLat, subrouteId, point) {
+  showRouteHoverPopup(lngLat, subrouteId, point, { routes: store.subroutesFC.features });
 }
 
-function addRouteIdToSet(ids, routeId) {
-  if (routeId == null || routeId === "") return;
-  ids.add(String(routeId));
+function addSubrouteIdToSet(ids, subrouteId) {
+  if (subrouteId == null || subrouteId === "") return;
+  ids.add(String(subrouteId));
 }
 
-function collectRouteIdsForStation(station) {
+function collectSubrouteIdsForStation(station) {
   const ids = new Set();
-  addRouteIdToSet(ids, station?.properties?.route_id);
+  addSubrouteIdToSet(ids, station?.properties?.subroute_id);
   const transferRoutes = station?.properties?.transfer_routes;
   if (Array.isArray(transferRoutes)) {
-    transferRoutes.forEach((rid) => addRouteIdToSet(ids, rid));
+    transferRoutes.forEach((rid) => addSubrouteIdToSet(ids, rid));
   }
   return ids;
 }
@@ -554,12 +489,12 @@ function resolveStoreStation(stationFeature) {
 }
 
 /** 彙整 hover 車站經過的路線 id（含 store 完整屬性與近距離共點）。 */
-function collectPassingRouteIdsForPopup(hoveredFeature) {
+function collectPassingSubrouteIdsForPopup(hoveredFeature) {
   const ids = new Set();
   const storeStation = resolveStoreStation(hoveredFeature);
 
   const addFromStation = (station) => {
-    collectRouteIdsForStation(station).forEach((rid) => ids.add(rid));
+    collectSubrouteIdsForStation(station).forEach((rid) => ids.add(rid));
   };
 
   addFromStation(hoveredFeature);
@@ -577,72 +512,64 @@ function collectPassingRouteIdsForPopup(hoveredFeature) {
   return ids;
 }
 
-function collectLineNamesForSubRouteIds(subRouteIds) {
-  const lines = new Map();
-  subRouteIds.forEach((subRouteId) => {
-    const parentSubRoute = store.routesFC.features.find((f) => f.properties.route_id === subRouteId);
+function collectRouteNamesForSubrouteIds(subrouteIds) {
+  const routes = new Map();
+  subrouteIds.forEach((subrouteId) => {
+    const parentSubRoute = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteId);
     if (!parentSubRoute) return;
-    const lineId = parentSubRoute.properties.group_id;
-    if (typeof lineId !== "string" || lines.has(lineId)) return;
-    const firstSubRouteInLine = store.routesFC.features.find((f) => f.properties.group_id === lineId);
-    const lineDisplayName =
-      firstSubRouteInLine?.properties?.name || t("routeList.lineFallback", { id: lineId });
-    lines.set(lineId, lineDisplayName);
+    const routeId = parentSubRoute.properties.route_id;
+    if (typeof routeId !== "string" || routes.has(routeId)) return;
+    const firstSubrouteInRoute = store.subroutesFC.features.find((f) => f.properties.route_id === routeId);
+    const routeDisplayName = resolveRouteDisplayNameFromProps(firstSubrouteInRoute?.properties);
+    routes.set(routeId, routeDisplayName);
   });
-  return lines;
+  return routes;
 }
 
 /** 車站 popup 顯示用的路線名稱（至少一條）。 */
-function buildPassingRouteLabels(passingRouteIds) {
-  const fromLines = Array.from(collectLineNamesForSubRouteIds(passingRouteIds).values());
-  if (fromLines.length > 0) return fromLines;
-  return [...passingRouteIds].map((rid) => {
-    const route = store.routesFC.features.find((f) => f.properties.route_id === rid);
-    if (route?.properties?.group_id) {
-      const gid = route.properties.group_id;
-      const firstInLine = store.routesFC.features.find((f) => f.properties.group_id === gid);
-      return firstInLine?.properties?.name || t("routeList.lineFallback", { id: gid });
+function buildPassingRouteLabels(passingSubrouteIds) {
+  const fromRoutes = Array.from(collectRouteNamesForSubrouteIds(passingSubrouteIds).values());
+  if (fromRoutes.length > 0) return fromRoutes;
+  return [...passingSubrouteIds].map((rid) => {
+    const route = store.subroutesFC.features.find((f) => f.properties.subroute_id === rid);
+    if (route?.properties?.route_id) {
+      const routeId = route.properties.route_id;
+      const firstSubrouteInRoute = store.subroutesFC.features.find((f) => f.properties.route_id === routeId);
+      return resolveRouteDisplayNameFromProps(firstSubrouteInRoute?.properties);
     }
-    return route?.properties?.name || t("routeModel.subRouteDefault", { id: rid });
+    return resolveRouteDisplayNameFromProps(route?.properties);
   });
 }
 
 export function popupStation(lngLat, st, point) {
-  const map = getMap();
-  if (!map) return;
   const p = st.properties;
-  const passingRouteIds = collectPassingRouteIdsForPopup(st);
-  const routeLabels = buildPassingRouteLabels(passingRouteIds);
+  const passingSubrouteIds = collectPassingSubrouteIdsForPopup(st);
+  const routeLabels = buildPassingRouteLabels(passingSubrouteIds);
 
-  const stationNameHTML = `<b>${p.name || p.station_id}</b>`;
+  const stationNameHTML = `<div class="map-hover-popup__title">${resolveStationDisplayName(p)}</div>`;
   let lineInfoHTML = "";
 
   if (routeLabels.length > 0) {
     lineInfoHTML =
-      `<hr style="margin:2px 0;">${t("popup.routesPassingHeader")}<ul style="margin:0; padding-left:20px;">` +
+      `<div class="map-hover-popup__divider"></div>` +
+      `<div class="map-hover-popup__section-label">${t("popup.routesPassingHeader")}</div>` +
+      `<ul class="map-hover-popup__list">` +
       routeLabels.map((name) => `<li>${name}</li>`).join("") +
       "</ul>";
   }
 
   const estHeight = 56 + routeLabels.length * 22;
-  const placement = resolvePopupPlacement(map, popupScreenPoint(map, lngLat, point), { estHeight });
-  if (M.popups.station) {
-    M.popups.station.remove();
-    M.popups.station = null;
-  }
-  M.popups.station = new mapboxgl.Popup({
-    closeButton: false,
-    closeOnClick: false,
-    anchor: placement.anchor,
-    offset: placement.offset,
-  });
-
-  M.popups.station.setLngLat(lngLat).setHTML(`<div>${stationNameHTML}${lineInfoHTML}</div>`).addTo(map);
+  const bodyHtml = `<div class="map-hover-popup__body">${stationNameHTML}${lineInfoHTML}</div>`;
+  showStationBrowsePopup(lngLat, bodyHtml, point, estHeight);
 }
 
 export function popupStationForEditing(station) {
+  hideRouteHoverPopup();
+  hideStationBrowsePopup();
+  hideTransferSnapHint();
+
   const p = station.properties;
-  const currentName = p.name || p.station_id;
+  const currentName = resolveStationDisplayName(p);
 
   const saveLabel = t("popup.save");
   const deleteLabel = t("popup.delete");
@@ -655,12 +582,7 @@ export function popupStationForEditing(station) {
       </div>
     </div>
   `;
-  if (M.popups.station) {
-    M.popups.station.remove();
-  }
-
-  M.popups.station = new mapboxgl.Popup({ closeButton: true });
-  M.popups.station.setLngLat(station.geometry.coordinates).setHTML(html).addTo(getMap());
+  openStationEditPopup(station.geometry.coordinates, html);
 
   setTimeout(() => {
     const input = document.getElementById("station-name-input");
@@ -668,13 +590,13 @@ export function popupStationForEditing(station) {
 
     document.getElementById("save-station-btn")?.addEventListener("click", () => {
       Route.setStationName(p.station_id, input.value);
-      M.popups.station.remove();
+      closeStationEditPopup();
     });
 
     document.getElementById("delete-station-btn")?.addEventListener("click", () => {
       if (confirm(t("popup.confirmDeleteStation", { name: currentName }))) {
         Route.removeStation(p.station_id);
-        M.popups.station.remove();
+        closeStationEditPopup();
       }
     });
   }, 0);
@@ -689,9 +611,8 @@ export function setMode(next) {
   onModeChange(next);
   setCursorForMode();
   clearHoverAndPopups();
-  clearTransferSnapHintPopupOnly();
-  if (store.hiddenRouteIds.size > 0 && M.mode !== "edit-route-active") {
-    store.hiddenRouteIds.clear();
+  if (store.hiddenSubrouteIds.size > 0 && M.mode !== "edit-route-active") {
+    store.hiddenSubrouteIds.clear();
     Route.refreshSources();
   }
   if (M.mode !== "edit-station") {
@@ -700,6 +621,8 @@ export function setMode(next) {
   }
   updateTransferSnapVisibility();
   emitModeHint();
+  const map = getMap();
+  if (map) ensureMetroLayerStackOrder(map);
 }
 
 export function startAddRoute() {
@@ -725,7 +648,7 @@ export function finishEditing() {
       saveBtn.click();
     }
     setMode("general");
-    return { ok: true, newLineIds: [] };
+    return { ok: true, newRouteIds: [] };
   }
   const result = Route.endTempEditingAndCommit();
   if (result.ok) {
@@ -748,7 +671,7 @@ function cancelTempRouteEditingSession() {
     map?.off("mousemove", onDragMoveAddRoute);
     M.dragging.type = null;
     M.dragging.idx = null;
-    M.dragging.routeId = null;
+    M.dragging.subrouteId = null;
     M.dragging.isClickCandidate = false;
     M.dragging.downPoint = null;
   }
@@ -809,20 +732,20 @@ function onMapClickWhileEditing(e) {
       if (nearestDist < bestDist) {
         bestDist = nearestDist;
         best = {
-          routeId: session.routeId,
+          subrouteId: session.subrouteId,
           insertAtStart,
         };
       }
     });
 
     if (!best) {
-      Route.addTempNodeAt(coord, sessions[0].routeId);
+      Route.addTempNodeAt(coord, sessions[0].subrouteId);
       return;
     }
     if (best.insertAtStart) {
-      Route.addTempNodeAt(coord, best.routeId, 0);
+      Route.addTempNodeAt(coord, best.subrouteId, 0);
     } else {
-      Route.addTempNodeAt(coord, best.routeId);
+      Route.addTempNodeAt(coord, best.subrouteId);
     }
   };
 
@@ -838,7 +761,7 @@ function onMapClickWhileEditing(e) {
   };
 
   const hitFeatures = map.queryRenderedFeatures(e.point, {
-    layers: ["temp-edit-nodes-layer", "temp-edit-line-layer", "stations-circle", "routes-line"],
+    layers: ["temp-edit-nodes-layer", "temp-edit-line-layer", ...STATION_CIRCLE_LAYERS, "routes-line"],
   });
 
   if (hitFeatures.length) {
@@ -848,12 +771,13 @@ function onMapClickWhileEditing(e) {
 
     switch (topLayerId) {
       case "temp-edit-nodes-layer":
-        Route.deleteTempNodeByIndex(properties.idx, properties.route_id);
+        Route.deleteTempNodeByIndex(properties.idx, properties.subroute_id);
         return;
       case "temp-edit-line-layer":
-        Route.insertTempNodeOnSegment(e.point, properties.route_id);
+        Route.insertTempNodeOnSegment(e.point, properties.subroute_id);
         return;
-      case "stations-circle": {
+      case "stations-circle":
+      case "transfer-stations-circle": {
         const stationCoord = topFeature.geometry.coordinates;
         if (isNearAnyEndpoint(stationCoord)) return;
         Route.queueStationFromExisting(stationCoord);
@@ -887,7 +811,7 @@ function onDragMoveAddRoute(e) {
   }
 
   if (!M.dragging.isClickCandidate) {
-    Route.updateTempNodeCoord(M.dragging.idx, [e.lngLat.lng, e.lngLat.lat], M.dragging.routeId);
+    Route.updateTempNodeCoord(M.dragging.idx, [e.lngLat.lng, e.lngLat.lat], M.dragging.subrouteId);
     scheduleTempNodePreviewRefresh();
   }
 }
@@ -915,8 +839,8 @@ function applyStationDragPreview() {
   if (!pendingStationDragPreview) return;
   const { map, sid, lngLat } = pendingStationDragPreview;
   const st = store.stationsFC.features.find((x) => x.properties.station_id === sid);
-  const rid = st?.properties?.route_id;
-  const route = rid ? store.routesFC.features.find((x) => x.properties?.route_id === rid) : null;
+  const rid = st?.properties?.subroute_id;
+  const route = rid ? store.subroutesFC.features.find((x) => x.properties?.subroute_id === rid) : null;
   if (route?.geometry?.type === "LineString" && route.geometry.coordinates?.length >= 2) {
     const snapped = nearestPointOnSmoothedRoute(route.geometry.coordinates, lngLat);
     setStationPreviewCoord(map, sid, snapped?.geometry?.coordinates || lngLat);
@@ -952,7 +876,7 @@ Modes["add-route"] = {
   onMapClick(e) {
     const map = getMap();
     const hitFeatures = map.queryRenderedFeatures(e.point, {
-      layers: ["temp-edit-nodes-layer", "temp-edit-line-layer", "stations-circle", "routes-line"],
+      layers: ["temp-edit-nodes-layer", "temp-edit-line-layer", ...STATION_CIRCLE_LAYERS, "routes-line"],
     });
 
     if (hitFeatures.length) {
@@ -961,12 +885,13 @@ Modes["add-route"] = {
 
       switch (topLayerId) {
         case "temp-edit-nodes-layer":
-          Route.deleteTempNodeByIndex(properties.idx, properties.route_id);
+          Route.deleteTempNodeByIndex(properties.idx, properties.subroute_id);
           break;
         case "temp-edit-line-layer":
-          Route.insertTempNodeOnSegment(e.point, properties.route_id);
+          Route.insertTempNodeOnSegment(e.point, properties.subroute_id);
           break;
         case "stations-circle":
+        case "transfer-stations-circle":
           Route.queueStationFromExisting(hitFeatures[0].geometry.coordinates);
           break;
         case "routes-line": {
@@ -984,12 +909,12 @@ Modes["add-route"] = {
               const distToEnd = turf.distance(snappedPoint, endPoint);
 
               if (distToStart < distToEnd) {
-                Route.addTempNodeAt(snapped.geometry.coordinates, session.routeId, 0);
+                Route.addTempNodeAt(snapped.geometry.coordinates, session.subrouteId, 0);
               } else {
-                Route.addTempNodeAt(snapped.geometry.coordinates, session.routeId);
+                Route.addTempNodeAt(snapped.geometry.coordinates, session.subrouteId);
               }
             } else {
-              Route.addTempNodeAt(snapped.geometry.coordinates, session.routeId);
+              Route.addTempNodeAt(snapped.geometry.coordinates, session.subrouteId);
             }
           }
           break;
@@ -1009,12 +934,12 @@ Modes["add-route"] = {
         const distToEnd = turf.distance(clickedPoint, endPoint);
 
         if (distToStart < distToEnd) {
-          Route.addTempNodeAt(clickCoord, session.routeId, 0);
+          Route.addTempNodeAt(clickCoord, session.subrouteId, 0);
         } else {
-          Route.addTempNodeAt(clickCoord, session.routeId);
+          Route.addTempNodeAt(clickCoord, session.subrouteId);
         }
       } else {
-        Route.addTempNodeAt(clickCoord, session.routeId);
+        Route.addTempNodeAt(clickCoord, session.subrouteId);
       }
     }
   },
@@ -1027,7 +952,7 @@ Modes["add-route"] = {
 
     M.dragging.type = "temp-node";
     M.dragging.idx = f.properties.idx;
-    M.dragging.routeId = f.properties.route_id;
+    M.dragging.subrouteId = f.properties.subroute_id;
     M.dragging.isClickCandidate = true;
     M.dragging.downPoint = e.point;
     setCursor("grabbing");
@@ -1057,13 +982,13 @@ Modes["edit-route-select"] = {
 
   onRouteDown(e) {
     const props = e.features[0].properties;
-    const lineId = props.group_id;
-    popupRoute(e.lngLat, props.route_id, e.point);
-    if (!lineId) return;
+    const routeId = props.route_id;
+    popupRoute(e.lngLat, props.subroute_id, e.point);
+    if (!routeId) return;
 
     Route.clearHover();
     M.suppressNextEditMapClick = true;
-    Route.startEditLine(lineId);
+    Route.startEditRoute(routeId);
     const map = getMap();
     map.once("mouseup", () => setMode("edit-route-active"));
   },
@@ -1107,13 +1032,14 @@ Modes["edit-station"] = {
   },
 
   onMapMove(e) {
-    updateTransferSnapHoverFromLngLat(e.lngLat);
+    if (isStationEditPopupOpen()) return;
+    scheduleTransferSnapHintUpdate(e.lngLat, TRANSFER_SNAP_HINT_DEPS);
   },
 
   onMapClick(e) {
     const map = getMap();
     const hitFeatures = map.queryRenderedFeatures(e.point, {
-      layers: ["stations-circle", "stations-label", "transfer-snaps-layer", "routes-line"],
+      layers: ["transfer-snaps-layer", ...STATION_CIRCLE_LAYERS, "stations-label", "routes-line"],
     });
 
     if (hitFeatures.length) {
@@ -1123,6 +1049,7 @@ Modes["edit-station"] = {
 
       switch (topLayerId) {
         case "stations-circle":
+        case "transfer-stations-circle":
           popupStationForEditing(topFeature);
           break;
         case "stations-label":
@@ -1132,8 +1059,8 @@ Modes["edit-station"] = {
           break;
         case "transfer-snaps-layer": {
           const coord = topFeature.geometry.coordinates;
-          const ridA = properties.route_id_a;
-          const ridB = properties.route_id_b;
+          const ridA = properties.subroute_id_a;
+          const ridB = properties.subroute_id_b;
           if (ridA && ridB) {
             Route.addTransferStationAt(coord, ridA, ridB);
           }
@@ -1143,17 +1070,17 @@ Modes["edit-station"] = {
           const snapNear = findNearestTransferSnap(e.lngLat, TRANSFER_SNAP_CLICK_METERS);
           if (snapNear && !isTransferSnapOccupied(snapNear.feature)) {
             const p = snapNear.feature.properties;
-            Route.addTransferStationAt(snapNear.feature.geometry.coordinates, p.route_id_a, p.route_id_b);
-            Route.highlightRoute(properties.route_id);
+            Route.addTransferStationAt(snapNear.feature.geometry.coordinates, p.subroute_id_a, p.subroute_id_b);
+            Route.highlightRoute(properties.subroute_id);
             break;
           }
-          const snapped = turf.nearestPointOnLine(getRouteFeature(properties.route_id), [e.lngLat.lng, e.lngLat.lat], {
+          const snapped = turf.nearestPointOnLine(getRouteFeature(properties.subroute_id), [e.lngLat.lng, e.lngLat.lat], {
             units: "meters",
           });
-          const routeFeature = getRouteFeature(properties.route_id);
+          const routeFeature = getRouteFeature(properties.subroute_id);
           const routeColor = routeFeature ? routeFeature.properties.color : null;
-          Route.addStationAt(properties.route_id, snapped.geometry.coordinates, null, routeColor);
-          Route.highlightRoute(properties.route_id);
+          Route.addStationAt(properties.subroute_id, snapped.geometry.coordinates, null, routeColor);
+          Route.highlightRoute(properties.subroute_id);
           break;
         }
       }
@@ -1262,9 +1189,14 @@ Modes["edit-station"] = {
   },
 };
 
-function getRouteFeature(route_id) {
-  const f = store.routesFC.features.find((x) => x.properties.route_id === route_id);
+function getRouteFeature(subroute_id) {
+  const f = store.subroutesFC.features.find((x) => x.properties.subroute_id === subroute_id);
   return f ? { type: "Feature", geometry: f.geometry, properties: f.properties } : null;
+}
+
+function subrouteIdFromStationEvent(e) {
+  const stationFeature = e.features?.[0];
+  return primarySubrouteIdForStation(stationFeature);
 }
 
 Modes.merge = {
@@ -1281,7 +1213,12 @@ Modes.merge = {
   },
 
   onRouteClick(e) {
-    pickRouteForMerge(e.features[0].properties.route_id);
+    pickRouteForMerge(e.features[0].properties.subroute_id);
+  },
+
+  onStationClick(e) {
+    const subrouteId = subrouteIdFromStationEvent(e);
+    if (subrouteId) pickRouteForMerge(subrouteId);
   },
 };
 
@@ -1291,14 +1228,19 @@ Modes["split-line"] = {
   onLeave() {},
 
   onRouteClick(e) {
-    pickSubRouteForSplitLine(e.features[0].properties.route_id);
+    pickSubRouteForSplitLine(e.features[0].properties.subroute_id);
+  },
+
+  onStationClick(e) {
+    const subrouteId = subrouteIdFromStationEvent(e);
+    if (subrouteId) pickSubRouteForSplitLine(subrouteId);
   },
 };
 
 /** @returns {{ ok: boolean, msg?: string }} */
-export function pickSubRouteForSplitLine(routeId) {
-  if (M.mode !== "split-line" || typeof routeId !== "string") return { ok: false };
-  const res = Route.splitLine(routeId);
+export function pickSubRouteForSplitLine(subrouteId) {
+  if (M.mode !== "split-line" || typeof subrouteId !== "string") return { ok: false };
+  const res = Route.splitLine(subrouteId);
   if (!res.ok) alert(res.msg);
   else alert(t("routeModel.splitLineSuccess"));
   setMode("general");
@@ -1327,12 +1269,14 @@ export function initializeEventListeners() {
   map.on("click", (e) => cur()?.onMapClick?.(e));
   map.on("click", "routes-line", (e) => cur()?.onRouteClick?.(e));
   map.on("click", "stations-circle", (e) => cur()?.onStationClick?.(e));
+  map.on("click", "transfer-stations-circle", (e) => cur()?.onStationClick?.(e));
   map.on("click", "stations-label", (e) => cur()?.onStationClick?.(e));
   map.on("click", "temp-edit-line-layer", (e) => cur()?.onTempLineClick?.(e));
 
   map.on("mousedown", "routes-line", (e) => cur()?.onRouteDown?.(e));
   map.on("mousedown", "temp-edit-nodes-layer", (e) => cur()?.onTempNodeDown?.(e));
   map.on("mousedown", "stations-circle", (e) => cur()?.onStationDown?.(e));
+  map.on("mousedown", "transfer-stations-circle", (e) => cur()?.onStationDown?.(e));
   map.on("mousedown", "stations-label", (e) => cur()?.onStationLabelDown?.(e));
   updateTransferSnapVisibility();
 }

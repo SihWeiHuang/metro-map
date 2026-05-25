@@ -4,14 +4,58 @@ import {
 } from "./displayLineSmoothing.js";
 import { STATION_LABEL_FRAME_IMAGE_ID } from "./labelMoveFrameImage.js";
 
-/** Route / station dot layers that should stay below basemap labels. */
-const METRO_GEOMETRY_LAYER_IDS = [
-  "routes-line",
-  "routes-line-hover",
+/** Bottom of the metro stack — anchored below basemap labels. */
+const METRO_ROUTE_LAYER_IDS = ["routes-line", "routes-line-hover"];
+
+/** Above routes, still below basemap labels (bottom → top). */
+const METRO_OVERLAY_LAYER_IDS = [
+  "stations-circle",
+  "temp-edit-line-layer",
+  "temp-edit-nodes-layer",
+  "label-drag-limit-layer",
+  "stations-label-move-frame",
+  "stations-label",
+];
+
+/** Transient hover/edit overlays — kept above basemap labels and station hover circles. */
+const METRO_HOVER_OVERLAY_LAYER_IDS = [
+  "stations-circle-hover",
+  "transfer-snaps-layer",
+  "transfer-stations-circle",
+  "transfer-stations-circle-hover",
+  "stations-label-hover",
+];
+
+/** Recreated on each initializeLayers (hot reload). */
+const METRO_RECREATED_LAYER_IDS = [
+  ...METRO_ROUTE_LAYER_IDS,
   "stations-circle",
   "stations-circle-hover",
   "transfer-snaps-layer",
+  "transfer-stations-circle",
+  "transfer-stations-circle-hover",
 ];
+
+const REGULAR_STATION_LAYER_FILTER = ["!=", ["coalesce", ["get", "is_transfer_fixed"], false], true];
+const TRANSFER_STATION_LAYER_FILTER = ["==", ["coalesce", ["get", "is_transfer_fixed"], false], true];
+const METRO_SOURCE_IDS = new Set([
+  "routes",
+  "stations",
+  "station-labels",
+  "transfer-snaps",
+  "temp-edit-line",
+  "temp-edit-nodes",
+  "label-drag-limit",
+]);
+
+/**
+ * Routes in `middle` (above roads, below 3D buildings; emissive paint avoids depth hide).
+ * Points / nodes in `top` (above routes; GL batches line+circle in `middle` so circles get covered).
+ */
+const METRO_ROUTE_SLOT = "middle";
+const METRO_OVERLAY_SLOT = "top";
+
+export { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER };
 
 function styleUsesMapboxSlots(map) {
   const style = map.getStyle();
@@ -20,7 +64,67 @@ function styleUsesMapboxSlots(map) {
   return style.layers?.some((layer) => layer.slot != null) ?? false;
 }
 
-/** First basemap symbol layer with text — insert custom layers before it (classic styles). */
+const BUILDING_LAYER_RE = /building|structure|extrusion/i;
+
+function isBuildingBasemapLayer(layer) {
+  if (!layer) return false;
+  if (layer.type === "fill-extrusion") return true;
+  const id = (layer.id || "").toLowerCase();
+  const sourceLayer = (layer["source-layer"] || "").toLowerCase();
+  if (sourceLayer === "building" && (layer.type === "fill" || layer.type === "fill-extrusion")) return true;
+  if (BUILDING_LAYER_RE.test(id) || BUILDING_LAYER_RE.test(sourceLayer)) return true;
+  if (layer.type === "fill" && BUILDING_LAYER_RE.test(id)) return true;
+  return false;
+}
+
+const LOW_PRIORITY_LABEL_ID_RE = /housenum|house-number|house_num|block-number|water-name|waterway-label/i;
+
+function isLowPriorityMapLabelLayer(layer) {
+  return LOW_PRIORITY_LABEL_ID_RE.test(layer.id || "");
+}
+
+function isPreferredMapLabelLayer(layer) {
+  if (!isTextLabelBasemapLayer(layer) || isLowPriorityMapLabelLayer(layer)) return false;
+  const id = (layer.id || "").toLowerCase();
+  const sourceLayer = (layer["source-layer"] || "").toLowerCase();
+  const hints = ["place", "poi", "road", "street", "settlement", "transit", "admin", "label", "name"];
+  return hints.some((hint) => id.includes(hint) || sourceLayer.includes(hint));
+}
+
+function isTextLabelBasemapLayer(layer) {
+  return layer.type === "symbol" && layer.layout?.["text-field"];
+}
+
+const HIGH_PRIORITY_BASEMAP_LABEL_RE =
+  /place|settlement|city|town|village|hamlet|locality|neighbourhood|neighborhood|suburb|district|admin|country|state|province|region/i;
+
+function isMetroLayer(layer) {
+  return METRO_SOURCE_IDS.has(layer.source);
+}
+
+function shouldHideBasemapTextLayer(layer) {
+  if (!isTextLabelBasemapLayer(layer) || isMetroLayer(layer)) return false;
+  const id = layer.id || "";
+  const sourceLayer = layer["source-layer"] || "";
+  const labelKey = `${id} ${sourceLayer}`;
+  if (HIGH_PRIORITY_BASEMAP_LABEL_RE.test(labelKey)) return false;
+  return true;
+}
+
+function applyReducedBasemapTextDensity(map) {
+  const layers = map.getStyle()?.layers;
+  if (!Array.isArray(layers)) return;
+  for (const layer of layers) {
+    if (!shouldHideBasemapTextLayer(layer)) continue;
+    try {
+      map.setLayoutProperty(layer.id, "visibility", "none");
+    } catch {
+      // Imported Mapbox Standard layers may reject direct edits; skip unsupported layers.
+    }
+  }
+}
+
+/** First basemap symbol layer with text — fallback insert anchor (classic styles). */
 function findLabelAnchorLayerId(map) {
   const layers = map.getStyle()?.layers;
   if (!Array.isArray(layers)) return undefined;
@@ -42,37 +146,182 @@ function findLabelAnchorLayerId(map) {
   return undefined;
 }
 
+/**
+ * Layer id to pass as `beforeId`: metro geometry renders below it, and above building layers.
+ * Fixes routes hidden under building fill / 3D extrusions at high zoom.
+ */
+function findMetroGeometryInsertBeforeLayerId(map) {
+  const layers = map.getStyle()?.layers;
+  if (!Array.isArray(layers) || layers.length === 0) return findLabelAnchorLayerId(map);
+
+  let topBuildingIndex = -1;
+  for (let i = 0; i < layers.length; i++) {
+    if (isBuildingBasemapLayer(layers[i])) topBuildingIndex = i;
+  }
+
+  const afterBuildings = (index) => topBuildingIndex < 0 || index > topBuildingIndex;
+
+  for (let i = 0; i < layers.length; i++) {
+    const layer = layers[i];
+    if (!afterBuildings(i) || !isPreferredMapLabelLayer(layer)) continue;
+    return layer.id;
+  }
+
+  for (let i = 0; i < layers.length; i++) {
+    const layer = layers[i];
+    if (!afterBuildings(i) || !isTextLabelBasemapLayer(layer) || isLowPriorityMapLabelLayer(layer)) continue;
+    return layer.id;
+  }
+
+  for (let i = 0; i < layers.length; i++) {
+    const layer = layers[i];
+    if (!afterBuildings(i) || !isTextLabelBasemapLayer(layer)) continue;
+    return layer.id;
+  }
+
+  if (topBuildingIndex >= 0 && topBuildingIndex < layers.length - 1) {
+    return layers[topBuildingIndex + 1].id;
+  }
+
+  return findLabelAnchorLayerId(map);
+}
+
+/** Reduce 3D building depth-test hiding lines and circles (Mapbox Standard). */
+function withMetroVisibilityPaint(layerDef) {
+  if (layerDef.type === "line") {
+    return {
+      ...layerDef,
+      paint: {
+        ...layerDef.paint,
+        "line-emissive-strength": layerDef.paint?.["line-emissive-strength"] ?? 1,
+        "line-occlusion-opacity": layerDef.paint?.["line-occlusion-opacity"] ?? 1,
+      },
+    };
+  }
+  if (layerDef.type === "circle") {
+    return {
+      ...layerDef,
+      paint: {
+        ...layerDef.paint,
+        "circle-emissive-strength": layerDef.paint?.["circle-emissive-strength"] ?? 1,
+        "circle-occlusion-opacity": layerDef.paint?.["circle-occlusion-opacity"] ?? 1,
+      },
+    };
+  }
+  return layerDef;
+}
+
 function removeLayerIfExists(map, layerId) {
   if (map.getLayer(layerId)) map.removeLayer(layerId);
 }
 
-function addLayerBelowMapLabels(map, layerDef) {
+function addMetroRouteLayer(map, layerDef) {
+  const def = withMetroVisibilityPaint(layerDef);
+  const beforeId = findMetroGeometryInsertBeforeLayerId(map);
+  const slottedDef = styleUsesMapboxSlots(map) ? { ...def, slot: METRO_ROUTE_SLOT } : def;
+
+  if (beforeId) {
+    try {
+      map.addLayer(slottedDef, beforeId);
+      return;
+    } catch {
+      // Cross-slot beforeId rejected; fall through to slot-only / default placement.
+    }
+  }
+
   if (styleUsesMapboxSlots(map)) {
-    map.addLayer({ ...layerDef, slot: "middle" });
+    map.addLayer(slottedDef);
     return;
   }
-  const beforeId = findLabelAnchorLayerId(map);
-  if (beforeId) map.addLayer(layerDef, beforeId);
-  else map.addLayer(layerDef);
+
+  const fallbackBeforeId = findLabelAnchorLayerId(map);
+  if (fallbackBeforeId) {
+    try {
+      map.addLayer(def, fallbackBeforeId);
+      return;
+    } catch {
+      // ignore
+    }
+  }
+
+  map.addLayer(def);
 }
 
-/** Re-order geometry layers below labels (classic styles / hot reload recovery). */
-function ensureMetroGeometryBelowMapLabels(map) {
-  if (styleUsesMapboxSlots(map)) return;
-  const beforeId = findLabelAnchorLayerId(map);
-  if (!beforeId) return;
-  for (const layerId of [...METRO_GEOMETRY_LAYER_IDS].reverse()) {
-    if (!map.getLayer(layerId)) continue;
+/** Overlays use `top` slot so circles/nodes draw above route lines in `middle`. */
+function addMetroOverlayLayer(map, layerDef) {
+  const def = withMetroVisibilityPaint(layerDef);
+  const beforeId = findMetroGeometryInsertBeforeLayerId(map);
+  const slottedDef = styleUsesMapboxSlots(map) ? { ...def, slot: METRO_OVERLAY_SLOT } : def;
+
+  if (beforeId) {
     try {
-      map.moveLayer(layerId, beforeId);
+      map.addLayer(slottedDef, beforeId);
+      return;
     } catch {
-      // Style may not allow moving this layer relative to beforeId.
+      // Cross-slot beforeId rejected; fall through.
+    }
+  }
+
+  map.addLayer(slottedDef);
+}
+
+function chainLayerOrder(map, layerIds) {
+  for (let i = layerIds.length - 1; i > 0; i--) {
+    const belowId = layerIds[i - 1];
+    const aboveId = layerIds[i];
+    if (!map.getLayer(belowId) || !map.getLayer(aboveId)) continue;
+    try {
+      map.moveLayer(belowId, aboveId);
+    } catch {
+      // Style may not allow moving between these layers.
     }
   }
 }
 
-function removeMetroGeometryLayers(map) {
-  for (const layerId of METRO_GEOMETRY_LAYER_IDS) {
+/**
+ * Keep normal metro layers below basemap labels; hover labels above them.
+ * Standard: routes (`middle`) and overlays (`top`) are separate slots — chain within each.
+ * Classic: one stack, chain routes then overlays, anchor normal layers below map labels.
+ */
+export function ensureMetroLayerStackOrder(map) {
+  applyReducedBasemapTextDensity(map);
+
+  const mapLabelBeforeId = findMetroGeometryInsertBeforeLayerId(map);
+  const usesSlots = styleUsesMapboxSlots(map);
+
+  if (usesSlots) {
+    chainLayerOrder(map, METRO_ROUTE_LAYER_IDS);
+    chainLayerOrder(map, METRO_OVERLAY_LAYER_IDS);
+    chainLayerOrder(map, METRO_HOVER_OVERLAY_LAYER_IDS);
+  } else {
+    chainLayerOrder(map, [...METRO_ROUTE_LAYER_IDS, ...METRO_OVERLAY_LAYER_IDS]);
+    chainLayerOrder(map, METRO_HOVER_OVERLAY_LAYER_IDS);
+  }
+
+  const topAnchoredMetroId = usesSlots
+    ? [...METRO_OVERLAY_LAYER_IDS].reverse().find((id) => map.getLayer(id))
+    : [...METRO_ROUTE_LAYER_IDS, ...METRO_OVERLAY_LAYER_IDS].reverse().find((id) => map.getLayer(id));
+
+  if (topAnchoredMetroId && mapLabelBeforeId) {
+    try {
+      map.moveLayer(topAnchoredMetroId, mapLabelBeforeId);
+    } catch {
+      // ignore
+    }
+  }
+
+  for (const layerId of METRO_HOVER_OVERLAY_LAYER_IDS) {
+    if (!map.getLayer(layerId)) continue;
+    try {
+      map.moveLayer(layerId);
+    } catch {
+      // Style may not allow moving between slots; intra-slot order was already chained above.
+    }
+  }
+}
+
+function removeMetroRecreatedLayers(map) {
+  for (const layerId of METRO_RECREATED_LAYER_IDS) {
     removeLayerIfExists(map, layerId);
   }
 }
@@ -89,8 +338,8 @@ export function initializeLayers(map, store) {
     }
   }
 
-  addOrSetSource("routes", featureCollectionWithSmoothedLineStrings(store.routesFC));
-  const { stationsDisplayFC, stationLabelsFC } = buildStationDisplayCollections(store.stationsFC, store.routesFC);
+  addOrSetSource("routes", featureCollectionWithSmoothedLineStrings(store.subroutesFC));
+  const { stationsDisplayFC, stationLabelsFC } = buildStationDisplayCollections(store.stationsFC, store.subroutesFC);
   addOrSetSource("stations", stationsDisplayFC);
   addOrSetSource("station-labels", stationLabelsFC);
   addOrSetSource("transfer-snaps", { type: "FeatureCollection", features: [] });
@@ -98,10 +347,10 @@ export function initializeLayers(map, store) {
   addOrSetSource("temp-edit-nodes", { type: "FeatureCollection", features: [] });
   addOrSetSource("label-drag-limit", { type: "FeatureCollection", features: [] });
 
-  // Always recreate geometry layers so slot / beforeId placement stays correct after hot reload.
-  removeMetroGeometryLayers(map);
+  // Always recreate route/geometry layers so slot / beforeId placement stays correct after hot reload.
+  removeMetroRecreatedLayers(map);
 
-  addLayerBelowMapLabels(map, {
+  addMetroRouteLayer(map, {
     id: "routes-line",
     type: "line",
     source: "routes",
@@ -109,14 +358,14 @@ export function initializeLayers(map, store) {
       "line-color": ["coalesce", ["get", "color"], "#1e88e5"],
       "line-width": 8,
     },
-    filter: ["!", ["in", ["get", "route_id"], ["literal", Array.from(store.hiddenRouteIds)]]],
+    filter: ["!", ["in", ["get", "subroute_id"], ["literal", Array.from(store.hiddenSubrouteIds)]]],
     layout: {
       "line-join": "round",
       "line-cap": "round",
     },
   });
 
-  addLayerBelowMapLabels(map, {
+  addMetroRouteLayer(map, {
     id: "routes-line-hover",
     type: "line",
     source: "routes",
@@ -124,39 +373,40 @@ export function initializeLayers(map, store) {
       "line-color": ["coalesce", ["get", "color"], "#1e88e5"],
       "line-width": 12,
     },
-    filter: ["==", ["get", "route_id"], ""],
+    filter: ["==", ["get", "subroute_id"], ""],
     layout: {
       "line-join": "round",
       "line-cap": "round",
     },
   });
 
-  addLayerBelowMapLabels(map, {
+  addMetroOverlayLayer(map, {
     id: "stations-circle",
     type: "circle",
     source: "stations",
+    filter: REGULAR_STATION_LAYER_FILTER,
     paint: {
-      "circle-radius": ["case", ["==", ["get", "is_transfer_fixed"], true], 9.5, 8],
-      "circle-color": ["case", ["==", ["get", "is_transfer_fixed"], true], "#ffffff", ["coalesce", ["get", "color"], "#1e88e5"]],
-      "circle-stroke-width": ["case", ["==", ["get", "is_transfer_fixed"], true], 2.8, 1.5],
-      "circle-stroke-color": ["case", ["==", ["get", "is_transfer_fixed"], true], "#000000", "#ffffff"],
+      "circle-radius": 8,
+      "circle-color": ["coalesce", ["get", "color"], "#1e88e5"],
+      "circle-stroke-width": 1.5,
+      "circle-stroke-color": "#ffffff",
     },
   });
 
-  addLayerBelowMapLabels(map, {
+  addMetroOverlayLayer(map, {
     id: "stations-circle-hover",
     type: "circle",
     source: "stations",
+    filter: ["all", REGULAR_STATION_LAYER_FILTER, ["==", ["get", "station_id"], ""]],
     paint: {
-      "circle-radius": ["case", ["==", ["get", "is_transfer_fixed"], true], 14, 12],
-      "circle-color": ["case", ["==", ["get", "is_transfer_fixed"], true], "#ffffff", ["coalesce", ["get", "color"], "#1e88e5"]],
-      "circle-stroke-width": ["case", ["==", ["get", "is_transfer_fixed"], true], 3, 2],
-      "circle-stroke-color": ["case", ["==", ["get", "is_transfer_fixed"], true], "#000000", "#ffffff"],
+      "circle-radius": 12,
+      "circle-color": ["coalesce", ["get", "color"], "#1e88e5"],
+      "circle-stroke-width": 2,
+      "circle-stroke-color": "#ffffff",
     },
-    filter: ["==", ["get", "station_id"], ""],
   });
 
-  addLayerBelowMapLabels(map, {
+  addMetroOverlayLayer(map, {
     id: "transfer-snaps-layer",
     type: "circle",
     source: "transfer-snaps",
@@ -168,8 +418,35 @@ export function initializeLayers(map, store) {
     },
   });
 
-  ensureMetroGeometryBelowMapLabels(map);
-  map.once("idle", () => ensureMetroGeometryBelowMapLabels(map));
+  addMetroOverlayLayer(map, {
+    id: "transfer-stations-circle",
+    type: "circle",
+    source: "stations",
+    filter: TRANSFER_STATION_LAYER_FILTER,
+    paint: {
+      "circle-radius": 9.5,
+      "circle-color": "#ffffff",
+      "circle-stroke-width": 2.8,
+      "circle-stroke-color": "#000000",
+    },
+  });
+
+  addMetroOverlayLayer(map, {
+    id: "transfer-stations-circle-hover",
+    type: "circle",
+    source: "stations",
+    filter: ["all", TRANSFER_STATION_LAYER_FILTER, ["==", ["get", "station_id"], ""]],
+    paint: {
+      "circle-radius": 14,
+      "circle-color": "#ffffff",
+      "circle-stroke-width": 3,
+      "circle-stroke-color": "#000000",
+    },
+  });
+
+  ensureMetroLayerStackOrder(map);
+  map.once("idle", () => ensureMetroLayerStackOrder(map));
+  map.on("zoomend", () => ensureMetroLayerStackOrder(map));
 
   const stationLabelLayoutBase = {
     "text-field": ["coalesce", ["get", "name"], ["get", "station_id"]],
@@ -196,7 +473,7 @@ export function initializeLayers(map, store) {
   };
 
   if (!map.getLayer("stations-label-move-frame")) {
-    map.addLayer({
+    addMetroOverlayLayer(map, {
       id: "stations-label-move-frame",
       type: "symbol",
       source: "station-labels",
@@ -218,7 +495,7 @@ export function initializeLayers(map, store) {
   }
 
   if (!map.getLayer("stations-label")) {
-    map.addLayer({
+    addMetroOverlayLayer(map, {
       id: "stations-label",
       type: "symbol",
       source: "station-labels",
@@ -238,7 +515,7 @@ export function initializeLayers(map, store) {
   }
 
   if (!map.getLayer("stations-label-hover")) {
-    map.addLayer({
+    addMetroOverlayLayer(map, {
       id: "stations-label-hover",
       type: "symbol",
       source: "station-labels",
@@ -279,7 +556,7 @@ export function initializeLayers(map, store) {
   }
 
   if (!map.getLayer("temp-edit-line-layer")) {
-    map.addLayer({
+    addMetroOverlayLayer(map, {
       id: "temp-edit-line-layer",
       type: "line",
       source: "temp-edit-line",
@@ -291,7 +568,7 @@ export function initializeLayers(map, store) {
   }
 
   if (!map.getLayer("temp-edit-nodes-layer")) {
-    map.addLayer({
+    addMetroOverlayLayer(map, {
       id: "temp-edit-nodes-layer",
       type: "circle",
       source: "temp-edit-nodes",
@@ -302,13 +579,10 @@ export function initializeLayers(map, store) {
         "circle-stroke-color": "#fff",
       },
     });
-    if (map.getLayer("temp-edit-line-layer")) {
-      map.moveLayer("temp-edit-line-layer", "temp-edit-nodes-layer");
-    }
   }
 
   if (!map.getLayer("label-drag-limit-layer")) {
-    map.addLayer({
+    addMetroOverlayLayer(map, {
       id: "label-drag-limit-layer",
       type: "line",
       source: "label-drag-limit",
@@ -319,4 +593,6 @@ export function initializeLayers(map, store) {
       },
     });
   }
+
+  ensureMetroLayerStackOrder(map);
 }

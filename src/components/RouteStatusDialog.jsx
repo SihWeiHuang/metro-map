@@ -16,15 +16,15 @@ const STATUS_LABEL_KEYS = {
   [Route.ROUTE_STATUS_CUSTOM]: "routeStatus.custom",
 };
 
-export default function RouteStatusDialog({ lineIds, isNewRoute = false, onClose, onSaved }) {
+export default function RouteStatusDialog({ routeIds, isNewRoute = false, onClose, onSaved }) {
   const { t } = useI18n();
-  const primaryLineId = lineIds?.[0];
-  const initialStatus = primaryLineId ? Route.getLineStatus(primaryLineId) : Route.ROUTE_STATUS_CUSTOM;
+  const primaryRouteId = routeIds?.[0];
+  const initialStatus = primaryRouteId ? Route.getRouteStatus(primaryRouteId) : Route.ROUTE_STATUS_CUSTOM;
   const [selected, setSelected] = useState(initialStatus);
 
   const save = () => {
-    for (const lineId of lineIds) {
-      Route.setLineStatus(lineId, selected);
+    for (const routeId of routeIds) {
+      Route.setRouteStatus(routeId, selected);
     }
     onSaved?.();
     onClose();

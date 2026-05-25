@@ -23,20 +23,20 @@ function extendFromGeometry(geometry, lngs, lats) {
 }
 
 /**
- * @param {import('geojson').Feature[]} routeFeatures
+ * @param {import('geojson').Feature[]} subrouteFeatures
  * @param {import('geojson').Feature[]} [stationFeatures]
  * @returns {[[number, number], [number, number]] | null}
  */
-export function computeBoundsFromFeatures(routeFeatures = [], stationFeatures = []) {
+export function computeBoundsFromFeatures(subrouteFeatures = [], stationFeatures = []) {
   const lngs = [];
   const lats = [];
 
-  for (const f of routeFeatures) {
-    if (f?.properties?.route_id === "__temp_preview__") continue;
+  for (const f of subrouteFeatures) {
+    if (f?.properties?.subroute_id === "__temp_preview__") continue;
     extendFromGeometry(f?.geometry, lngs, lats);
   }
   for (const f of stationFeatures) {
-    if (f?.properties?.route_id === "__temp_preview__") continue;
+    if (f?.properties?.subroute_id === "__temp_preview__") continue;
     extendFromGeometry(f?.geometry, lngs, lats);
   }
 
@@ -60,12 +60,12 @@ function estimateZoomForBounds(bounds) {
 }
 
 /**
- * @param {import('geojson').Feature[]} routeFeatures
+ * @param {import('geojson').Feature[]} subrouteFeatures
  * @param {import('geojson').Feature[]} [stationFeatures]
  * @returns {{ center: [number, number], zoom: number } | null}
  */
-export function computeMapViewFromFeatures(routeFeatures = [], stationFeatures = []) {
-  const bounds = computeBoundsFromFeatures(routeFeatures, stationFeatures);
+export function computeMapViewFromFeatures(subrouteFeatures = [], stationFeatures = []) {
+  const bounds = computeBoundsFromFeatures(subrouteFeatures, stationFeatures);
   if (!bounds) return null;
 
   const [[minLng, minLat], [maxLng, maxLat]] = bounds;

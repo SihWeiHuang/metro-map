@@ -19,7 +19,7 @@ import {
   setStationPreviewCoord,
 } from "./stationPreview.js";
 import { t } from "../i18n/i18n.js";
-import { resolveLineDisplayNameFromProps, resolveStationDisplayName } from "./defaultNames.js";
+import { resolveRouteDisplayNameFromProps, resolveStationDisplayName } from "./defaultNames.js";
 import {
   closeStationEditPopup,
   hideHoverPopups,
@@ -63,15 +63,15 @@ function emitMergePickChange() {
   onMergePickChange();
 }
 
-export function getMergePickRouteIds() {
+export function getMergePickSubrouteIds() {
   return [...mergePick];
 }
 
 /** @returns {{ picked: boolean, merged?: boolean, ok?: boolean, msg?: string }} */
-export function pickRouteForMerge(routeId) {
-  if (M.mode !== "merge" || typeof routeId !== "string") return { picked: false };
-  if (!mergePick.includes(routeId)) mergePick.push(routeId);
-  Route.highlightRoute(routeId);
+export function pickRouteForMerge(subrouteId) {
+  if (M.mode !== "merge" || typeof subrouteId !== "string") return { picked: false };
+  if (!mergePick.includes(subrouteId)) mergePick.push(subrouteId);
+  Route.highlightRoute(subrouteId);
   emitModeHint();
   emitMergePickChange();
   if (mergePick.length < 2) return { picked: true, merged: false };
@@ -88,12 +88,12 @@ export const M = {
     type: null,
     idx: null,
     stationId: null,
-    routeId: null,
+    subrouteId: null,
     isClickCandidate: false,
     downPoint: null,
   },
   pointer: { isDown: false },
-  hover: { routeId: "", stationId: "" },
+  hover: { subrouteId: "", stationId: "" },
   /** 地圖選路線後略過緊接著的那次 click，避免誤加編輯點 */
   suppressNextEditMapClick: false,
 };
@@ -122,10 +122,10 @@ const STATION_CIRCLE_LAYERS = ["stations-circle", "transfer-stations-circle"];
 const STATION_HOVER_CIRCLE_LAYERS = ["stations-circle-hover", "transfer-stations-circle-hover"];
 const STATION_LABEL_LAYERS = ["stations-label", "stations-label-hover"];
 const HOVER_PICK_LAYERS = [
+  "transfer-snaps-layer",
   ...STATION_HOVER_CIRCLE_LAYERS,
   ...STATION_CIRCLE_LAYERS,
   ...STATION_LABEL_LAYERS,
-  "transfer-snaps-layer",
   "routes-line",
 ];
 
@@ -213,7 +213,7 @@ function applyEditStationSubmode() {
     hideTransferSnapHint();
     Route.clearHover();
     if (map.getLayer("routes-line-hover")) {
-      map.setFilter("routes-line-hover", ["==", ["get", "route_id"], ""]);
+      map.setFilter("routes-line-hover", ["==", ["get", "subroute_id"], ""]);
     }
     if (map.getLayer("stations-circle-hover")) {
       map.setFilter("stations-circle-hover", ["==", ["get", "station_id"], ""]);
@@ -297,7 +297,7 @@ export function setCursorForMode(e) {
 }
 
 export function clearHoverAndPopups() {
-  M.hover.routeId = "";
+  M.hover.subrouteId = "";
   M.hover.stationId = "";
   Route.clearHover();
   hideHoverPopups();
@@ -336,18 +336,18 @@ function pickHoverTarget(map, point) {
   return null;
 }
 
-function primaryRouteIdForStation(stationFeature) {
-  const routeId = stationFeature?.properties?.route_id;
-  if (routeId) return routeId;
+function primarySubrouteIdForStation(stationFeature) {
+  const subrouteId = stationFeature?.properties?.subroute_id;
+  if (subrouteId) return subrouteId;
   const transferRoutes = stationFeature?.properties?.transfer_routes;
   if (Array.isArray(transferRoutes) && transferRoutes.length > 0) return transferRoutes[0];
   return "";
 }
 
 function applyBrowseRouteHover(lngLat, routeFeature, point) {
-  const rid = routeFeature.properties.route_id;
-  const sameRoute = M.hover.routeId === rid && M.hover.stationId === "";
-  M.hover.routeId = rid;
+  const rid = routeFeature.properties.subroute_id;
+  const sameRoute = M.hover.subrouteId === rid && M.hover.stationId === "";
+  M.hover.subrouteId = rid;
   M.hover.stationId = "";
   if (!sameRoute) Route.highlightRoute(rid);
   hideStationBrowsePopup();
@@ -356,11 +356,11 @@ function applyBrowseRouteHover(lngLat, routeFeature, point) {
 
 function applyBrowseStationHover(lngLat, stationFeature, point) {
   const sid = stationFeature.properties.station_id;
-  const rid = primaryRouteIdForStation(stationFeature);
+  const rid = primarySubrouteIdForStation(stationFeature);
   if (!rid) return;
-  if (M.hover.stationId === sid && M.hover.routeId === rid) return;
+  if (M.hover.stationId === sid && M.hover.subrouteId === rid) return;
   M.hover.stationId = sid;
-  M.hover.routeId = rid;
+  M.hover.subrouteId = rid;
   Route.highlightRoute(rid);
   hideStationBrowsePopup();
   popupRoute(lngLat, rid, point);
@@ -368,8 +368,8 @@ function applyBrowseStationHover(lngLat, stationFeature, point) {
 
 function applyDraftingHover(target) {
   if (target?.type !== "station") return;
-  if (!M.hover.routeId && !M.hover.stationId) return;
-  M.hover.routeId = "";
+  if (!M.hover.subrouteId && !M.hover.stationId) return;
+  M.hover.subrouteId = "";
   M.hover.stationId = "";
   Route.clearHover();
 }
@@ -391,14 +391,14 @@ function updateEditStationHover(e, target) {
   if (target.type === "station") {
     const st = target.feature;
     const sid = st.properties.station_id;
-    const rid = primaryRouteIdForStation(st);
+    const rid = primarySubrouteIdForStation(st);
     const map = getMap();
-    if (M.hover.stationId === sid && M.hover.routeId === rid) {
+    if (M.hover.stationId === sid && M.hover.subrouteId === rid) {
       hideTransferSnapHint();
       return;
     }
     M.hover.stationId = sid;
-    M.hover.routeId = rid || "";
+    M.hover.subrouteId = rid || "";
     setStationHoverPairFilters(map, sid);
     hideStationBrowsePopup();
     hideTransferSnapHint();
@@ -413,10 +413,10 @@ function updateEditStationHover(e, target) {
     return;
   }
 
-  const rid = target.feature.properties.route_id;
+  const rid = target.feature.properties.subroute_id;
   if (snapActive) {
-    if (M.hover.routeId !== rid) {
-      M.hover.routeId = rid;
+    if (M.hover.subrouteId !== rid) {
+      M.hover.subrouteId = rid;
       Route.highlightRoute(rid);
     }
     hideStationBrowsePopup();
@@ -424,8 +424,8 @@ function updateEditStationHover(e, target) {
     return;
   }
 
-  const sameRoute = M.hover.routeId === rid;
-  M.hover.routeId = rid;
+  const sameRoute = M.hover.subrouteId === rid;
+  M.hover.subrouteId = rid;
   if (!sameRoute) Route.highlightRoute(rid);
   hideStationBrowsePopup();
   refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, null);
@@ -463,21 +463,21 @@ function updateHoverFromPointer(e) {
   }
 }
 
-export function popupRoute(lngLat, routeId, point) {
-  showRouteHoverPopup(lngLat, routeId, point, { routes: store.routesFC.features });
+export function popupRoute(lngLat, subrouteId, point) {
+  showRouteHoverPopup(lngLat, subrouteId, point, { routes: store.subroutesFC.features });
 }
 
-function addRouteIdToSet(ids, routeId) {
-  if (routeId == null || routeId === "") return;
-  ids.add(String(routeId));
+function addSubrouteIdToSet(ids, subrouteId) {
+  if (subrouteId == null || subrouteId === "") return;
+  ids.add(String(subrouteId));
 }
 
-function collectRouteIdsForStation(station) {
+function collectSubrouteIdsForStation(station) {
   const ids = new Set();
-  addRouteIdToSet(ids, station?.properties?.route_id);
+  addSubrouteIdToSet(ids, station?.properties?.subroute_id);
   const transferRoutes = station?.properties?.transfer_routes;
   if (Array.isArray(transferRoutes)) {
-    transferRoutes.forEach((rid) => addRouteIdToSet(ids, rid));
+    transferRoutes.forEach((rid) => addSubrouteIdToSet(ids, rid));
   }
   return ids;
 }
@@ -489,12 +489,12 @@ function resolveStoreStation(stationFeature) {
 }
 
 /** 彙整 hover 車站經過的路線 id（含 store 完整屬性與近距離共點）。 */
-function collectPassingRouteIdsForPopup(hoveredFeature) {
+function collectPassingSubrouteIdsForPopup(hoveredFeature) {
   const ids = new Set();
   const storeStation = resolveStoreStation(hoveredFeature);
 
   const addFromStation = (station) => {
-    collectRouteIdsForStation(station).forEach((rid) => ids.add(rid));
+    collectSubrouteIdsForStation(station).forEach((rid) => ids.add(rid));
   };
 
   addFromStation(hoveredFeature);
@@ -512,39 +512,39 @@ function collectPassingRouteIdsForPopup(hoveredFeature) {
   return ids;
 }
 
-function collectLineNamesForSubRouteIds(subRouteIds) {
-  const lines = new Map();
-  subRouteIds.forEach((subRouteId) => {
-    const parentSubRoute = store.routesFC.features.find((f) => f.properties.route_id === subRouteId);
+function collectRouteNamesForSubrouteIds(subrouteIds) {
+  const routes = new Map();
+  subrouteIds.forEach((subrouteId) => {
+    const parentSubRoute = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteId);
     if (!parentSubRoute) return;
-    const lineId = parentSubRoute.properties.group_id;
-    if (typeof lineId !== "string" || lines.has(lineId)) return;
-    const firstSubRouteInLine = store.routesFC.features.find((f) => f.properties.group_id === lineId);
-    const lineDisplayName = resolveLineDisplayNameFromProps(firstSubRouteInLine?.properties);
-    lines.set(lineId, lineDisplayName);
+    const routeId = parentSubRoute.properties.route_id;
+    if (typeof routeId !== "string" || routes.has(routeId)) return;
+    const firstSubrouteInRoute = store.subroutesFC.features.find((f) => f.properties.route_id === routeId);
+    const routeDisplayName = resolveRouteDisplayNameFromProps(firstSubrouteInRoute?.properties);
+    routes.set(routeId, routeDisplayName);
   });
-  return lines;
+  return routes;
 }
 
 /** 車站 popup 顯示用的路線名稱（至少一條）。 */
-function buildPassingRouteLabels(passingRouteIds) {
-  const fromLines = Array.from(collectLineNamesForSubRouteIds(passingRouteIds).values());
-  if (fromLines.length > 0) return fromLines;
-  return [...passingRouteIds].map((rid) => {
-    const route = store.routesFC.features.find((f) => f.properties.route_id === rid);
-    if (route?.properties?.group_id) {
-      const gid = route.properties.group_id;
-      const firstInLine = store.routesFC.features.find((f) => f.properties.group_id === gid);
-      return resolveLineDisplayNameFromProps(firstInLine?.properties);
+function buildPassingRouteLabels(passingSubrouteIds) {
+  const fromRoutes = Array.from(collectRouteNamesForSubrouteIds(passingSubrouteIds).values());
+  if (fromRoutes.length > 0) return fromRoutes;
+  return [...passingSubrouteIds].map((rid) => {
+    const route = store.subroutesFC.features.find((f) => f.properties.subroute_id === rid);
+    if (route?.properties?.route_id) {
+      const routeId = route.properties.route_id;
+      const firstSubrouteInRoute = store.subroutesFC.features.find((f) => f.properties.route_id === routeId);
+      return resolveRouteDisplayNameFromProps(firstSubrouteInRoute?.properties);
     }
-    return resolveLineDisplayNameFromProps(route?.properties);
+    return resolveRouteDisplayNameFromProps(route?.properties);
   });
 }
 
 export function popupStation(lngLat, st, point) {
   const p = st.properties;
-  const passingRouteIds = collectPassingRouteIdsForPopup(st);
-  const routeLabels = buildPassingRouteLabels(passingRouteIds);
+  const passingSubrouteIds = collectPassingSubrouteIdsForPopup(st);
+  const routeLabels = buildPassingRouteLabels(passingSubrouteIds);
 
   const stationNameHTML = `<div class="map-hover-popup__title">${resolveStationDisplayName(p)}</div>`;
   let lineInfoHTML = "";
@@ -611,8 +611,8 @@ export function setMode(next) {
   onModeChange(next);
   setCursorForMode();
   clearHoverAndPopups();
-  if (store.hiddenRouteIds.size > 0 && M.mode !== "edit-route-active") {
-    store.hiddenRouteIds.clear();
+  if (store.hiddenSubrouteIds.size > 0 && M.mode !== "edit-route-active") {
+    store.hiddenSubrouteIds.clear();
     Route.refreshSources();
   }
   if (M.mode !== "edit-station") {
@@ -648,7 +648,7 @@ export function finishEditing() {
       saveBtn.click();
     }
     setMode("general");
-    return { ok: true, newLineIds: [] };
+    return { ok: true, newRouteIds: [] };
   }
   const result = Route.endTempEditingAndCommit();
   if (result.ok) {
@@ -671,7 +671,7 @@ function cancelTempRouteEditingSession() {
     map?.off("mousemove", onDragMoveAddRoute);
     M.dragging.type = null;
     M.dragging.idx = null;
-    M.dragging.routeId = null;
+    M.dragging.subrouteId = null;
     M.dragging.isClickCandidate = false;
     M.dragging.downPoint = null;
   }
@@ -732,20 +732,20 @@ function onMapClickWhileEditing(e) {
       if (nearestDist < bestDist) {
         bestDist = nearestDist;
         best = {
-          routeId: session.routeId,
+          subrouteId: session.subrouteId,
           insertAtStart,
         };
       }
     });
 
     if (!best) {
-      Route.addTempNodeAt(coord, sessions[0].routeId);
+      Route.addTempNodeAt(coord, sessions[0].subrouteId);
       return;
     }
     if (best.insertAtStart) {
-      Route.addTempNodeAt(coord, best.routeId, 0);
+      Route.addTempNodeAt(coord, best.subrouteId, 0);
     } else {
-      Route.addTempNodeAt(coord, best.routeId);
+      Route.addTempNodeAt(coord, best.subrouteId);
     }
   };
 
@@ -771,10 +771,10 @@ function onMapClickWhileEditing(e) {
 
     switch (topLayerId) {
       case "temp-edit-nodes-layer":
-        Route.deleteTempNodeByIndex(properties.idx, properties.route_id);
+        Route.deleteTempNodeByIndex(properties.idx, properties.subroute_id);
         return;
       case "temp-edit-line-layer":
-        Route.insertTempNodeOnSegment(e.point, properties.route_id);
+        Route.insertTempNodeOnSegment(e.point, properties.subroute_id);
         return;
       case "stations-circle":
       case "transfer-stations-circle": {
@@ -811,7 +811,7 @@ function onDragMoveAddRoute(e) {
   }
 
   if (!M.dragging.isClickCandidate) {
-    Route.updateTempNodeCoord(M.dragging.idx, [e.lngLat.lng, e.lngLat.lat], M.dragging.routeId);
+    Route.updateTempNodeCoord(M.dragging.idx, [e.lngLat.lng, e.lngLat.lat], M.dragging.subrouteId);
     scheduleTempNodePreviewRefresh();
   }
 }
@@ -839,8 +839,8 @@ function applyStationDragPreview() {
   if (!pendingStationDragPreview) return;
   const { map, sid, lngLat } = pendingStationDragPreview;
   const st = store.stationsFC.features.find((x) => x.properties.station_id === sid);
-  const rid = st?.properties?.route_id;
-  const route = rid ? store.routesFC.features.find((x) => x.properties?.route_id === rid) : null;
+  const rid = st?.properties?.subroute_id;
+  const route = rid ? store.subroutesFC.features.find((x) => x.properties?.subroute_id === rid) : null;
   if (route?.geometry?.type === "LineString" && route.geometry.coordinates?.length >= 2) {
     const snapped = nearestPointOnSmoothedRoute(route.geometry.coordinates, lngLat);
     setStationPreviewCoord(map, sid, snapped?.geometry?.coordinates || lngLat);
@@ -885,10 +885,10 @@ Modes["add-route"] = {
 
       switch (topLayerId) {
         case "temp-edit-nodes-layer":
-          Route.deleteTempNodeByIndex(properties.idx, properties.route_id);
+          Route.deleteTempNodeByIndex(properties.idx, properties.subroute_id);
           break;
         case "temp-edit-line-layer":
-          Route.insertTempNodeOnSegment(e.point, properties.route_id);
+          Route.insertTempNodeOnSegment(e.point, properties.subroute_id);
           break;
         case "stations-circle":
         case "transfer-stations-circle":
@@ -909,12 +909,12 @@ Modes["add-route"] = {
               const distToEnd = turf.distance(snappedPoint, endPoint);
 
               if (distToStart < distToEnd) {
-                Route.addTempNodeAt(snapped.geometry.coordinates, session.routeId, 0);
+                Route.addTempNodeAt(snapped.geometry.coordinates, session.subrouteId, 0);
               } else {
-                Route.addTempNodeAt(snapped.geometry.coordinates, session.routeId);
+                Route.addTempNodeAt(snapped.geometry.coordinates, session.subrouteId);
               }
             } else {
-              Route.addTempNodeAt(snapped.geometry.coordinates, session.routeId);
+              Route.addTempNodeAt(snapped.geometry.coordinates, session.subrouteId);
             }
           }
           break;
@@ -934,12 +934,12 @@ Modes["add-route"] = {
         const distToEnd = turf.distance(clickedPoint, endPoint);
 
         if (distToStart < distToEnd) {
-          Route.addTempNodeAt(clickCoord, session.routeId, 0);
+          Route.addTempNodeAt(clickCoord, session.subrouteId, 0);
         } else {
-          Route.addTempNodeAt(clickCoord, session.routeId);
+          Route.addTempNodeAt(clickCoord, session.subrouteId);
         }
       } else {
-        Route.addTempNodeAt(clickCoord, session.routeId);
+        Route.addTempNodeAt(clickCoord, session.subrouteId);
       }
     }
   },
@@ -952,7 +952,7 @@ Modes["add-route"] = {
 
     M.dragging.type = "temp-node";
     M.dragging.idx = f.properties.idx;
-    M.dragging.routeId = f.properties.route_id;
+    M.dragging.subrouteId = f.properties.subroute_id;
     M.dragging.isClickCandidate = true;
     M.dragging.downPoint = e.point;
     setCursor("grabbing");
@@ -982,13 +982,13 @@ Modes["edit-route-select"] = {
 
   onRouteDown(e) {
     const props = e.features[0].properties;
-    const lineId = props.group_id;
-    popupRoute(e.lngLat, props.route_id, e.point);
-    if (!lineId) return;
+    const routeId = props.route_id;
+    popupRoute(e.lngLat, props.subroute_id, e.point);
+    if (!routeId) return;
 
     Route.clearHover();
     M.suppressNextEditMapClick = true;
-    Route.startEditLine(lineId);
+    Route.startEditRoute(routeId);
     const map = getMap();
     map.once("mouseup", () => setMode("edit-route-active"));
   },
@@ -1039,7 +1039,7 @@ Modes["edit-station"] = {
   onMapClick(e) {
     const map = getMap();
     const hitFeatures = map.queryRenderedFeatures(e.point, {
-      layers: [...STATION_CIRCLE_LAYERS, "stations-label", "transfer-snaps-layer", "routes-line"],
+      layers: ["transfer-snaps-layer", ...STATION_CIRCLE_LAYERS, "stations-label", "routes-line"],
     });
 
     if (hitFeatures.length) {
@@ -1059,8 +1059,8 @@ Modes["edit-station"] = {
           break;
         case "transfer-snaps-layer": {
           const coord = topFeature.geometry.coordinates;
-          const ridA = properties.route_id_a;
-          const ridB = properties.route_id_b;
+          const ridA = properties.subroute_id_a;
+          const ridB = properties.subroute_id_b;
           if (ridA && ridB) {
             Route.addTransferStationAt(coord, ridA, ridB);
           }
@@ -1070,17 +1070,17 @@ Modes["edit-station"] = {
           const snapNear = findNearestTransferSnap(e.lngLat, TRANSFER_SNAP_CLICK_METERS);
           if (snapNear && !isTransferSnapOccupied(snapNear.feature)) {
             const p = snapNear.feature.properties;
-            Route.addTransferStationAt(snapNear.feature.geometry.coordinates, p.route_id_a, p.route_id_b);
-            Route.highlightRoute(properties.route_id);
+            Route.addTransferStationAt(snapNear.feature.geometry.coordinates, p.subroute_id_a, p.subroute_id_b);
+            Route.highlightRoute(properties.subroute_id);
             break;
           }
-          const snapped = turf.nearestPointOnLine(getRouteFeature(properties.route_id), [e.lngLat.lng, e.lngLat.lat], {
+          const snapped = turf.nearestPointOnLine(getRouteFeature(properties.subroute_id), [e.lngLat.lng, e.lngLat.lat], {
             units: "meters",
           });
-          const routeFeature = getRouteFeature(properties.route_id);
+          const routeFeature = getRouteFeature(properties.subroute_id);
           const routeColor = routeFeature ? routeFeature.properties.color : null;
-          Route.addStationAt(properties.route_id, snapped.geometry.coordinates, null, routeColor);
-          Route.highlightRoute(properties.route_id);
+          Route.addStationAt(properties.subroute_id, snapped.geometry.coordinates, null, routeColor);
+          Route.highlightRoute(properties.subroute_id);
           break;
         }
       }
@@ -1189,14 +1189,14 @@ Modes["edit-station"] = {
   },
 };
 
-function getRouteFeature(route_id) {
-  const f = store.routesFC.features.find((x) => x.properties.route_id === route_id);
+function getRouteFeature(subroute_id) {
+  const f = store.subroutesFC.features.find((x) => x.properties.subroute_id === subroute_id);
   return f ? { type: "Feature", geometry: f.geometry, properties: f.properties } : null;
 }
 
-function routeIdFromStationEvent(e) {
+function subrouteIdFromStationEvent(e) {
   const stationFeature = e.features?.[0];
-  return primaryRouteIdForStation(stationFeature);
+  return primarySubrouteIdForStation(stationFeature);
 }
 
 Modes.merge = {
@@ -1213,12 +1213,12 @@ Modes.merge = {
   },
 
   onRouteClick(e) {
-    pickRouteForMerge(e.features[0].properties.route_id);
+    pickRouteForMerge(e.features[0].properties.subroute_id);
   },
 
   onStationClick(e) {
-    const routeId = routeIdFromStationEvent(e);
-    if (routeId) pickRouteForMerge(routeId);
+    const subrouteId = subrouteIdFromStationEvent(e);
+    if (subrouteId) pickRouteForMerge(subrouteId);
   },
 };
 
@@ -1228,19 +1228,19 @@ Modes["split-line"] = {
   onLeave() {},
 
   onRouteClick(e) {
-    pickSubRouteForSplitLine(e.features[0].properties.route_id);
+    pickSubRouteForSplitLine(e.features[0].properties.subroute_id);
   },
 
   onStationClick(e) {
-    const routeId = routeIdFromStationEvent(e);
-    if (routeId) pickSubRouteForSplitLine(routeId);
+    const subrouteId = subrouteIdFromStationEvent(e);
+    if (subrouteId) pickSubRouteForSplitLine(subrouteId);
   },
 };
 
 /** @returns {{ ok: boolean, msg?: string }} */
-export function pickSubRouteForSplitLine(routeId) {
-  if (M.mode !== "split-line" || typeof routeId !== "string") return { ok: false };
-  const res = Route.splitLine(routeId);
+export function pickSubRouteForSplitLine(subrouteId) {
+  if (M.mode !== "split-line" || typeof subrouteId !== "string") return { ok: false };
+  const res = Route.splitLine(subrouteId);
   if (!res.ok) alert(res.msg);
   else alert(t("routeModel.splitLineSuccess"));
   setMode("general");

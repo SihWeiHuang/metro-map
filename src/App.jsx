@@ -201,8 +201,8 @@ function App() {
 
   const handleFinishEditing = () => {
     const result = finishEditing();
-    if (result?.ok && result.newLineIds?.length > 0) {
-      setStatusDialog({ lineIds: result.newLineIds, isNewRoute: true });
+    if (result?.ok && result.newRouteIds?.length > 0) {
+      setStatusDialog({ routeIds: result.newRouteIds, isNewRoute: true });
     }
     bumpRouteList();
   };
@@ -212,8 +212,8 @@ function App() {
     bumpRouteList();
   };
 
-  const openRouteMetadataDialog = (lineId) => {
-    setStatusDialog({ lineIds: [lineId], isNewRoute: false });
+  const openRouteMetadataDialog = (routeId) => {
+    setStatusDialog({ routeIds: [routeId], isNewRoute: false });
   };
 
   const closeStatusDialog = () => setStatusDialog(null);
@@ -252,8 +252,6 @@ function App() {
       alert(importErrorMessage(result.error));
       return;
     }
-    setMode("general");
-    setEditToolsOpen(false);
     bumpRouteList();
     const importedMapView = result.mapView;
     const successKey =
@@ -288,11 +286,11 @@ function App() {
         alert(importErrorMessage(analysis.error));
         return;
       }
-      if (analysis.duplicateLineIds.length === 0) {
+      if (analysis.duplicateRouteIds.length === 0) {
         applyImport(text, "merge");
         return;
       }
-      setPendingImport({ text, duplicateLineIds: analysis.duplicateLineIds });
+      setPendingImport({ text, duplicateRouteIds: analysis.duplicateRouteIds });
       return;
     }
     applyImport(text, "merge");
@@ -314,8 +312,6 @@ function App() {
   const handleUndoLastImport = () => {
     const result = Route.undoLastImport();
     if (!result.ok) return;
-    setMode("general");
-    setEditToolsOpen(false);
     bumpRouteList();
     const restoredMapView = result.mapView;
     alert(t("app.undoLastImportSuccess"));
@@ -593,7 +589,7 @@ function App() {
       />
       {statusDialog != null && (
         <RouteStatusDialog
-          lineIds={statusDialog.lineIds}
+          routeIds={statusDialog.routeIds}
           isNewRoute={statusDialog.isNewRoute}
           onClose={closeStatusDialog}
           onSaved={bumpRouteList}
@@ -651,7 +647,7 @@ function App() {
             <p className="app-import-dialog-message">{t("app.importModeMessage")}</p>
             <p className="app-import-dialog-duplicates">
               {t("app.importDuplicateHint", {
-                ids: pendingImport.duplicateLineIds.join("、"),
+                ids: pendingImport.duplicateRouteIds.join("、"),
               })}
             </p>
             <div className="app-import-dialog-options">

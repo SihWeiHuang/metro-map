@@ -14,25 +14,25 @@ import { scheduleImportMapView } from "./mapViewState.js";
 import { setStationLabelBaseMask } from "./mapHoverFilters.js";
 import { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER } from "./layers.js";
 import {
-  allocateDefaultLineLabel,
+  allocateDefaultRouteLabel,
   allocateDefaultStationLabel,
   normalizeAllUserDefaultNames,
-  resolveLineDisplayName,
-  resolveLineDisplayNameFromProps,
+  resolveRouteDisplayName,
+  resolveRouteDisplayNameFromProps,
   resolveStationDisplayName,
-  shouldClearLineLabelOnRename,
+  shouldClearRouteLabelOnRename,
   shouldClearStationLabelOnRename,
 } from "./defaultNames.js";
 
 /**
  * Terminology (user-facing):
- * - `group_id` in GeoJSON = 路線 (line)
- * - `route_id` in GeoJSON = 子路線 (sub-route)
+ * - `route_id` in GeoJSON = 路線 (line)
+ * - `subroute_id` in GeoJSON = 子路線 (sub-route)
  * JSON field names are kept for file compatibility.
  */
 
 export const store = {
-  routesFC: { type: "FeatureCollection", features: [] },
+  subroutesFC: { type: "FeatureCollection", features: [] },
   stationsFC: { type: "FeatureCollection", features: [] },
   temp: {
     editingSessions: [],
@@ -43,10 +43,10 @@ export const store = {
      * without creating a duplicate station.
      */
     queuedStations: [],
-    routeIdEditing: null,
+    subrouteIdEditing: null,
   },
-  hiddenRouteIds: new Set(),
-  counters: { route: 1, group: 1, station: 1 },
+  hiddenSubrouteIds: new Set(),
+  counters: { subroute: 1, route: 1, station: 1 },
   settings: {
     stationMinPerRoute: 1,
   },
@@ -88,18 +88,18 @@ function addNumericIdToSet(set, id, pattern) {
 
 /** 收集已使用的 r/g/s 數字（含編輯暫存）。 */
 function collectUsedNumericIds() {
+  const subroutes = new Set();
   const routes = new Set();
-  const groups = new Set();
   const stations = new Set();
-  for (const f of store.routesFC.features) {
-    addNumericIdToSet(routes, f.properties?.route_id, /^r(\d+)$/);
-    addNumericIdToSet(groups, f.properties?.group_id, /^g(\d+)$/);
+  for (const f of store.subroutesFC.features) {
+    addNumericIdToSet(subroutes, f.properties?.subroute_id, /^r(\d+)$/);
+    addNumericIdToSet(routes, f.properties?.route_id, /^g(\d+)$/);
   }
   for (const f of store.stationsFC.features) {
     addNumericIdToSet(stations, f.properties?.station_id, /^s(\d+)$/);
   }
   for (const session of store.temp.editingSessions || []) {
-    addNumericIdToSet(routes, session?.routeId, /^r(\d+)$/);
+    addNumericIdToSet(subroutes, session?.subrouteId, /^r(\d+)$/);
   }
   for (const sid of store.temp.previewStations || []) {
     addNumericIdToSet(stations, sid, /^s(\d+)$/);
@@ -107,7 +107,7 @@ function collectUsedNumericIds() {
   for (const q of store.temp.queuedStations || []) {
     addNumericIdToSet(stations, q?.station_id, /^s(\d+)$/);
   }
-  return { routes, groups, stations };
+  return { subroutes, routes, stations };
 }
 
 function firstAvailableInSet(usedSet) {
@@ -133,8 +133,8 @@ function alignCounterToUsedIds(counterKey, usedSet) {
 
 function syncCountersFromLoadedFeatures() {
   const used = collectUsedNumericIds();
+  alignCounterToUsedIds("subroute", used.subroutes);
   alignCounterToUsedIds("route", used.routes);
-  alignCounterToUsedIds("group", used.groups);
   alignCounterToUsedIds("station", used.stations);
 }
 
@@ -144,7 +144,7 @@ function deepCloneFC(fc) {
 }
 
 function normalizeBuiltinRoutesAsDefault() {
-  for (const f of store.routesFC.features) {
+  for (const f of store.subroutesFC.features) {
     if (!f.properties || typeof f.properties !== "object") f.properties = {};
     if (f.properties.route_kind !== ROUTE_KIND_DEFAULT && f.properties.route_kind !== ROUTE_KIND_USER) {
       f.properties.route_kind = ROUTE_KIND_DEFAULT;
@@ -156,9 +156,9 @@ function normalizeBuiltinRoutesAsDefault() {
 }
 
 function loadBuiltinDefaultState() {
-  const routesFC = deepCloneFC(DEFAULT_BUILTIN_MAP_DATA?.routesFC);
+  const subroutesFC = deepCloneFC(DEFAULT_BUILTIN_MAP_DATA?.subroutesFC);
   const stationsFC = deepCloneFC(DEFAULT_BUILTIN_MAP_DATA?.stationsFC);
-  store.routesFC = routesFC;
+  store.subroutesFC = subroutesFC;
   store.stationsFC = stationsFC;
   normalizeBuiltinRoutesAsDefault();
   syncCountersFromLoadedFeatures();
@@ -174,15 +174,15 @@ function isUserRouteFeature(feature) {
 }
 
 function isUserStationFeature(stationFeature) {
-  const rid = stationFeature?.properties?.route_id;
+  const rid = stationFeature?.properties?.subroute_id;
   if (typeof rid === "string") {
-    const route = store.routesFC.features.find((f) => f.properties?.route_id === rid);
+    const route = store.subroutesFC.features.find((f) => f.properties?.subroute_id === rid);
     if (route && isUserRouteFeature(route)) return true;
   }
   const transferRoutes = stationFeature?.properties?.transfer_routes;
   if (Array.isArray(transferRoutes)) {
     return transferRoutes.some((tr) => {
-      const route = store.routesFC.features.find((f) => f.properties?.route_id === tr);
+      const route = store.subroutesFC.features.find((f) => f.properties?.subroute_id === tr);
       return route && isUserRouteFeature(route);
     });
   }
@@ -191,7 +191,7 @@ function isUserStationFeature(stationFeature) {
 
 function normalizeUserDefaultNames() {
   normalizeAllUserDefaultNames(
-    store.routesFC.features,
+    store.subroutesFC.features,
     store.stationsFC.features,
     isUserRouteFeature,
     isUserStationFeature
@@ -203,33 +203,33 @@ function extractUserOnlyRoutes(routes) {
   return routes.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
 }
 
-function extractUserStationsByRoutes(stations, userRouteIds) {
+function extractUserStationsByRoutes(stations, userSubrouteIds) {
   return stations.filter((s) => {
-    const rid = s?.properties?.route_id;
-    if (userRouteIds.has(rid)) return true;
+    const rid = s?.properties?.subroute_id;
+    if (userSubrouteIds.has(rid)) return true;
     const transferRoutes = s?.properties?.transfer_routes;
-    return Array.isArray(transferRoutes) && transferRoutes.some((tr) => userRouteIds.has(tr));
+    return Array.isArray(transferRoutes) && transferRoutes.some((tr) => userSubrouteIds.has(tr));
   });
 }
 
-function mergeUserStateIntoStore(userRoutes, userStations) {
-  const existingRouteIds = new Set(store.routesFC.features.map((f) => f.properties?.route_id));
-  const existingGroupIds = new Set(store.routesFC.features.map((f) => f.properties?.group_id));
+function mergeUserStateIntoStore(userSubroutes, userStations) {
+  const existingSubrouteIds = new Set(store.subroutesFC.features.map((f) => f.properties?.subroute_id));
+  const existingRouteIds = new Set(store.subroutesFC.features.map((f) => f.properties?.route_id));
   const existingStationIds = new Set(store.stationsFC.features.map((f) => f.properties?.station_id));
 
+  let subrouteCounter = store.counters.subroute;
   let routeCounter = store.counters.route;
-  let groupCounter = store.counters.group;
   let stationCounter = store.counters.station;
-  const nextRoute = () => {
-    while (existingRouteIds.has(`r${routeCounter}`)) routeCounter += 1;
-    const id = `r${routeCounter++}`;
-    existingRouteIds.add(id);
+  const nextSubroute = () => {
+    while (existingSubrouteIds.has(`r${subrouteCounter}`)) subrouteCounter += 1;
+    const id = `r${subrouteCounter++}`;
+    existingSubrouteIds.add(id);
     return id;
   };
-  const nextGroup = () => {
-    while (existingGroupIds.has(`g${groupCounter}`)) groupCounter += 1;
-    const id = `g${groupCounter++}`;
-    existingGroupIds.add(id);
+  const nextRoute = () => {
+    while (existingRouteIds.has(`g${routeCounter}`)) routeCounter += 1;
+    const id = `g${routeCounter++}`;
+    existingRouteIds.add(id);
     return id;
   };
   const nextStation = () => {
@@ -239,24 +239,24 @@ function mergeUserStateIntoStore(userRoutes, userStations) {
     return id;
   };
 
+  const subrouteIdMap = new Map();
   const routeIdMap = new Map();
-  const groupIdMap = new Map();
-  const mergedRoutes = userRoutes.map((f) => {
+  const mergedSubroutes = userSubroutes.map((f) => {
     const c = JSON.parse(JSON.stringify(f));
+    const oldSubrouteId = c?.properties?.subroute_id;
     const oldRouteId = c?.properties?.route_id;
-    const oldGroupId = c?.properties?.group_id;
-    const newRouteId = typeof oldRouteId === "string" && !existingRouteIds.has(oldRouteId) ? oldRouteId : nextRoute();
-    if (typeof oldRouteId === "string") routeIdMap.set(oldRouteId, newRouteId);
-    if (typeof oldGroupId === "string") {
-      if (!groupIdMap.has(oldGroupId)) {
-        const mapped = !existingGroupIds.has(oldGroupId) ? oldGroupId : nextGroup();
-        groupIdMap.set(oldGroupId, mapped);
-        existingGroupIds.add(mapped);
+    const newSubrouteId = typeof oldSubrouteId === "string" && !existingSubrouteIds.has(oldSubrouteId) ? oldSubrouteId : nextSubroute();
+    if (typeof oldSubrouteId === "string") subrouteIdMap.set(oldSubrouteId, newSubrouteId);
+    if (typeof oldRouteId === "string") {
+      if (!routeIdMap.has(oldRouteId)) {
+        const mapped = !existingRouteIds.has(oldRouteId) ? oldRouteId : nextRoute();
+        routeIdMap.set(oldRouteId, mapped);
+        existingRouteIds.add(mapped);
       }
     }
     if (!c.properties || typeof c.properties !== "object") c.properties = {};
-    c.properties.route_id = newRouteId;
-    c.properties.group_id = typeof oldGroupId === "string" ? groupIdMap.get(oldGroupId) : nextGroup();
+    c.properties.subroute_id = newSubrouteId;
+    c.properties.route_id = typeof oldRouteId === "string" ? routeIdMap.get(oldRouteId) : nextRoute();
     c.properties.route_kind = ROUTE_KIND_USER;
     if (typeof c.properties.country !== "string") c.properties.country = "";
     if (typeof c.properties.region !== "string") c.properties.region = "";
@@ -271,18 +271,18 @@ function mergeUserStateIntoStore(userRoutes, userStations) {
     c.properties.station_id =
       typeof oldStationId === "string" && !existingStationIds.has(oldStationId) ? oldStationId : nextStation();
     existingStationIds.add(c.properties.station_id);
-    if (typeof c.properties.route_id === "string" && routeIdMap.has(c.properties.route_id)) {
-      c.properties.route_id = routeIdMap.get(c.properties.route_id);
+    if (typeof c.properties.subroute_id === "string" && subrouteIdMap.has(c.properties.subroute_id)) {
+      c.properties.subroute_id = subrouteIdMap.get(c.properties.subroute_id);
     }
     if (Array.isArray(c.properties.transfer_routes)) {
-      c.properties.transfer_routes = c.properties.transfer_routes.map((rid) => routeIdMap.get(rid) || rid);
+      c.properties.transfer_routes = c.properties.transfer_routes.map((rid) => subrouteIdMap.get(rid) || rid);
     }
     return c;
   });
 
-  store.routesFC.features.push(...mergedRoutes);
+  store.subroutesFC.features.push(...mergedSubroutes);
   store.stationsFC.features.push(...mergedStations);
-  if (mergedRoutes.length) bumpRoutesGeometryRevision();
+  if (mergedSubroutes.length) bumpRoutesGeometryRevision();
   syncCountersFromLoadedFeatures();
 }
 
@@ -294,31 +294,31 @@ function loadPersistedUserState() {
     const data = rawV2 ? JSON.parse(rawV2) : rawV1 ? JSON.parse(rawV1) : null;
     if (!data || typeof data !== "object") return;
 
-    const allRoutes = Array.isArray(data.userRoutesFC?.features)
-      ? data.userRoutesFC.features
-      : Array.isArray(data.routesFC?.features)
-        ? data.routesFC.features
+    const allSubroutes = Array.isArray(data.userSubroutesFC?.features)
+      ? data.userSubroutesFC.features
+      : Array.isArray(data.subroutesFC?.features)
+        ? data.subroutesFC.features
         : [];
     const allStations = Array.isArray(data.userStationsFC?.features)
       ? data.userStationsFC.features
       : Array.isArray(data.stationsFC?.features)
         ? data.stationsFC.features
         : [];
-    const userRoutes = extractUserOnlyRoutes(allRoutes);
-    const userRouteIds = new Set(userRoutes.map((f) => f?.properties?.route_id).filter((id) => typeof id === "string"));
-    const userStations = extractUserStationsByRoutes(allStations, userRouteIds);
-    mergeUserStateIntoStore(userRoutes, userStations);
+    const userSubroutes = extractUserOnlyRoutes(allSubroutes);
+    const userSubrouteIds = new Set(userSubroutes.map((f) => f?.properties?.subroute_id).filter((id) => typeof id === "string"));
+    const userStations = extractUserStationsByRoutes(allStations, userSubrouteIds);
+    mergeUserStateIntoStore(userSubroutes, userStations);
 
-    if (Array.isArray(data.hiddenRouteIds)) {
-      store.hiddenRouteIds = new Set(data.hiddenRouteIds);
+    if (Array.isArray(data.hiddenSubrouteIds)) {
+      store.hiddenSubrouteIds = new Set(data.hiddenSubrouteIds);
     }
     if (data.settings && typeof data.settings.stationMinPerRoute === "number") {
       store.settings.stationMinPerRoute = data.settings.stationMinPerRoute;
     }
     syncCountersFromLoadedFeatures();
-    normalizeAllRoutesMetadata();
+    normalizeAllSubroutesMetadata();
     normalizeUserDefaultNames();
-  } catch (_) {
+  } catch {
     /* ignore corrupt storage */
   }
 }
@@ -333,14 +333,14 @@ function schedulePersistToStorage() {
   persistTimer = setTimeout(() => {
     persistTimer = null;
     try {
-      const userRoutes = store.routesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
-      const userRouteIds = new Set(userRoutes.map((f) => f.properties?.route_id));
-      const userStations = extractUserStationsByRoutes(store.stationsFC.features, userRouteIds);
+      const userSubroutes = store.subroutesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
+      const userSubrouteIds = new Set(userSubroutes.map((f) => f.properties?.subroute_id));
+      const userStations = extractUserStationsByRoutes(store.stationsFC.features, userSubrouteIds);
       const payload = {
         v: PERSIST_VERSION,
-        userRoutesFC: { type: "FeatureCollection", features: userRoutes },
+        userSubroutesFC: { type: "FeatureCollection", features: userSubroutes },
         userStationsFC: { type: "FeatureCollection", features: userStations },
-        hiddenRouteIds: Array.from(store.hiddenRouteIds),
+        hiddenSubrouteIds: Array.from(store.hiddenSubrouteIds),
         counters: { ...store.counters },
         settings: { ...store.settings },
       };
@@ -351,13 +351,13 @@ function schedulePersistToStorage() {
   }, 200);
 }
 
+const nextSubrouteId = () => {
+  syncCountersFromLoadedFeatures();
+  return `r${store.counters.subroute++}`;
+};
 const nextRouteId = () => {
   syncCountersFromLoadedFeatures();
-  return `r${store.counters.route++}`;
-};
-const nextGroupId = () => {
-  syncCountersFromLoadedFeatures();
-  return `g${store.counters.group++}`;
+  return `g${store.counters.route++}`;
 };
 const nextStationId = () => {
   syncCountersFromLoadedFeatures();
@@ -389,13 +389,13 @@ function normalizeRouteProperties(p) {
   p.status = normalizeStatus(p.status);
 }
 
-function normalizeAllRoutesMetadata() {
-  for (const f of store.routesFC.features) {
+function normalizeAllSubroutesMetadata() {
+  for (const f of store.subroutesFC.features) {
     normalizeRouteProperties(f.properties);
   }
 }
 
-function syncLineSubRouteMetadata(groupId, sourceProps) {
+function syncRouteSubrouteMetadata(routeId, sourceProps) {
   const kind =
     sourceProps?.route_kind === ROUTE_KIND_DEFAULT || sourceProps?.route_kind === ROUTE_KIND_USER
       ? sourceProps.route_kind
@@ -403,8 +403,8 @@ function syncLineSubRouteMetadata(groupId, sourceProps) {
   const country = typeof sourceProps?.country === "string" ? sourceProps.country : "";
   const region = typeof sourceProps?.region === "string" ? sourceProps.region : "";
   const status = normalizeStatus(sourceProps?.status);
-  store.routesFC.features.forEach((f) => {
-    if (f.properties.group_id !== groupId) return;
+  store.subroutesFC.features.forEach((f) => {
+    if (f.properties.route_id !== routeId) return;
     f.properties.route_kind = kind;
     f.properties.country = country;
     f.properties.region = region;
@@ -431,8 +431,8 @@ export function findNearestTransferSnap(lngLat, maxMeters) {
 /** 此交叉點是否已建立對應的固定轉乘站（兩條路線皆相符）。 */
 export function isTransferSnapOccupied(snapFeature) {
   const c = snapFeature.geometry.coordinates;
-  const ridA = snapFeature.properties.route_id_a;
-  const ridB = snapFeature.properties.route_id_b;
+  const ridA = snapFeature.properties.subroute_id_a;
+  const ridB = snapFeature.properties.subroute_id_b;
   return store.stationsFC.features.some((s) => {
     if (!s.properties?.is_transfer_fixed) return false;
     const close = T.distance(T.point(s.geometry.coordinates), T.point(c), { units: "meters" }) <= 2;
@@ -458,7 +458,7 @@ function buildTransferSnapPointsFC() {
 
   const features = [];
   const seen = [];
-  const routes = store.routesFC.features.filter((f) => f.geometry?.type === "LineString" && f.geometry.coordinates.length >= 2);
+  const routes = store.subroutesFC.features.filter((f) => f.geometry?.type === "LineString" && f.geometry.coordinates.length >= 2);
   const addSnapFeature = (coord, routeA, routeB, prefix) => {
     const isDup = seen.some((prev) => T.distance(T.point(prev), T.point(coord), { units: "meters" }) < TRANSFER_DEDUP_METERS);
     if (isDup) return;
@@ -467,9 +467,9 @@ function buildTransferSnapPointsFC() {
       type: "Feature",
       geometry: { type: "Point", coordinates: coord },
       properties: {
-        snap_id: `${prefix}_${routeA.properties.route_id}_${routeB.properties.route_id}_${features.length}`,
-        route_id_a: routeA.properties.route_id,
-        route_id_b: routeB.properties.route_id,
+        snap_id: `${prefix}_${routeA.properties.subroute_id}_${routeB.properties.subroute_id}_${features.length}`,
+        subroute_id_a: routeA.properties.subroute_id,
+        subroute_id_b: routeB.properties.subroute_id,
       },
     });
   };
@@ -531,13 +531,13 @@ function subscribeImportUndoAvailability(listener) {
 }
 
 function captureUserStateSnapshot() {
-  const userRoutes = store.routesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
-  const userRouteIds = new Set(userRoutes.map((f) => f.properties?.route_id).filter((id) => typeof id === "string"));
-  const userStations = extractUserStationsByRoutes(store.stationsFC.features, userRouteIds);
+  const userSubroutes = store.subroutesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
+  const userSubrouteIds = new Set(userSubroutes.map((f) => f.properties?.subroute_id).filter((id) => typeof id === "string"));
+  const userStations = extractUserStationsByRoutes(store.stationsFC.features, userSubrouteIds);
   return {
-    userRoutes: JSON.parse(JSON.stringify(userRoutes)),
+    userSubroutes: JSON.parse(JSON.stringify(userSubroutes)),
     userStations: JSON.parse(JSON.stringify(userStations)),
-    hiddenRouteIds: Array.from(store.hiddenRouteIds).filter((id) => userRouteIds.has(id)),
+    hiddenSubrouteIds: Array.from(store.hiddenSubrouteIds).filter((id) => userSubrouteIds.has(id)),
     counters: { ...store.counters },
     settings: { ...store.settings },
   };
@@ -545,14 +545,14 @@ function captureUserStateSnapshot() {
 
 function restoreUserStateSnapshot(snapshot) {
   clearUserContent();
-  if (snapshot.userRoutes.length || snapshot.userStations.length) {
-    mergeUserStateIntoStore(snapshot.userRoutes, snapshot.userStations);
+  if (snapshot.userSubroutes.length || snapshot.userStations.length) {
+    mergeUserStateIntoStore(snapshot.userSubroutes, snapshot.userStations);
   }
-  store.hiddenRouteIds = new Set(snapshot.hiddenRouteIds);
+  store.hiddenSubrouteIds = new Set(snapshot.hiddenSubrouteIds);
   store.counters = { ...snapshot.counters };
   store.settings = { ...snapshot.settings };
   syncCountersFromLoadedFeatures();
-  normalizeAllRoutesMetadata();
+  normalizeAllSubroutesMetadata();
 }
 
 function canUndoLastImport() {
@@ -567,7 +567,7 @@ function undoLastImport() {
   try {
     restoreUserStateSnapshot(snapshot);
     refreshSources();
-    const mapView = computeMapViewFromFeatures(snapshot.userRoutes, snapshot.userStations);
+    const mapView = computeMapViewFromFeatures(snapshot.userSubroutes, snapshot.userStations);
     scheduleImportMapView(mapView);
     return { ok: true, mapView };
   } finally {
@@ -585,14 +585,14 @@ function buildTempEditFeatureCollections() {
       tempLines.push({
         type: "Feature",
         geometry: { type: "LineString", coordinates: session.nodes },
-        properties: { route_id: session.routeId },
+        properties: { subroute_id: session.subrouteId },
       });
     }
     session.nodes.forEach((c, i) => {
       tempNodes.push({
         type: "Feature",
         geometry: { type: "Point", coordinates: c },
-        properties: { idx: i, route_id: session.routeId },
+        properties: { idx: i, subroute_id: session.subrouteId },
       });
     });
   });
@@ -623,9 +623,9 @@ function refreshSources() {
 
   const map = getMap();
   if (!map) return;
-  const { stationsDisplayFC, stationLabelsFC } = buildStationDisplayCollections(store.stationsFC, store.routesFC);
+  const { stationsDisplayFC, stationLabelsFC } = buildStationDisplayCollections(store.stationsFC, store.subroutesFC);
   map.getSource("routes") &&
-    map.getSource("routes").setData(featureCollectionWithSmoothedLineStrings(store.routesFC));
+    map.getSource("routes").setData(featureCollectionWithSmoothedLineStrings(store.subroutesFC));
   map.getSource("stations") && map.getSource("stations").setData(stationsDisplayFC);
   map.getSource("station-labels") && map.getSource("station-labels").setData(stationLabelsFC);
 
@@ -633,14 +633,14 @@ function refreshSources() {
   map.getSource("temp-edit-line") && map.getSource("temp-edit-line").setData(tempLineFC);
   map.getSource("temp-edit-nodes") && map.getSource("temp-edit-nodes").setData(tempNodesFC);
 
-  const hiddenIds = Array.from(store.hiddenRouteIds);
-  const visibleRouteIds = Array.from(
-    new Set(store.routesFC.features.map((f) => f.properties.route_id).filter((rid) => !store.hiddenRouteIds.has(rid)))
+  const hiddenIds = Array.from(store.hiddenSubrouteIds);
+  const visibleSubrouteIds = Array.from(
+    new Set(store.subroutesFC.features.map((f) => f.properties.subroute_id).filter((rid) => !store.hiddenSubrouteIds.has(rid)))
   );
-  const transferAnyVisibleExpr = visibleRouteIds.length
-    ? ["any", ...visibleRouteIds.map((rid) => ["in", rid, ["coalesce", ["get", "transfer_routes"], ["literal", []]]])]
+  const transferAnyVisibleExpr = visibleSubrouteIds.length
+    ? ["any", ...visibleSubrouteIds.map((rid) => ["in", rid, ["coalesce", ["get", "transfer_routes"], ["literal", []]]])]
     : false;
-  const stationVisibleFilter = ["any", ["in", ["get", "route_id"], ["literal", visibleRouteIds]], transferAnyVisibleExpr];
+  const stationVisibleFilter = ["any", ["in", ["get", "subroute_id"], ["literal", visibleSubrouteIds]], transferAnyVisibleExpr];
   const regularStationVisibleFilter = ["all", REGULAR_STATION_LAYER_FILTER, stationVisibleFilter];
   const transferStationVisibleFilter = ["all", TRANSFER_STATION_LAYER_FILTER, stationVisibleFilter];
   if (map.getLayer("stations-circle")) {
@@ -656,40 +656,40 @@ function refreshSources() {
     map.setFilter("stations-label-move-frame", stationVisibleFilter);
   }
   if (map.getLayer("routes-line")) {
-    map.setFilter("routes-line", ["!", ["in", ["get", "route_id"], ["literal", hiddenIds]]]);
+    map.setFilter("routes-line", ["!", ["in", ["get", "subroute_id"], ["literal", hiddenIds]]]);
   }
 }
 
-function highlightRoute(routeId) {
+function highlightRoute(subrouteId) {
   const map = getMap();
   if (!map) return;
-  const route = store.routesFC.features.find((f) => f.properties.route_id === routeId);
-  const groupId = route ? route.properties.group_id : "";
-  const hiddenIds = Array.from(store.hiddenRouteIds);
+  const route = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteId);
+  const routeId = route ? route.properties.route_id : "";
+  const hiddenIds = Array.from(store.hiddenSubrouteIds);
 
   if (map.getLayer("routes-line-hover")) {
-    if (!groupId) {
-      map.setFilter("routes-line-hover", ["==", ["get", "route_id"], ""]);
+    if (!routeId) {
+      map.setFilter("routes-line-hover", ["==", ["get", "subroute_id"], ""]);
     } else {
       map.setFilter("routes-line-hover", [
         "all",
-        ["==", ["get", "group_id"], groupId],
-        ["!", ["in", ["get", "route_id"], ["literal", hiddenIds]]],
+        ["==", ["get", "route_id"], routeId],
+        ["!", ["in", ["get", "subroute_id"], ["literal", hiddenIds]]],
       ]);
     }
   }
 
-  const routeIdsInGroup = groupId
-    ? store.routesFC.features.filter((f) => f.properties.group_id === groupId).map((f) => f.properties.route_id)
+  const subrouteIdsInRoute = routeId
+    ? store.subroutesFC.features.filter((f) => f.properties.route_id === routeId).map((f) => f.properties.subroute_id)
     : [];
-  const visibleRouteIdsInGroup = routeIdsInGroup.filter((rid) => !store.hiddenRouteIds.has(rid));
-  const transferAnyMatchExpr = visibleRouteIdsInGroup.length
-    ? ["any", ...visibleRouteIdsInGroup.map((rid) => ["in", rid, ["coalesce", ["get", "transfer_routes"], ["literal", []]]])]
+  const visibleSubrouteIdsInRoute = subrouteIdsInRoute.filter((rid) => !store.hiddenSubrouteIds.has(rid));
+  const transferAnyMatchExpr = visibleSubrouteIdsInRoute.length
+    ? ["any", ...visibleSubrouteIdsInRoute.map((rid) => ["in", rid, ["coalesce", ["get", "transfer_routes"], ["literal", []]]])]
     : false;
   const stationHoverFilter =
-    visibleRouteIdsInGroup.length === 0
+    visibleSubrouteIdsInRoute.length === 0
       ? ["==", ["get", "station_id"], ""]
-      : ["any", ["in", ["get", "route_id"], ["literal", visibleRouteIdsInGroup]], transferAnyMatchExpr];
+      : ["any", ["in", ["get", "subroute_id"], ["literal", visibleSubrouteIdsInRoute]], transferAnyMatchExpr];
 
   map.getLayer("stations-circle-hover") &&
     map.setFilter("stations-circle-hover", ["all", REGULAR_STATION_LAYER_FILTER, stationHoverFilter]);
@@ -701,13 +701,13 @@ function highlightRoute(routeId) {
   // (Do NOT set this in refreshSources; it must remain hover-driven.)
   map.getLayer("stations-label-hover") &&
     map.setFilter("stations-label-hover", stationHoverFilter);
-  setStationLabelBaseMask(map, visibleRouteIdsInGroup.length === 0 ? null : stationHoverFilter);
+  setStationLabelBaseMask(map, visibleSubrouteIdsInRoute.length === 0 ? null : stationHoverFilter);
 }
 
 function clearHover() {
   const map = getMap();
   if (!map) return;
-  map.getLayer("routes-line-hover") && map.setFilter("routes-line-hover", ["==", ["get", "route_id"], ""]);
+  map.getLayer("routes-line-hover") && map.setFilter("routes-line-hover", ["==", ["get", "subroute_id"], ""]);
   map.getLayer("stations-circle-hover") && map.setFilter("stations-circle-hover", ["==", ["get", "station_id"], ""]);
   map.getLayer("transfer-stations-circle-hover") &&
     map.setFilter("transfer-stations-circle-hover", ["==", ["get", "station_id"], ""]);
@@ -715,19 +715,19 @@ function clearHover() {
   setStationLabelBaseMask(map, null);
 }
 
-function getLineList() {
-  const groups = {};
-  store.routesFC.features.forEach((f) => {
+function getRouteList() {
+  const routes = {};
+  store.subroutesFC.features.forEach((f) => {
     const p = f.properties;
     const rk =
       p.route_kind === ROUTE_KIND_DEFAULT || p.route_kind === ROUTE_KIND_USER ? p.route_kind : ROUTE_KIND_USER;
     const country = typeof p.country === "string" ? p.country : "";
     const region = typeof p.region === "string" ? p.region : "";
     const status = normalizeStatus(p.status);
-    if (!groups[p.group_id]) groups[p.group_id] = [];
-    groups[p.group_id].push({
-      route_id: p.route_id,
-      name: resolveLineDisplayName(p.name, p.route_id, p.user_default_line_label),
+    if (!routes[p.route_id]) routes[p.route_id] = [];
+    routes[p.route_id].push({
+      subroute_id: p.subroute_id,
+      name: resolveRouteDisplayName(p.name, p.subroute_id, p.user_default_route_label),
       color: p.color || "#1e88e5",
       route_kind: rk,
       country,
@@ -735,11 +735,11 @@ function getLineList() {
       status,
     });
   });
-  return Object.entries(groups).map(([line_id, sub_routes]) => {
-    const head = sub_routes[0];
+  return Object.entries(routes).map(([route_id, subroutes]) => {
+    const head = subroutes[0];
     return {
-      line_id,
-      sub_routes,
+      route_id,
+      subroutes,
       route_kind: head?.route_kind ?? ROUTE_KIND_USER,
       country: head?.country ?? "",
       region: head?.region ?? "",
@@ -748,60 +748,60 @@ function getLineList() {
   });
 }
 
-function getActiveEditLineId() {
+function getActiveEditRouteId() {
   if (!Array.isArray(store.temp.editingSessions) || store.temp.editingSessions.length === 0) return null;
   for (const session of store.temp.editingSessions) {
-    if (!session?.routeId) continue;
-    const route = store.routesFC.features.find((f) => f.properties?.route_id === session.routeId);
-    if (route?.properties?.group_id) return route.properties.group_id;
+    if (!session?.subrouteId) continue;
+    const route = store.subroutesFC.features.find((f) => f.properties?.subroute_id === session.subrouteId);
+    if (route?.properties?.route_id) return route.properties.route_id;
   }
   return null;
 }
 
-function deleteRoute(route_id) {
-  store.routesFC.features = store.routesFC.features.filter((f) => f.properties.route_id !== route_id);
-  store.stationsFC.features = store.stationsFC.features.filter((f) => f.properties.route_id !== route_id);
-  store.hiddenRouteIds.delete(route_id);
+function deleteSubroute(subroute_id) {
+  store.subroutesFC.features = store.subroutesFC.features.filter((f) => f.properties.subroute_id !== subroute_id);
+  store.stationsFC.features = store.stationsFC.features.filter((f) => f.properties.subroute_id !== subroute_id);
+  store.hiddenSubrouteIds.delete(subroute_id);
   syncCountersFromLoadedFeatures();
   bumpRoutesGeometryRevision();
   refreshSources();
 }
 
-function deleteLine(groupId) {
-  const routeIdsInGroup = store.routesFC.features.filter((f) => f.properties.group_id === groupId).map((f) => f.properties.route_id);
+function deleteRoute(routeId) {
+  const subrouteIdsInRoute = store.subroutesFC.features.filter((f) => f.properties.route_id === routeId).map((f) => f.properties.subroute_id);
 
-  if (routeIdsInGroup.length === 0) return;
+  if (subrouteIdsInRoute.length === 0) return;
 
-  store.routesFC.features = store.routesFC.features.filter((f) => f.properties.group_id !== groupId);
-  store.stationsFC.features = store.stationsFC.features.filter((f) => !routeIdsInGroup.includes(f.properties.route_id));
-  routeIdsInGroup.forEach((rid) => store.hiddenRouteIds.delete(rid));
+  store.subroutesFC.features = store.subroutesFC.features.filter((f) => f.properties.route_id !== routeId);
+  store.stationsFC.features = store.stationsFC.features.filter((f) => !subrouteIdsInRoute.includes(f.properties.subroute_id));
+  subrouteIdsInRoute.forEach((rid) => store.hiddenSubrouteIds.delete(rid));
   syncCountersFromLoadedFeatures();
   bumpRoutesGeometryRevision();
   refreshSources();
 }
 
-function deleteLines(groupIds) {
-  if (!Array.isArray(groupIds) || groupIds.length === 0) return;
-  const idSet = new Set(groupIds);
-  const routeIdsToDelete = store.routesFC.features
-    .filter((f) => idSet.has(f.properties.group_id))
-    .map((f) => f.properties.route_id);
-  if (!routeIdsToDelete.length) return;
+function deleteRoutes(routeIds) {
+  if (!Array.isArray(routeIds) || routeIds.length === 0) return;
+  const idSet = new Set(routeIds);
+  const subrouteIdsToDelete = store.subroutesFC.features
+    .filter((f) => idSet.has(f.properties.route_id))
+    .map((f) => f.properties.subroute_id);
+  if (!subrouteIdsToDelete.length) return;
 
-  store.routesFC.features = store.routesFC.features.filter((f) => !idSet.has(f.properties.group_id));
-  store.stationsFC.features = store.stationsFC.features.filter((f) => !routeIdsToDelete.includes(f.properties.route_id));
-  routeIdsToDelete.forEach((rid) => store.hiddenRouteIds.delete(rid));
+  store.subroutesFC.features = store.subroutesFC.features.filter((f) => !idSet.has(f.properties.route_id));
+  store.stationsFC.features = store.stationsFC.features.filter((f) => !subrouteIdsToDelete.includes(f.properties.subroute_id));
+  subrouteIdsToDelete.forEach((rid) => store.hiddenSubrouteIds.delete(rid));
   syncCountersFromLoadedFeatures();
   bumpRoutesGeometryRevision();
   refreshSources();
 }
 
-function setLineHidden(groupId, hidden) {
-  const routeIds = store.routesFC.features.filter((f) => f.properties.group_id === groupId).map((f) => f.properties.route_id);
-  if (!routeIds.length) return;
-  routeIds.forEach((rid) => {
-    if (hidden) store.hiddenRouteIds.add(rid);
-    else store.hiddenRouteIds.delete(rid);
+function setRouteHidden(routeId, hidden) {
+  const subrouteIds = store.subroutesFC.features.filter((f) => f.properties.route_id === routeId).map((f) => f.properties.subroute_id);
+  if (!subrouteIds.length) return;
+  subrouteIds.forEach((rid) => {
+    if (hidden) store.hiddenSubrouteIds.add(rid);
+    else store.hiddenSubrouteIds.delete(rid);
   });
   refreshSources();
   if (hidden) {
@@ -809,79 +809,79 @@ function setLineHidden(groupId, hidden) {
   }
 }
 
-function isLineHidden(groupId) {
-  const routeIds = store.routesFC.features.filter((f) => f.properties.group_id === groupId).map((f) => f.properties.route_id);
-  if (!routeIds.length) return false;
-  return routeIds.every((rid) => store.hiddenRouteIds.has(rid));
+function isRouteHidden(routeId) {
+  const subrouteIds = store.subroutesFC.features.filter((f) => f.properties.route_id === routeId).map((f) => f.properties.subroute_id);
+  if (!subrouteIds.length) return false;
+  return subrouteIds.every((rid) => store.hiddenSubrouteIds.has(rid));
 }
 
 function startNewTempRoute() {
-  store.hiddenRouteIds.clear();
+  store.hiddenSubrouteIds.clear();
   store.temp.previewStations = [];
   store.temp.queuedStations = [];
-  store.temp.editingSessions = [{ routeId: null, nodes: [] }];
+  store.temp.editingSessions = [{ subrouteId: null, nodes: [] }];
   refreshSources();
 }
 
-function startEditLine(groupId) {
-  const routesInGroup = store.routesFC.features.filter((f) => f.properties.group_id === groupId);
-  if (!routesInGroup.length) return;
+function startEditRoute(routeId) {
+  const subroutesInRoute = store.subroutesFC.features.filter((f) => f.properties.route_id === routeId);
+  if (!subroutesInRoute.length) return;
   store.temp.editingSessions = [];
   store.temp.queuedStations = [];
-  routesInGroup.forEach((route) => {
+  subroutesInRoute.forEach((route) => {
     store.temp.editingSessions.push({
-      routeId: route.properties.route_id,
+      subrouteId: route.properties.subroute_id,
       nodes: route.geometry.coordinates.slice(),
     });
-    store.hiddenRouteIds.add(route.properties.route_id);
+    store.hiddenSubrouteIds.add(route.properties.subroute_id);
   });
   refreshSources();
 }
 
 function endTempEditingAndCommit() {
   if (!store.temp.editingSessions || store.temp.editingSessions.length === 0) {
-    return { ok: true, newLineIds: [] };
+    return { ok: true, newRouteIds: [] };
   }
 
-  const newRouteIdMap = new Map();
-  const newLineIds = [];
+  const newSubrouteIdMap = new Map();
+  const newRouteIds = [];
 
   store.temp.editingSessions.forEach((session) => {
-    const { routeId, nodes } = session;
+    const { subrouteId, nodes } = session;
     if (nodes.length < 2) return;
 
-    if (routeId) {
-      const routeFeature = store.routesFC.features.find((x) => x.properties.route_id === routeId);
+    if (subrouteId) {
+      const routeFeature = store.subroutesFC.features.find((x) => x.properties.subroute_id === subrouteId);
       if (!routeFeature) return;
       routeFeature.geometry.coordinates = nodes;
       const newLine = T.lineString(nodes);
       store.stationsFC.features.forEach((station) => {
-        if (station.properties.route_id === routeId) {
+        if (station.properties.subroute_id === subrouteId) {
           const snapped = T.nearestPointOnLine(newLine, station.geometry.coordinates);
           station.geometry.coordinates = snapped.geometry.coordinates;
         }
       });
     } else {
+      const new_subroute_id = nextSubrouteId();
       const new_route_id = nextRouteId();
-      const new_group_id = nextGroupId();
-      const defaultLine = allocateDefaultLineLabel(store.routesFC.features, isUserRouteFeature);
-      newRouteIdMap.set(session, new_route_id);
-      newLineIds.push(new_group_id);
-      store.routesFC.features.push({
+      const defaultRoute = allocateDefaultRouteLabel(store.subroutesFC.features, isUserRouteFeature);
+      newSubrouteIdMap.set(session, new_subroute_id);
+      newRouteIds.push(new_route_id);
+      store.subroutesFC.features.push({
         type: "Feature",
         geometry: { type: "LineString", coordinates: nodes },
         properties: {
+          subroute_id: new_subroute_id,
           route_id: new_route_id,
-          group_id: new_group_id,
-          name: defaultLine.name,
-          user_default_line_label: defaultLine.user_default_line_label,
+          name: defaultRoute.name,
+          user_default_route_label: defaultRoute.user_default_route_label,
           route_kind: ROUTE_KIND_USER,
           country: "",
           region: "",
           status: ROUTE_STATUS_CUSTOM,
         },
       });
-      ensureEndpointStations(new_route_id, nodes);
+      ensureEndpointStations(new_subroute_id, nodes);
     }
   });
 
@@ -889,7 +889,7 @@ function endTempEditingAndCommit() {
     store.temp.previewStations.forEach((sid) => {
       const st = store.stationsFC.features.find((f) => f.properties.station_id === sid);
       if (st) {
-        let closestRouteId = null;
+        let closestSubrouteId = null;
         let minDistance = Infinity;
 
         store.temp.editingSessions.forEach((session) => {
@@ -898,10 +898,10 @@ function endTempEditingAndCommit() {
           const snapped = T.nearestPointOnLine(line, st.geometry.coordinates);
           if (snapped.properties.dist < minDistance) {
             minDistance = snapped.properties.dist;
-            closestRouteId = session.routeId || newRouteIdMap.get(session);
+            closestSubrouteId = session.subrouteId || newSubrouteIdMap.get(session);
           }
         });
-        if (closestRouteId) st.properties.route_id = closestRouteId;
+        if (closestSubrouteId) st.properties.subroute_id = closestSubrouteId;
       }
     });
   }
@@ -912,16 +912,16 @@ function endTempEditingAndCommit() {
       const st = store.stationsFC.features.find((f) => f.properties?.station_id === q.station_id);
       if (!st || !st.properties?.is_transfer_fixed) return;
 
-      const routeId = q.session?.routeId || newRouteIdMap.get(q.session);
-      if (!routeId) return;
+      const subrouteId = q.session?.subrouteId || newSubrouteIdMap.get(q.session);
+      if (!subrouteId) return;
 
       const next = new Set(st.properties.transfer_routes || []);
-      next.add(routeId);
+      next.add(subrouteId);
       st.properties.transfer_routes = Array.from(next);
     });
   }
 
-  store.hiddenRouteIds.clear();
+  store.hiddenSubrouteIds.clear();
   store.temp.editingSessions = [];
   store.temp.previewStations = [];
   store.temp.queuedStations = [];
@@ -930,7 +930,7 @@ function endTempEditingAndCommit() {
   normalizeUserDefaultNames();
   bumpRoutesGeometryRevision();
   refreshSources();
-  return { ok: true, newLineIds };
+  return { ok: true, newRouteIds };
 }
 
 function cancelTempEditing() {
@@ -938,28 +938,28 @@ function cancelTempEditing() {
   store.stationsFC.features = store.stationsFC.features.filter((s) => {
     const sid = s.properties?.station_id;
     if (sid && previewIds.has(sid)) return false;
-    if (s.properties?.route_id === "__temp_preview__") return false;
+    if (s.properties?.subroute_id === "__temp_preview__") return false;
     return true;
   });
 
-  store.hiddenRouteIds.clear();
+  store.hiddenSubrouteIds.clear();
   store.temp.editingSessions = [];
   store.temp.previewStations = [];
   store.temp.queuedStations = [];
-  store.temp.routeIdEditing = null;
+  store.temp.subrouteIdEditing = null;
   syncCountersFromLoadedFeatures();
   refreshSources();
   return { ok: true };
 }
 
-function getLineStatus(groupId) {
-  const route = store.routesFC.features.find((f) => f.properties?.group_id === groupId);
+function getRouteStatus(routeId) {
+  const route = store.subroutesFC.features.find((f) => f.properties?.route_id === routeId);
   return normalizeStatus(route?.properties?.status);
 }
 
-function setLineStatus(groupId, status) {
+function setRouteStatus(routeId, status) {
   const next = normalizeStatus(status);
-  const routes = store.routesFC.features.filter((f) => f.properties.group_id === groupId);
+  const routes = store.subroutesFC.features.filter((f) => f.properties.route_id === routeId);
   if (!routes.length) return;
   for (const f of routes) {
     f.properties.status = next;
@@ -967,50 +967,50 @@ function setLineStatus(groupId, status) {
   refreshSources();
 }
 
-function addTempNodeAt(coord, routeId, insertIndex = null) {
-  const session = routeId ? store.temp.editingSessions.find((s) => s.routeId === routeId) : store.temp.editingSessions[0];
+function addTempNodeAt(coord, subrouteId, insertIndex = null) {
+  const session = subrouteId ? store.temp.editingSessions.find((s) => s.subrouteId === subrouteId) : store.temp.editingSessions[0];
   if (!session) return;
   if (insertIndex === null) session.nodes.push(coord);
   else session.nodes.splice(insertIndex, 0, coord);
   refreshSources();
 }
 
-function deleteTempNodeByIndex(idx, routeId) {
-  const session = routeId ? store.temp.editingSessions.find((s) => s.routeId === routeId) : store.temp.editingSessions[0];
+function deleteTempNodeByIndex(idx, subrouteId) {
+  const session = subrouteId ? store.temp.editingSessions.find((s) => s.subrouteId === subrouteId) : store.temp.editingSessions[0];
   if (!session || idx < 0 || idx >= session.nodes.length) return;
   session.nodes.splice(idx, 1);
   refreshSources();
 }
 
-function updateTempNodeCoord(idx, coord, routeId) {
-  const session = routeId ? store.temp.editingSessions.find((s) => s.routeId === routeId) : store.temp.editingSessions[0];
+function updateTempNodeCoord(idx, coord, subrouteId) {
+  const session = subrouteId ? store.temp.editingSessions.find((s) => s.subrouteId === subrouteId) : store.temp.editingSessions[0];
   if (!session || idx < 0 || idx >= session.nodes.length) return false;
   session.nodes[idx] = coord;
   return true;
 }
 
-function moveTempNode(idx, coord, routeId, options = {}) {
-  if (!updateTempNodeCoord(idx, coord, routeId)) return;
+function moveTempNode(idx, coord, subrouteId, options = {}) {
+  if (!updateTempNodeCoord(idx, coord, subrouteId)) return;
   if (options.preview) refreshTempEditSources();
   else refreshSources();
 }
 
-function insertTempNodeOnSegment(pointPx, routeId) {
+function insertTempNodeOnSegment(pointPx, subrouteId) {
   const map = getMap();
-  const session = routeId ? store.temp.editingSessions.find((s) => s.routeId === routeId) : store.temp.editingSessions[0];
+  const session = subrouteId ? store.temp.editingSessions.find((s) => s.subrouteId === subrouteId) : store.temp.editingSessions[0];
   if (!map || !session || session.nodes.length < 2) return;
   const lngLat = map.unproject(pointPx);
   const line = T.lineString(session.nodes);
   const snapped = T.nearestPointOnLine(line, [lngLat.lng, lngLat.lat], { units: "meters" });
   const insertIdx = snapped.properties.index + 1;
-  addTempNodeAt(snapped.geometry.coordinates, session.routeId, insertIdx);
+  addTempNodeAt(snapped.geometry.coordinates, session.subrouteId, insertIdx);
 }
 
-function addStationAt(route_id, coord, name = null, color = null, extraProps = {}, options = {}) {
+function addStationAt(subroute_id, coord, name = null, color = null, extraProps = {}, options = {}) {
   const station_id = nextStationId();
   const defaultStation = allocateDefaultStationLabel(store.stationsFC.features, isUserStationFeature);
   const stationName = name || defaultStation.name;
-  const props = { station_id, route_id, name: stationName, color: color, ...extraProps };
+  const props = { station_id, subroute_id, name: stationName, color: color, ...extraProps };
   if (!name) props.user_default_label = defaultStation.user_default_label;
   store.stationsFC.features.push({
     type: "Feature",
@@ -1021,27 +1021,27 @@ function addStationAt(route_id, coord, name = null, color = null, extraProps = {
   return station_id;
 }
 
-function expandMergedRouteIdsFromStation(station, mergedRouteIds) {
-  if (typeof station?.properties?.route_id === "string") mergedRouteIds.add(station.properties.route_id);
+function expandMergedSubrouteIdsFromStation(station, mergedSubrouteIds) {
+  if (typeof station?.properties?.subroute_id === "string") mergedSubrouteIds.add(station.properties.subroute_id);
   const transferRoutes = station?.properties?.transfer_routes;
   if (Array.isArray(transferRoutes)) {
     transferRoutes.forEach((rid) => {
-      if (typeof rid === "string") mergedRouteIds.add(rid);
+      if (typeof rid === "string") mergedSubrouteIds.add(rid);
     });
   }
 }
 
 /** 轉乘點應吸收的一般站（含重疊的 s5/s6、路線頭尾站）。 */
-function collectStationIdsToAbsorbForTransfer(coord, mergedRouteIds) {
+function collectStationIdsToAbsorbForTransfer(coord, mergedSubrouteIds) {
   const toRemove = new Set();
-  const routeIds = new Set(mergedRouteIds);
+  const subrouteIds = new Set(mergedSubrouteIds);
   const transferPoint = T.point(coord);
 
   const markForAbsorb = (s) => {
     if (!s?.properties?.station_id) return;
     if (s.properties.is_transfer_fixed) return;
     toRemove.add(s.properties.station_id);
-    expandMergedRouteIdsFromStation(s, routeIds);
+    expandMergedSubrouteIdsFromStation(s, subrouteIds);
   };
 
   const seedStations = [];
@@ -1073,8 +1073,8 @@ function collectStationIdsToAbsorbForTransfer(coord, mergedRouteIds) {
     }
   }
 
-  for (const routeId of routeIds) {
-    const route = store.routesFC.features.find((f) => f.properties.route_id === routeId);
+  for (const subrouteId of subrouteIds) {
+    const route = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteId);
     if (!route?.geometry?.coordinates || route.geometry.coordinates.length < 2) continue;
     const coords = route.geometry.coordinates;
     const line = T.lineString(coords);
@@ -1086,7 +1086,7 @@ function collectStationIdsToAbsorbForTransfer(coord, mergedRouteIds) {
       if (!endNearTransfer) continue;
 
       for (const s of store.stationsFC.features) {
-        if (s.properties?.route_id !== routeId) continue;
+        if (s.properties?.subroute_id !== subrouteId) continue;
         const sc = s.geometry.coordinates;
         const dEnd = T.distance(T.point(sc), T.point(endCoord), { units: "meters" });
         const dTr = T.distance(T.point(sc), transferPoint, { units: "meters" });
@@ -1095,7 +1095,7 @@ function collectStationIdsToAbsorbForTransfer(coord, mergedRouteIds) {
     }
 
     for (const s of store.stationsFC.features) {
-      if (s.properties?.route_id !== routeId) continue;
+      if (s.properties?.subroute_id !== subrouteId) continue;
       if (s.properties?.is_transfer_fixed) continue;
       const snapped = T.nearestPointOnLine(line, s.geometry.coordinates, { units: "meters" });
       const dAlong = snapped.properties.dist ?? Infinity;
@@ -1104,27 +1104,27 @@ function collectStationIdsToAbsorbForTransfer(coord, mergedRouteIds) {
     }
   }
 
-  return { stationIds: toRemove, routeIds };
+  return { stationIds: toRemove, subrouteIds };
 }
 
-function hasTransferCoveringRoutePoint(routeId, pt, radiusMeters = TRANSFER_ABSORB_METERS) {
+function hasTransferCoveringRoutePoint(subrouteId, pt, radiusMeters = TRANSFER_ABSORB_METERS) {
   const p = T.point(pt);
   return store.stationsFC.features.some((s) => {
     if (!s.properties?.is_transfer_fixed) return false;
     const routes = s.properties.transfer_routes || [];
     const coversRoute =
-      s.properties.route_id === routeId || (Array.isArray(routes) && routes.includes(routeId));
+      s.properties.subroute_id === subrouteId || (Array.isArray(routes) && routes.includes(subrouteId));
     if (!coversRoute) return false;
     return T.distance(T.point(s.geometry.coordinates), p, { units: "meters" }) <= radiusMeters;
   });
 }
 
-function applyTransferAbsorption(coord, mergedRouteIds) {
-  const { stationIds, routeIds } = collectStationIdsToAbsorbForTransfer(coord, mergedRouteIds);
+function applyTransferAbsorption(coord, mergedSubrouteIds) {
+  const { stationIds, subrouteIds } = collectStationIdsToAbsorbForTransfer(coord, mergedSubrouteIds);
   store.stationsFC.features = store.stationsFC.features.filter(
     (s) => !stationIds.has(s.properties.station_id),
   );
-  return routeIds;
+  return subrouteIds;
 }
 
 function normalizeAllTransferStations() {
@@ -1134,39 +1134,39 @@ function normalizeAllTransferStations() {
     const routes = new Set(
       Array.isArray(tr.properties.transfer_routes) ? tr.properties.transfer_routes.filter(Boolean) : [],
     );
-    if (typeof tr.properties.route_id === "string") routes.add(tr.properties.route_id);
-    const routeIds = applyTransferAbsorption(coord, routes);
-    tr.properties.transfer_routes = Array.from(routeIds);
+    if (typeof tr.properties.subroute_id === "string") routes.add(tr.properties.subroute_id);
+    const subrouteIds = applyTransferAbsorption(coord, routes);
+    tr.properties.transfer_routes = Array.from(subrouteIds);
     tr.properties.is_transfer_fixed = true;
   }
 }
 
-function addTransferStationAt(coord, routeIdA, routeIdB) {
-  const mergedRouteIds = new Set([routeIdA, routeIdB]);
+function addTransferStationAt(coord, subrouteIdA, subrouteIdB) {
+  const mergedSubrouteIds = new Set([subrouteIdA, subrouteIdB]);
   const nearbyStations = store.stationsFC.features.filter((s) => {
     return T.distance(T.point(s.geometry.coordinates), T.point(coord), { units: "meters" }) <= TRANSFER_ABSORB_METERS;
   });
-  nearbyStations.forEach((s) => expandMergedRouteIdsFromStation(s, mergedRouteIds));
+  nearbyStations.forEach((s) => expandMergedSubrouteIdsFromStation(s, mergedSubrouteIds));
 
   const existingTransfer = nearbyStations.find((s) => s.properties?.is_transfer_fixed);
-  const finalRouteIds = applyTransferAbsorption(coord, mergedRouteIds);
+  const finalSubrouteIds = applyTransferAbsorption(coord, mergedSubrouteIds);
 
-  const routeFeature = store.routesFC.features.find((f) => f.properties.route_id === routeIdA);
+  const routeFeature = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteIdA);
   const color = routeFeature?.properties?.color || "#5e35b1";
   if (existingTransfer) {
     existingTransfer.geometry.coordinates = coord;
-    existingTransfer.properties.route_id = routeIdA;
+    existingTransfer.properties.subroute_id = subrouteIdA;
     existingTransfer.properties.color = color;
     existingTransfer.properties.is_transfer_fixed = true;
-    existingTransfer.properties.transfer_routes = Array.from(finalRouteIds);
+    existingTransfer.properties.transfer_routes = Array.from(finalSubrouteIds);
     normalizeAllTransferStations();
     refreshSources();
     return existingTransfer.properties.station_id;
   }
 
-  const stationId = addStationAt(routeIdA, coord, null, color, {
+  const stationId = addStationAt(subrouteIdA, coord, null, color, {
     is_transfer_fixed: true,
-    transfer_routes: Array.from(finalRouteIds),
+    transfer_routes: Array.from(finalSubrouteIds),
   });
   normalizeAllTransferStations();
   refreshSources();
@@ -1176,8 +1176,8 @@ function addTransferStationAt(coord, routeIdA, routeIdB) {
 function removeStation(station_id) {
   const st = store.stationsFC.features.find((f) => f.properties.station_id === station_id);
   if (!st) return false;
-  const rid = st.properties.route_id;
-  const count = store.stationsFC.features.filter((f) => f.properties.route_id === rid).length;
+  const rid = st.properties.subroute_id;
+  const count = store.stationsFC.features.filter((f) => f.properties.subroute_id === rid).length;
   if (count <= store.settings.stationMinPerRoute) {
     alert(t("routeModel.alertMinStations", { min: store.settings.stationMinPerRoute }));
     return false;
@@ -1191,8 +1191,8 @@ function removeStation(station_id) {
 function moveStationAlongRoute(station_id, newCoord) {
   const st = store.stationsFC.features.find((f) => f.properties.station_id === station_id);
   if (!st) return;
-  const rid = st.properties.route_id;
-  const route = store.routesFC.features.find((f) => f.properties.route_id === rid);
+  const rid = st.properties.subroute_id;
+  const route = store.subroutesFC.features.find((f) => f.properties.subroute_id === rid);
   if (!route) return;
   const snapped = nearestPointOnSmoothedRoute(route.geometry.coordinates, newCoord);
   if (!snapped?.geometry?.coordinates) return;
@@ -1218,15 +1218,15 @@ function setStationLabelPosition(station_id, labelCoord) {
   refreshSources();
 }
 
-function ensureEndpointStations(route_id, coords) {
+function ensureEndpointStations(subroute_id, coords) {
   const ends = [coords[0], coords[coords.length - 1]];
   ends.forEach((pt) => {
-    if (hasTransferCoveringRoutePoint(route_id, pt)) return;
+    if (hasTransferCoveringRoutePoint(subroute_id, pt)) return;
     const exists = store.stationsFC.features.some((f) => {
       if (f.properties?.is_transfer_fixed) return false;
       return T.distance(T.point(f.geometry.coordinates), T.point(pt), { units: "meters" }) <= 5;
     });
-    if (!exists) addStationAt(route_id, pt, null, null, {}, { skipRefresh: true });
+    if (!exists) addStationAt(subroute_id, pt, null, null, {}, { skipRefresh: true });
   });
 }
 
@@ -1266,12 +1266,12 @@ function queueStationFromExisting(coord) {
     const distToEnd = T.distance(clickedPoint, endPoint, { units: "meters" });
 
     if (distToStart < distToEnd) {
-      addTempNodeAt(coord, session.routeId, 0);
+      addTempNodeAt(coord, session.subrouteId, 0);
     } else {
-      addTempNodeAt(coord, session.routeId);
+      addTempNodeAt(coord, session.subrouteId);
     }
   } else {
-    addTempNodeAt(coord, session.routeId);
+    addTempNodeAt(coord, session.subrouteId);
   }
 
   // If user is routing through an existing fixed transfer station, do NOT create a new station.
@@ -1300,10 +1300,10 @@ function queueStationFromExisting(coord) {
   store.temp.previewStations.push(sid);
 }
 
-function mergeRoutes(routeIdA, routeIdB) {
-  if (routeIdA === routeIdB) return { ok: false, msg: t("routeModel.mergeDifferent") };
-  const routeA_feature = store.routesFC.features.find((f) => f.properties.route_id === routeIdA);
-  const routeB_feature = store.routesFC.features.find((f) => f.properties.route_id === routeIdB);
+function mergeRoutes(subrouteIdA, subrouteIdB) {
+  if (subrouteIdA === subrouteIdB) return { ok: false, msg: t("routeModel.mergeDifferent") };
+  const routeA_feature = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteIdA);
+  const routeB_feature = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteIdB);
   if (!routeA_feature || !routeB_feature) return { ok: false, msg: t("routeModel.mergeNotFound") };
 
   const lineA = T.lineString(routeA_feature.geometry.coordinates);
@@ -1311,10 +1311,10 @@ function mergeRoutes(routeIdA, routeIdB) {
   const coordsA = routeA_feature.geometry.coordinates;
   const coordsB = routeB_feature.geometry.coordinates;
   const checks = [
-    { sourcePoint: T.point(coordsA[0]), targetLine: lineB, sourceRouteId: routeIdA, targetRouteId: routeIdB },
-    { sourcePoint: T.point(coordsA[coordsA.length - 1]), targetLine: lineB, sourceRouteId: routeIdA, targetRouteId: routeIdB },
-    { sourcePoint: T.point(coordsB[0]), targetLine: lineA, sourceRouteId: routeIdB, targetRouteId: routeIdA },
-    { sourcePoint: T.point(coordsB[coordsB.length - 1]), targetLine: lineA, sourceRouteId: routeIdB, targetRouteId: routeIdA },
+    { sourcePoint: T.point(coordsA[0]), targetLine: lineB, sourceSubrouteId: subrouteIdA, targetSubrouteId: subrouteIdB },
+    { sourcePoint: T.point(coordsA[coordsA.length - 1]), targetLine: lineB, sourceSubrouteId: subrouteIdA, targetSubrouteId: subrouteIdB },
+    { sourcePoint: T.point(coordsB[0]), targetLine: lineA, sourceSubrouteId: subrouteIdB, targetSubrouteId: subrouteIdA },
+    { sourcePoint: T.point(coordsB[coordsB.length - 1]), targetLine: lineA, sourceSubrouteId: subrouteIdB, targetSubrouteId: subrouteIdA },
   ];
   let bestConnection = { dist: Infinity };
   for (const check of checks) {
@@ -1323,8 +1323,8 @@ function mergeRoutes(routeIdA, routeIdB) {
       bestConnection = {
         dist: snapped.properties.dist,
         snappedPoint: snapped.geometry.coordinates,
-        sourceRouteId: check.sourceRouteId,
-        targetRouteId: check.targetRouteId,
+        sourceSubrouteId: check.sourceSubrouteId,
+        targetSubrouteId: check.targetSubrouteId,
       };
     }
   }
@@ -1332,7 +1332,7 @@ function mergeRoutes(routeIdA, routeIdB) {
     let stationToRemoveId = null;
     let minStationDist = Infinity;
     store.stationsFC.features.forEach((station) => {
-      if (station.properties.route_id === bestConnection.targetRouteId) {
+      if (station.properties.subroute_id === bestConnection.targetSubrouteId) {
         const dist = T.distance(T.point(station.geometry.coordinates), T.point(bestConnection.snappedPoint), { units: "meters" });
         if (dist < minStationDist) {
           minStationDist = dist;
@@ -1344,38 +1344,38 @@ function mergeRoutes(routeIdA, routeIdB) {
       store.stationsFC.features = store.stationsFC.features.filter((f) => f.properties.station_id !== stationToRemoveId);
     }
   }
-  const targetLineId = routeA_feature.properties.group_id;
-  const sourceLineId = routeB_feature.properties.group_id;
+  const targetRouteId = routeA_feature.properties.route_id;
+  const sourceRouteId = routeB_feature.properties.route_id;
 
   // Merge whole lines (not a single sub-route pick), so selection order does not split lines.
-  if (sourceLineId !== targetLineId) {
-    store.routesFC.features.forEach((route) => {
-      if (route.properties.group_id === sourceLineId) {
-        route.properties.group_id = targetLineId;
+  if (sourceRouteId !== targetRouteId) {
+    store.subroutesFC.features.forEach((route) => {
+      if (route.properties.route_id === sourceRouteId) {
+        route.properties.route_id = targetRouteId;
       }
     });
   }
 
-  syncLineSubRouteMetadata(targetLineId, routeA_feature.properties);
+  syncRouteSubrouteMetadata(targetRouteId, routeA_feature.properties);
 
   const unifiedColor = routeA_feature.properties.color || routeB_feature.properties.color || "#1e88e5";
-  setLineColor(targetLineId, unifiedColor);
+  setRouteColor(targetRouteId, unifiedColor);
   syncCountersFromLoadedFeatures();
   return { ok: true };
 }
 
-function splitLine(routeId) {
-  const target = store.routesFC.features.find((f) => f.properties.route_id === routeId);
+function splitLine(subrouteId) {
+  const target = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteId);
   if (!target) return { ok: false, msg: t("routeModel.splitLineNotFound") };
 
-  const groupId = target.properties.group_id;
-  const routesInGroup = store.routesFC.features.filter((f) => f.properties.group_id === groupId);
-  if (routesInGroup.length <= 1) {
+  const routeId = target.properties.route_id;
+  const subroutesInRoute = store.subroutesFC.features.filter((f) => f.properties.route_id === routeId);
+  if (subroutesInRoute.length <= 1) {
     return { ok: false, msg: t("routeModel.splitLineSingle") };
   }
 
-  routesInGroup.forEach((route) => {
-    route.properties.group_id = nextGroupId();
+  subroutesInRoute.forEach((route) => {
+    route.properties.route_id = nextRouteId();
   });
   normalizeUserDefaultNames();
   bumpRoutesGeometryRevision();
@@ -1383,12 +1383,12 @@ function splitLine(routeId) {
   return { ok: true };
 }
 
-function setRouteColor(routeId, color) {
-  const routeFeature = store.routesFC.features.find((f) => f.properties.route_id === routeId);
+function setSubrouteColor(subrouteId, color) {
+  const routeFeature = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteId);
   if (routeFeature) {
     routeFeature.properties.color = color;
     store.stationsFC.features.forEach((station) => {
-      if (station.properties.route_id === routeId) {
+      if (station.properties.subroute_id === subrouteId) {
         station.properties.color = color;
       }
     });
@@ -1396,28 +1396,28 @@ function setRouteColor(routeId, color) {
   }
 }
 
-function setLineColor(groupId, color) {
-  const routesInGroup = store.routesFC.features.filter((f) => f.properties.group_id === groupId);
-  if (!routesInGroup.length) return;
-  const routeIdsInGroup = routesInGroup.map((f) => f.properties.route_id);
-  routesInGroup.forEach((route) => {
+function setRouteColor(routeId, color) {
+  const subroutesInRoute = store.subroutesFC.features.filter((f) => f.properties.route_id === routeId);
+  if (!subroutesInRoute.length) return;
+  const subrouteIdsInRoute = subroutesInRoute.map((f) => f.properties.subroute_id);
+  subroutesInRoute.forEach((route) => {
     route.properties.color = color;
   });
   store.stationsFC.features.forEach((station) => {
-    if (routeIdsInGroup.includes(station.properties.route_id)) {
+    if (subrouteIdsInRoute.includes(station.properties.subroute_id)) {
       station.properties.color = color;
     }
   });
   refreshSources();
 }
 
-function setLineName(groupId, newName) {
+function setRouteName(routeId, newName) {
   const next = clampName15(newName);
-  store.routesFC.features.forEach((f) => {
-    if (f.properties.group_id === groupId) {
+  store.subroutesFC.features.forEach((f) => {
+    if (f.properties.route_id === routeId) {
       f.properties.name = next;
-      if (shouldClearLineLabelOnRename(next, f.properties.route_id, f.properties.user_default_line_label)) {
-        delete f.properties.user_default_line_label;
+      if (shouldClearRouteLabelOnRename(next, f.properties.subroute_id, f.properties.user_default_route_label)) {
+        delete f.properties.user_default_route_label;
       }
     }
   });
@@ -1436,9 +1436,9 @@ function setStationName(stationId, newName) {
   refreshSources();
 }
 
-function setLineMetadata(groupId, patch) {
+function setRouteMetadata(routeId, patch) {
   if (!patch || typeof patch !== "object") return;
-  const routes = store.routesFC.features.filter((f) => f.properties.group_id === groupId);
+  const routes = store.subroutesFC.features.filter((f) => f.properties.route_id === routeId);
   if (!routes.length) return;
   for (const f of routes) {
     if (patch.route_kind === ROUTE_KIND_DEFAULT || patch.route_kind === ROUTE_KIND_USER) {
@@ -1460,7 +1460,7 @@ function sanitizeRouteForExport(feature) {
 }
 
 function sanitizeStationForExport(feature) {
-  if (feature?.properties?.route_id === "__temp_preview__") return null;
+  if (feature?.properties?.subroute_id === "__temp_preview__") return null;
   const c = JSON.parse(JSON.stringify(feature));
   if (!c.properties || typeof c.properties !== "object") c.properties = {};
   for (const key of DISPLAY_ONLY_STATION_PROPS) {
@@ -1471,27 +1471,27 @@ function sanitizeStationForExport(feature) {
   return c;
 }
 
-function buildUserExportPayload(groupIds) {
-  const groupIdSet = Array.isArray(groupIds) && groupIds.length > 0 ? new Set(groupIds) : null;
-  let userRouteFeatures = store.routesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
-  if (groupIdSet) {
-    userRouteFeatures = userRouteFeatures.filter((f) => groupIdSet.has(f.properties.group_id));
+function buildUserExportPayload(routeIds) {
+  const routeIdSet = Array.isArray(routeIds) && routeIds.length > 0 ? new Set(routeIds) : null;
+  let userRouteFeatures = store.subroutesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
+  if (routeIdSet) {
+    userRouteFeatures = userRouteFeatures.filter((f) => routeIdSet.has(f.properties.route_id));
   }
-  const userRoutes = userRouteFeatures.map(sanitizeRouteForExport);
-  const userRouteIds = new Set(userRoutes.map((f) => f.properties.route_id));
-  const userStations = extractUserStationsByRoutes(store.stationsFC.features, userRouteIds)
+  const userSubroutes = userRouteFeatures.map(sanitizeRouteForExport);
+  const userSubrouteIds = new Set(userSubroutes.map((f) => f.properties.subroute_id));
+  const userStations = extractUserStationsByRoutes(store.stationsFC.features, userSubrouteIds)
     .map(sanitizeStationForExport)
     .filter(Boolean);
-  const hiddenRouteIds = Array.from(store.hiddenRouteIds).filter((id) => userRouteIds.has(id));
-  const mapView = computeMapViewFromFeatures(userRoutes, userStations);
+  const hiddenSubrouteIds = Array.from(store.hiddenSubrouteIds).filter((id) => userSubrouteIds.has(id));
+  const mapView = computeMapViewFromFeatures(userSubroutes, userStations);
   return {
     format: EXPORT_FILE_FORMAT,
     formatVersion: PERSIST_VERSION,
     exportedAt: new Date().toISOString(),
     v: PERSIST_VERSION,
-    userRoutesFC: { type: "FeatureCollection", features: userRoutes },
+    userSubroutesFC: { type: "FeatureCollection", features: userSubroutes },
     userStationsFC: { type: "FeatureCollection", features: userStations },
-    hiddenRouteIds,
+    hiddenSubrouteIds,
     counters: { ...store.counters },
     settings: { ...store.settings },
     ...(mapView ? { mapView } : {}),
@@ -1499,92 +1499,123 @@ function buildUserExportPayload(groupIds) {
 }
 
 function hasUserContent() {
-  return store.routesFC.features.some((f) => routeKindOf(f) === ROUTE_KIND_USER);
+  return store.subroutesFC.features.some((f) => routeKindOf(f) === ROUTE_KIND_USER);
 }
 
 function clearUserContent() {
-  const userRouteIds = new Set(
-    store.routesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER).map((f) => f.properties.route_id)
+  const userSubrouteIds = new Set(
+    store.subroutesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER).map((f) => f.properties.subroute_id)
   );
-  store.routesFC.features = store.routesFC.features.filter((f) => routeKindOf(f) !== ROUTE_KIND_USER);
+  store.subroutesFC.features = store.subroutesFC.features.filter((f) => routeKindOf(f) !== ROUTE_KIND_USER);
   store.stationsFC.features = store.stationsFC.features.filter((s) => {
-    const rid = s?.properties?.route_id;
+    const rid = s?.properties?.subroute_id;
     if (rid === "__temp_preview__") return false;
-    if (userRouteIds.has(rid)) return false;
+    if (userSubrouteIds.has(rid)) return false;
     const transferRoutes = s?.properties?.transfer_routes;
-    return !(Array.isArray(transferRoutes) && transferRoutes.some((tr) => userRouteIds.has(tr)));
+    return !(Array.isArray(transferRoutes) && transferRoutes.some((tr) => userSubrouteIds.has(tr)));
   });
-  userRouteIds.forEach((rid) => store.hiddenRouteIds.delete(rid));
+  userSubrouteIds.forEach((rid) => store.hiddenSubrouteIds.delete(rid));
   store.temp.editingSessions = [];
   store.temp.previewStations = [];
   store.temp.queuedStations = [];
-  store.temp.routeIdEditing = null;
+  store.temp.subrouteIdEditing = null;
   syncCountersFromLoadedFeatures();
 }
 
-function getExistingUserLineIdSet() {
+function getExistingUserRouteIdSet() {
   const ids = new Set();
-  for (const f of store.routesFC.features) {
+  for (const f of store.subroutesFC.features) {
     if (routeKindOf(f) !== ROUTE_KIND_USER) continue;
-    const gid = f.properties?.group_id;
-    if (typeof gid === "string") ids.add(gid);
+    const routeId = f.properties?.route_id;
+    if (typeof routeId === "string") ids.add(routeId);
   }
   return ids;
 }
 
-/** `group_id` values in the import file that already exist among user lines. */
-function getImportDuplicateLineIds(userRoutes) {
-  const existing = getExistingUserLineIdSet();
+function normalizeRouteNameForDuplicate(name) {
+  return typeof name === "string" ? name.trim().replace(/\s+/g, " ") : "";
+}
+
+function getExistingUserRouteNameSet() {
+  const names = new Set();
+  const seenRouteIds = new Set();
+  for (const f of store.subroutesFC.features) {
+    if (routeKindOf(f) !== ROUTE_KIND_USER) continue;
+    const routeId = f.properties?.route_id;
+    if (typeof routeId !== "string" || seenRouteIds.has(routeId)) continue;
+    seenRouteIds.add(routeId);
+    const name = normalizeRouteNameForDuplicate(f.properties?.name);
+    if (name) names.add(name);
+  }
+  return names;
+}
+
+/** Import `route_id` values whose normalized route name, or fallback id, already exists. */
+function getImportDuplicateRouteIds(userSubroutes) {
+  const existingNames = getExistingUserRouteNameSet();
+  const existingIds = getExistingUserRouteIdSet();
   const duplicates = [];
   const seen = new Set();
-  for (const f of userRoutes) {
-    const gid = f.properties?.group_id;
-    if (typeof gid !== "string" || !existing.has(gid) || seen.has(gid)) continue;
-    seen.add(gid);
-    duplicates.push(gid);
+  for (const f of userSubroutes) {
+    const routeId = f.properties?.route_id;
+    if (typeof routeId !== "string" || seen.has(routeId)) continue;
+    const name = normalizeRouteNameForDuplicate(f.properties?.name);
+    const isDuplicate = name ? existingNames.has(name) : existingIds.has(routeId);
+    if (!isDuplicate) continue;
+    seen.add(routeId);
+    duplicates.push(routeId);
   }
   return duplicates.sort((a, b) => a.localeCompare(b, "en"));
 }
 
-function deleteUserLinesByIds(groupIds) {
-  if (!Array.isArray(groupIds) || !groupIds.length) return;
-  const idSet = new Set(groupIds);
+function deleteUserRoutesByImportMatches(userSubroutes, routeIds) {
+  if (!Array.isArray(routeIds) || !routeIds.length) return;
+  const idSet = new Set(routeIds);
+  const duplicateNames = new Set();
+  for (const f of userSubroutes) {
+    if (!idSet.has(f.properties?.route_id)) continue;
+    const name = normalizeRouteNameForDuplicate(f.properties?.name);
+    if (name) duplicateNames.add(name);
+  }
+
   const toDelete = [];
   const seen = new Set();
-  for (const f of store.routesFC.features) {
+  for (const f of store.subroutesFC.features) {
     if (routeKindOf(f) !== ROUTE_KIND_USER) continue;
-    const gid = f.properties?.group_id;
-    if (typeof gid === "string" && idSet.has(gid) && !seen.has(gid)) {
-      seen.add(gid);
-      toDelete.push(gid);
+    const routeId = f.properties?.route_id;
+    if (typeof routeId !== "string" || seen.has(routeId)) continue;
+    const name = normalizeRouteNameForDuplicate(f.properties?.name);
+    if ((name && duplicateNames.has(name)) || idSet.has(routeId)) {
+      seen.add(routeId);
+      toDelete.push(routeId);
     }
   }
-  if (toDelete.length) deleteLines(toDelete);
+  if (toDelete.length) deleteRoutes(toDelete);
 }
 
-function countSubRoutesInLinesByIds(userRoutes, groupIds) {
-  const idSet = new Set(groupIds);
-  return userRoutes.filter((f) => idSet.has(f.properties?.group_id)).length;
+function countSubroutesInRoutesByIds(userSubroutes, routeIds) {
+  const idSet = new Set(routeIds);
+  return userSubroutes.filter((f) => idSet.has(f.properties?.route_id)).length;
 }
 
-function buildImportResultStats(userRoutes, userStations, mode, duplicateLineIds) {
-  const importLineIds = new Set();
-  for (const f of userRoutes) {
-    const gid = f.properties?.group_id;
-    if (typeof gid === "string") importLineIds.add(gid);
+function buildImportResultStats(userSubroutes, userStations, mode, duplicateRouteIds) {
+  const importRouteIds = new Set();
+  for (const f of userSubroutes) {
+    const routeId = f.properties?.route_id;
+    if (typeof routeId === "string") importRouteIds.add(routeId);
   }
-  const duplicateSet = new Set(duplicateLineIds);
-  const addedLineIds = [...importLineIds].filter((id) => !duplicateSet.has(id));
-  const replacedSubRouteCount = countSubRoutesInLinesByIds(userRoutes, duplicateLineIds);
-  const addedSubRouteCount = countSubRoutesInLinesByIds(userRoutes, addedLineIds);
+  const duplicateSet = new Set(duplicateRouteIds);
+  const addedRouteIds = [...importRouteIds].filter((id) => !duplicateSet.has(id));
+  const replacedSubRouteCount = countSubroutesInRoutesByIds(userSubroutes, duplicateRouteIds);
+  const addedSubRouteCount = countSubroutesInRoutesByIds(userSubroutes, addedRouteIds);
 
   return {
     mode,
-    subRouteCount: userRoutes.length,
+    subRouteCount: userSubroutes.length,
     stationCount: userStations.length,
-    lineCount: importLineIds.size,
-    replacedLineCount: duplicateLineIds.length,
-    addedLineCount: addedLineIds.length,
+    routeCount: importRouteIds.size,
+    replacedRouteCount: duplicateRouteIds.length,
+    addedRouteCount: addedRouteIds.length,
     replacedSubRouteCount,
     addedSubRouteCount,
   };
@@ -1597,33 +1628,33 @@ function parseImportPayload(data) {
   if (data.format && data.format !== EXPORT_FILE_FORMAT) {
     throw new Error("unsupported_format");
   }
-  const allRoutes = Array.isArray(data.userRoutesFC?.features)
-    ? data.userRoutesFC.features
-    : Array.isArray(data.routesFC?.features)
-      ? data.routesFC.features
+  const allSubroutes = Array.isArray(data.userSubroutesFC?.features)
+    ? data.userSubroutesFC.features
+    : Array.isArray(data.subroutesFC?.features)
+      ? data.subroutesFC.features
       : null;
   const allStations = Array.isArray(data.userStationsFC?.features)
     ? data.userStationsFC.features
     : Array.isArray(data.stationsFC?.features)
       ? data.stationsFC.features
       : null;
-  if (!allRoutes || !allStations) {
+  if (!allSubroutes || !allStations) {
     throw new Error("missing_features");
   }
-  const userRoutes = extractUserOnlyRoutes(allRoutes);
-  const userRouteIds = new Set(userRoutes.map((f) => f?.properties?.route_id).filter((id) => typeof id === "string"));
-  const userStations = extractUserStationsByRoutes(allStations, userRouteIds)
+  const userSubroutes = extractUserOnlyRoutes(allSubroutes);
+  const userSubrouteIds = new Set(userSubroutes.map((f) => f?.properties?.subroute_id).filter((id) => typeof id === "string"));
+  const userStations = extractUserStationsByRoutes(allStations, userSubrouteIds)
     .map(sanitizeStationForExport)
     .filter(Boolean);
   const mapView =
     normalizeImportedMapView(data.mapView) ??
     normalizeImportedMapView(data.mapCenter) ??
-    computeMapViewFromFeatures(userRoutes, userStations);
+    computeMapViewFromFeatures(userSubroutes, userStations);
 
   return {
-    userRoutes,
+    userSubroutes,
     userStations,
-    hiddenRouteIds: Array.isArray(data.hiddenRouteIds) ? data.hiddenRouteIds : [],
+    hiddenSubrouteIds: Array.isArray(data.hiddenSubrouteIds) ? data.hiddenSubrouteIds : [],
     counters: data.counters,
     settings: data.settings,
     mapView,
@@ -1644,38 +1675,38 @@ function getExportFileName() {
   return `metro-map-${exportStamp()}.json`;
 }
 
-function getExportFileNameForSelectedLines(lineCount) {
-  return `metro-map-selected-${lineCount}-${exportStamp()}.json`;
+function getExportFileNameForSelectedRoutes(routeCount) {
+  return `metro-map-selected-${routeCount}-${exportStamp()}.json`;
 }
 
 /**
- * @param {string[]} lineIds
+ * @param {string[]} routeIds
  * @returns {{ ok: true, json: string, fileName: string } | { ok: false, error: string }}
  */
-function exportLinesJSON(lineIds) {
-  if (!Array.isArray(lineIds) || lineIds.length === 0) {
+function exportRoutesJSON(routeIds) {
+  if (!Array.isArray(routeIds) || routeIds.length === 0) {
     return { ok: false, error: "no_lines" };
   }
-  const payload = buildUserExportPayload(lineIds);
-  if (!payload.userRoutesFC.features.length) {
+  const payload = buildUserExportPayload(routeIds);
+  if (!payload.userSubroutesFC.features.length) {
     return { ok: false, error: "no_user_routes" };
   }
   return {
     ok: true,
     json: JSON.stringify(payload, null, 2),
-    fileName: getExportFileNameForSelectedLines(lineIds.length),
+    fileName: getExportFileNameForSelectedRoutes(routeIds.length),
   };
 }
 
 /**
  * @param {string} jsonString
- * @returns {{ ok: true, duplicateLineIds: string[] } | { ok: false, error: string }}
+ * @returns {{ ok: true, duplicateRouteIds: string[] } | { ok: false, error: string }}
  */
 function analyzeImportJSON(jsonString) {
   try {
     const data = JSON.parse(jsonString);
-    const { userRoutes } = parseImportPayload(data);
-    return { ok: true, duplicateLineIds: getImportDuplicateLineIds(userRoutes) };
+    const { userSubroutes } = parseImportPayload(data);
+    return { ok: true, duplicateRouteIds: getImportDuplicateRouteIds(userSubroutes) };
   } catch (e) {
     const code = e instanceof Error && e.message ? e.message : "import_failed";
     return { ok: false, error: code };
@@ -1694,32 +1725,32 @@ function importUserStateJSON(jsonString, options = {}) {
   const snapshotBeforeImport = captureUserStateSnapshot();
   try {
     const data = JSON.parse(jsonString);
-    const { userRoutes, userStations, hiddenRouteIds, counters, settings, mapView } = parseImportPayload(data);
+    const { userSubroutes, userStations, hiddenSubrouteIds, settings, mapView } = parseImportPayload(data);
     const mode = options.mode ?? "merge";
-    const duplicateLineIds =
-      mode === "replaceMatching" ? getImportDuplicateLineIds(userRoutes) : [];
+    const duplicateRouteIds =
+      mode === "replaceMatching" ? getImportDuplicateRouteIds(userSubroutes) : [];
     if (mode === "replaceAll") {
       clearUserContent();
     } else if (mode === "replaceMatching") {
-      deleteUserLinesByIds(duplicateLineIds);
+      deleteUserRoutesByImportMatches(userSubroutes, duplicateRouteIds);
     }
-    mergeUserStateIntoStore(userRoutes, userStations);
-    if (Array.isArray(hiddenRouteIds)) {
-      for (const rid of hiddenRouteIds) {
-        if (typeof rid === "string") store.hiddenRouteIds.add(rid);
+    mergeUserStateIntoStore(userSubroutes, userStations);
+    if (Array.isArray(hiddenSubrouteIds)) {
+      for (const rid of hiddenSubrouteIds) {
+        if (typeof rid === "string") store.hiddenSubrouteIds.add(rid);
       }
     }
     if (settings && typeof settings.stationMinPerRoute === "number") {
       store.settings.stationMinPerRoute = settings.stationMinPerRoute;
     }
     syncCountersFromLoadedFeatures();
-    normalizeAllRoutesMetadata();
+    normalizeAllSubroutesMetadata();
     normalizeUserDefaultNames();
     lastImportUndoSnapshot = snapshotBeforeImport;
     refreshSources();
     notifyImportUndoListeners();
     scheduleImportMapView(mapView);
-    return { ok: true, mapView, ...buildImportResultStats(userRoutes, userStations, mode, duplicateLineIds) };
+    return { ok: true, mapView, ...buildImportResultStats(userSubroutes, userStations, mode, duplicateRouteIds) };
   } catch (e) {
     restoreUserStateSnapshot(snapshotBeforeImport);
     lastImportUndoSnapshot = null;
@@ -1739,22 +1770,20 @@ export const Route = {
   ROUTE_STATUS_PLANNING,
   ROUTE_STATUS_CONSTRUCTION,
   ROUTE_STATUS_CUSTOM,
-  getLineList,
-  getLineStatus,
-  setLineStatus,
-  getActiveEditLineId,
-  /** @deprecated use getActiveEditLineId */
-  getActiveEditGroupId: getActiveEditLineId,
-  setLineMetadata,
+  getRouteList,
+  getRouteStatus,
+  setRouteStatus,
+  getActiveEditRouteId,
+  setRouteMetadata,
+  deleteSubroute,
   deleteRoute,
-  deleteLine,
-  deleteLines,
-  setLineHidden,
-  isLineHidden,
+  deleteRoutes,
+  setRouteHidden,
+  isRouteHidden,
   highlightRoute,
   clearHover,
   startNewTempRoute,
-  startEditLine,
+  startEditRoute,
   endTempEditingAndCommit,
   cancelTempEditing,
   addTempNodeAt,
@@ -1769,13 +1798,13 @@ export const Route = {
   moveStationAlongRoute,
   mergeRoutes,
   splitLine,
+  setSubrouteColor,
   setRouteColor,
-  setLineColor,
-  setLineName,
+  setRouteName,
   setStationName,
   setStationLabelPosition,
-  resolveLineDisplayName,
-  resolveLineDisplayNameFromProps,
+  resolveRouteDisplayName,
+  resolveRouteDisplayNameFromProps,
   resolveStationDisplayName,
   refreshSources,
   refreshTempEditSources,
@@ -1783,7 +1812,7 @@ export const Route = {
   hasUserContent,
   analyzeImportJSON,
   exportUserStateJSON,
-  exportLinesJSON,
+  exportRoutesJSON,
   getExportFileName,
   importUserStateJSON,
   canUndoLastImport,

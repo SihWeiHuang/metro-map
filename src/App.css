@@ -960,7 +960,7 @@ html[lang="en"] .route-list-inner {
   justify-content: flex-end;
 }
 
-.group-header.route-item.route-list-row-grid,
+.route-header.route-item.route-list-row-grid,
 .route-list-column-header.route-list-column-header--grid {
   display: grid;
   align-items: center;
@@ -1044,13 +1044,13 @@ html[lang="en"] .route-list-badge {
   min-width: 0;
 }
 
-.group-header.route-item.route-list-row-grid .group-row-trailing {
+.route-header.route-item.route-list-row-grid .route-row-trailing {
   width: 100%;
   justify-self: end;
   justify-content: flex-end;
 }
 
-.route-row-name-col .group-name-input {
+.route-row-name-col .route-name-input {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -1136,7 +1136,7 @@ html[lang="en"] .route-list-badge {
   border-color: #c4b5fd;
 }
 
-.group-header.route-item {
+.route-header.route-item {
   padding: 8px 10px;
   cursor: pointer;
   border-bottom: 0.5px solid var(--color-border-primary);
@@ -1149,32 +1149,32 @@ html[lang="en"] .route-list-badge {
   background: var(--color-background-primary);
 }
 
-.group-header.route-item:hover {
+.route-header.route-item:hover {
   background-color: var(--color-background-secondary);
 }
 
-.group-header.route-item.route-item-readonly {
+.route-header.route-item.route-item-readonly {
   cursor: default;
 }
 
-.group-header.route-item.route-item-merge-select,
-.group-header.route-item.route-item-batch-select {
+.route-header.route-item.route-item-merge-select,
+.route-header.route-item.route-item-batch-select {
   cursor: pointer;
 }
 
-.group-header.route-item.route-item-merge-picked {
+.route-header.route-item.route-item-merge-picked {
   background: #fffbeb;
   border-left: 3px solid #f59e0b;
   box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.22);
   color: #1f2937;
 }
 
-.group-header.route-item.route-item-merge-picked:hover {
+.route-header.route-item.route-item-merge-picked:hover {
   background: #fef3c7;
 }
 
-.group-header.route-item.route-item-merge-picked .route-row-title-text,
-.group-header.route-item.route-item-merge-picked .route-row-title-text b {
+.route-header.route-item.route-item-merge-picked .route-row-title-text,
+.route-header.route-item.route-item-merge-picked .route-row-title-text b {
   color: #1f2937;
 }
 
@@ -1212,20 +1212,20 @@ html[lang="en"] .route-list-badge {
   flex-shrink: 0;
 }
 
-.group-header.route-item.route-item-active-edit {
+.route-header.route-item.route-item-active-edit {
   background: rgba(37, 99, 235, 0.08);
   border-left: 3px solid var(--color-primary);
 }
 
-.group-header.route-item.route-item-disabled {
+.route-header.route-item.route-item-disabled {
   opacity: 0.62;
 }
 
-.group-header.route-item.route-item-disabled .group-row-trailing > * {
+.route-header.route-item.route-item-disabled .route-row-trailing > * {
   pointer-events: none;
 }
 
-.group-row-trailing {
+.route-row-trailing {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
@@ -1261,7 +1261,7 @@ html[lang="en"] .route-list-badge {
   flex-shrink: 0;
 }
 
-.route-list-inner--edit .group-header.route-item.route-list-row-grid .group-row-trailing {
+.route-list-inner--edit .route-header.route-item.route-list-row-grid .route-row-trailing {
   width: auto;
   max-width: none;
   min-width: max-content;
@@ -1280,13 +1280,13 @@ html[lang="en"] .route-list-badge {
   text-overflow: unset;
 }
 
-.route-list-inner--edit .group-row-trailing {
+.route-list-inner--edit .route-row-trailing {
   flex-shrink: 0;
   min-width: max-content;
   overflow: visible;
 }
 
-.group-color-input {
+.route-color-input {
   flex-shrink: 0;
   width: 28px;
   height: 26px;
@@ -1297,13 +1297,13 @@ html[lang="en"] .route-list-badge {
   box-sizing: border-box;
 }
 
-.group-color-input:disabled {
+.route-color-input:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
 .route-row-action-btn,
-.delete-group-btn {
+.delete-route-btn {
   padding: 4px 6px;
   font-size: 11px;
   line-height: 1.25;
@@ -1312,7 +1312,7 @@ html[lang="en"] .route-list-badge {
   white-space: nowrap;
 }
 
-.group-name-input {
+.route-name-input {
   flex: 1;
   min-width: 0;
 }
