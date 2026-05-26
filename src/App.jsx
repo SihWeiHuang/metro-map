@@ -18,6 +18,7 @@ import { resizeMap } from "./map/mapInstance.js";
 import { requestImportedMapView } from "./map/mapViewState.js";
 
 const ROUTE_LIST_WIDTH_STORAGE_KEY = "metro-route-list-width";
+const AUTO_SHOW_NEW_ROUTE_STATUS_KEY = "metro-auto-show-new-route-status";
 const ROUTE_LIST_MIN_PX = 200;
 
 function routeListMaxPx() {
@@ -35,6 +36,14 @@ function readStoredRouteListWidth() {
     }
   } catch (_) {}
   return Math.min(320, routeListMaxPx());
+}
+
+function readAutoShowNewRouteStatus() {
+  try {
+    return localStorage.getItem(AUTO_SHOW_NEW_ROUTE_STATUS_KEY) !== "false";
+  } catch {
+    return true;
+  }
 }
 
 const LOCALE_OPTIONS = [
@@ -60,6 +69,7 @@ function App() {
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const langMenuRef = useRef(null);
   const [statusDialog, setStatusDialog] = useState(null);
+  const [autoShowNewRouteStatus, setAutoShowNewRouteStatus] = useState(readAutoShowNewRouteStatus);
 
   const startRouteListResize = useCallback((clientX) => {
     const startX = clientX;
@@ -201,8 +211,8 @@ function App() {
 
   const handleFinishEditing = async () => {
     const result = await finishEditing();
-    if (result?.ok && result.newRouteIds?.length > 0) {
-      setStatusDialog({ routeIds: result.newRouteIds, isNewRoute: true });
+    if (result?.ok && result.newRouteIds?.length > 0 && autoShowNewRouteStatus) {
+      setStatusDialog({ routeIds: result.newRouteIds });
     }
     bumpRouteList();
   };
@@ -213,10 +223,19 @@ function App() {
   };
 
   const openRouteMetadataDialog = (routeId) => {
-    setStatusDialog({ routeIds: [routeId], isNewRoute: false });
+    setStatusDialog({ routeIds: [routeId] });
   };
 
   const closeStatusDialog = () => setStatusDialog(null);
+
+  const updateAutoShowNewRouteStatus = (next) => {
+    setAutoShowNewRouteStatus(next);
+    try {
+      localStorage.setItem(AUTO_SHOW_NEW_ROUTE_STATUS_KEY, String(next));
+    } catch {
+      // Keep the in-memory setting even if localStorage is unavailable.
+    }
+  };
 
   const toggleEditTools = () => {
     setEditToolsOpen((prev) => {
@@ -590,7 +609,8 @@ function App() {
       {statusDialog != null && (
         <RouteStatusDialog
           routeIds={statusDialog.routeIds}
-          isNewRoute={statusDialog.isNewRoute}
+          suppressAutoOpen={!autoShowNewRouteStatus}
+          onSuppressAutoOpenChange={(suppress) => updateAutoShowNewRouteStatus(!suppress)}
           onClose={closeStatusDialog}
           onSaved={bumpRouteList}
         />

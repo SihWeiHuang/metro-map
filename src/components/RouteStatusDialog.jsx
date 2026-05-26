@@ -16,7 +16,13 @@ const STATUS_LABEL_KEYS = {
   [Route.ROUTE_STATUS_CUSTOM]: "routeStatus.custom",
 };
 
-export default function RouteStatusDialog({ routeIds, isNewRoute = false, onClose, onSaved }) {
+export default function RouteStatusDialog({
+  routeIds,
+  suppressAutoOpen = false,
+  onSuppressAutoOpenChange,
+  onClose,
+  onSaved,
+}) {
   const { t } = useI18n();
   const primaryRouteId = routeIds?.[0];
   const initialStatus = primaryRouteId ? Route.getRouteStatus(primaryRouteId) : Route.ROUTE_STATUS_CUSTOM;
@@ -40,7 +46,7 @@ export default function RouteStatusDialog({ routeIds, isNewRoute = false, onClos
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="route-status-dialog-title" className="app-import-dialog-title">
-          {isNewRoute ? t("routeStatus.dialogTitleNew") : t("routeStatus.dialogTitle")}
+          {t("routeStatus.dialogTitle")}
         </h2>
         <label className="app-route-status-select-field" htmlFor="route-status-select">
           <span className="app-route-status-select-label">{t("routeStatus.dialogHint")}</span>
@@ -56,6 +62,14 @@ export default function RouteStatusDialog({ routeIds, isNewRoute = false, onClos
               </option>
             ))}
           </select>
+        </label>
+        <label className="app-route-status-checkbox-field">
+          <input
+            type="checkbox"
+            checked={suppressAutoOpen}
+            onChange={(e) => onSuppressAutoOpenChange?.(e.target.checked)}
+          />
+          <span>{t("routeStatus.doNotShowForNewRoutes")}</span>
         </label>
         <div className="app-import-dialog-actions app-route-status-actions">
           <button type="button" className="app-import-dialog-btn app-import-dialog-btn--cancel" onClick={onClose}>

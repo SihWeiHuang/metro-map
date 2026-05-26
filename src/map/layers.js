@@ -357,7 +357,7 @@ export function initializeLayers(map, store) {
     source: "routes",
     paint: {
       "line-color": ["coalesce", ["get", "color"], "#1e88e5"],
-      "line-width": 8,
+      "line-width": 6,
     },
     filter: ["!", ["in", ["get", "subroute_id"], ["literal", Array.from(store.hiddenSubrouteIds)]]],
     layout: {
@@ -372,7 +372,7 @@ export function initializeLayers(map, store) {
     source: "routes",
     paint: {
       "line-color": ["coalesce", ["get", "color"], "#1e88e5"],
-      "line-width": 12,
+      "line-width": 9,
     },
     filter: ["==", ["get", "subroute_id"], ""],
     layout: {
@@ -387,9 +387,9 @@ export function initializeLayers(map, store) {
     source: "stations",
     filter: REGULAR_STATION_LAYER_FILTER,
     paint: {
-      "circle-radius": 8,
+      "circle-radius": 6.5,
       "circle-color": ["coalesce", ["get", "color"], "#1e88e5"],
-      "circle-stroke-width": 1.5,
+      "circle-stroke-width": 1.25,
       "circle-stroke-color": "#ffffff",
     },
   });
@@ -400,9 +400,9 @@ export function initializeLayers(map, store) {
     source: "stations",
     filter: ["all", REGULAR_STATION_LAYER_FILTER, ["==", ["get", "station_id"], ""]],
     paint: {
-      "circle-radius": 12,
+      "circle-radius": 9.5,
       "circle-color": ["coalesce", ["get", "color"], "#1e88e5"],
-      "circle-stroke-width": 2,
+      "circle-stroke-width": 1.75,
       "circle-stroke-color": "#ffffff",
     },
   });
@@ -412,9 +412,9 @@ export function initializeLayers(map, store) {
     type: "circle",
     source: "transfer-snaps",
     paint: {
-      "circle-radius": 5,
+      "circle-radius": 4.25,
       "circle-color": "#fdd835",
-      "circle-stroke-width": 1.5,
+      "circle-stroke-width": 1.25,
       "circle-stroke-color": "#5d4037",
     },
   });
@@ -425,9 +425,9 @@ export function initializeLayers(map, store) {
     source: "stations",
     filter: TRANSFER_STATION_LAYER_FILTER,
     paint: {
-      "circle-radius": 9.5,
+      "circle-radius": 6.75,
       "circle-color": "#ffffff",
-      "circle-stroke-width": 2.8,
+      "circle-stroke-width": 2,
       "circle-stroke-color": "#000000",
     },
   });
@@ -438,9 +438,9 @@ export function initializeLayers(map, store) {
     source: "stations",
     filter: ["all", TRANSFER_STATION_LAYER_FILTER, ["==", ["get", "station_id"], ""]],
     paint: {
-      "circle-radius": 14,
+      "circle-radius": 9.25,
       "circle-color": "#ffffff",
-      "circle-stroke-width": 3,
+      "circle-stroke-width": 2.25,
       "circle-stroke-color": "#000000",
     },
   });
@@ -506,7 +506,12 @@ export function initializeLayers(map, store) {
         "text-ignore-placement": false,
       },
       paint: {
-        "text-color": ["coalesce", ["get", "color"], "#1e88e5"],
+        "text-color": [
+          "case",
+          ["==", ["coalesce", ["get", "is_transfer_fixed"], false], true],
+          "#000000",
+          ["coalesce", ["get", "color"], "#1e88e5"],
+        ],
         "text-halo-color": "#ffffff",
         "text-halo-width": 1.1,
         "text-opacity": 1,
@@ -546,7 +551,12 @@ export function initializeLayers(map, store) {
         "text-ignore-placement": true,
       },
       paint: {
-        "text-color": ["coalesce", ["get", "color"], "#1e88e5"],
+        "text-color": [
+          "case",
+          ["==", ["coalesce", ["get", "is_transfer_fixed"], false], true],
+          "#000000",
+          ["coalesce", ["get", "color"], "#1e88e5"],
+        ],
         "text-halo-color": "#ffffff",
         "text-halo-width": 2.2,
         "text-opacity": 1,

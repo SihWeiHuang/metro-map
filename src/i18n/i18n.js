@@ -9,7 +9,9 @@ function readInitialLocale() {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
     if (v === "en" || v === "zh-Hant") return v;
-  } catch (_) {}
+  } catch {
+    // Ignore storage access failures and use the default locale.
+  }
   return "zh-Hant";
 }
 
@@ -105,6 +107,7 @@ const STRINGS = {
     "routeStatus.dialogTitle": "路線中繼資料",
     "routeStatus.dialogTitleNew": "設定新路線狀態",
     "routeStatus.dialogHint": "請選擇此路線的狀態：",
+    "routeStatus.doNotShowForNewRoutes": "新增路線後不再自動顯示此視窗",
     "routeStatus.operating": "營運中",
     "routeStatus.planning": "規劃中",
     "routeStatus.construction": "施工中",
@@ -224,6 +227,7 @@ const STRINGS = {
     "routeStatus.dialogTitle": "Line metadata",
     "routeStatus.dialogTitleNew": "Set status for new line",
     "routeStatus.dialogHint": "Choose a status for this line:",
+    "routeStatus.doNotShowForNewRoutes": "Do not show this automatically after adding a new line",
     "routeStatus.operating": "Operating",
     "routeStatus.planning": "Planning",
     "routeStatus.construction": "Building",
@@ -285,7 +289,9 @@ export function setLocale(next) {
   locale = next;
   try {
     localStorage.setItem(STORAGE_KEY, next);
-  } catch (_) {}
+  } catch {
+    // Locale still updates in memory when storage is unavailable.
+  }
   if (typeof document !== "undefined") {
     document.documentElement.lang = next === "en" ? "en" : "zh-Hant";
   }

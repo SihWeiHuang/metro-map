@@ -1356,6 +1356,24 @@ html[lang="en"] .route-list-badge {
   outline-offset: 1px;
 }
 
+.app-route-status-checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin: calc(-1 * var(--spacing-sm)) 0 var(--spacing-lg);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.app-route-status-checkbox-field input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
 .app-route-status-actions {
   justify-content: flex-end;
 }
