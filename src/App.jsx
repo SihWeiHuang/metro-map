@@ -199,8 +199,8 @@ function App() {
     return !isThisModeActive;
   };
 
-  const handleFinishEditing = () => {
-    const result = finishEditing();
+  const handleFinishEditing = async () => {
+    const result = await finishEditing();
     if (result?.ok && result.newRouteIds?.length > 0) {
       setStatusDialog({ routeIds: result.newRouteIds, isNewRoute: true });
     }

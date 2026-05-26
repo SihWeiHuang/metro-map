@@ -10,6 +10,7 @@ const METRO_ROUTE_LAYER_IDS = ["routes-line", "routes-line-hover"];
 /** Above routes, still below basemap labels (bottom → top). */
 const METRO_OVERLAY_LAYER_IDS = [
   "stations-circle",
+  "temp-edit-line-casing-layer",
   "temp-edit-line-layer",
   "temp-edit-nodes-layer",
   "label-drag-limit-layer",
@@ -555,14 +556,37 @@ export function initializeLayers(map, store) {
     });
   }
 
+  if (!map.getLayer("temp-edit-line-casing-layer")) {
+    addMetroOverlayLayer(map, {
+      id: "temp-edit-line-casing-layer",
+      type: "line",
+      source: "temp-edit-line",
+      paint: {
+        "line-color": "#ffffff",
+        "line-width": 10,
+        "line-opacity": 0.95,
+      },
+      layout: {
+        "line-join": "round",
+        "line-cap": "round",
+      },
+    });
+  }
+
   if (!map.getLayer("temp-edit-line-layer")) {
     addMetroOverlayLayer(map, {
       id: "temp-edit-line-layer",
       type: "line",
       source: "temp-edit-line",
       paint: {
-        "line-color": "#d81b60",
-        "line-width": 6,
+        "line-color": "#7b1fa2",
+        "line-width": 4,
+        "line-dasharray": [0.8, 1.2],
+        "line-opacity": 0.95,
+      },
+      layout: {
+        "line-join": "round",
+        "line-cap": "round",
       },
     });
   }
@@ -573,10 +597,10 @@ export function initializeLayers(map, store) {
       type: "circle",
       source: "temp-edit-nodes",
       paint: {
-        "circle-radius": 6,
-        "circle-color": "#d81b60",
-        "circle-stroke-width": 2,
-        "circle-stroke-color": "#fff",
+        "circle-radius": 7,
+        "circle-color": "#ffb300",
+        "circle-stroke-width": 2.5,
+        "circle-stroke-color": "#212121",
       },
     });
   }

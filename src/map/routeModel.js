@@ -550,13 +550,15 @@ function transferSnapCandidatesForRoutePair(routeA, routeB) {
 }
 
 function relocateTransferStationsForEditedSubroutes(editedSubrouteIds) {
-  if (!editedSubrouteIds.size) return;
+  const affectedTransferStationIds = new Set();
+  if (!editedSubrouteIds.size) return affectedTransferStationIds;
 
   const stationIdsToDelete = new Set();
   for (const station of store.stationsFC.features) {
     if (!station.properties?.is_transfer_fixed) continue;
     const subrouteIds = Array.from(collectTransferSubrouteIds(station));
     if (!subrouteIds.some((rid) => editedSubrouteIds.has(rid))) continue;
+    affectedTransferStationIds.add(station.properties.station_id);
 
     const routes = subrouteIds
       .map((rid) => store.subroutesFC.features.find((f) => f.properties?.subroute_id === rid))
@@ -609,7 +611,9 @@ function relocateTransferStationsForEditedSubroutes(editedSubrouteIds) {
     store.stationsFC.features = store.stationsFC.features.filter(
       (station) => !stationIdsToDelete.has(station.properties?.station_id)
     );
+    stationIdsToDelete.forEach((stationId) => affectedTransferStationIds.delete(stationId));
   }
+  return affectedTransferStationIds;
 }
 
 /** Snapshot taken immediately before the most recent successful import. */
@@ -944,6 +948,7 @@ function endTempEditingAndCommit() {
   const newSubrouteIdMap = new Map();
   const newRouteIds = [];
   const editedSubrouteIds = new Set();
+  const transferStationIdsToNormalize = new Set();
 
   store.temp.editingSessions.forEach((session) => {
     const { subrouteId, nodes } = session;
@@ -1018,6 +1023,7 @@ function endTempEditingAndCommit() {
       const next = new Set(st.properties.transfer_routes || []);
       next.add(subrouteId);
       st.properties.transfer_routes = Array.from(next);
+      transferStationIdsToNormalize.add(st.properties.station_id);
     });
   }
 
@@ -1025,10 +1031,11 @@ function endTempEditingAndCommit() {
   store.temp.editingSessions = [];
   store.temp.previewStations = [];
   store.temp.queuedStations = [];
-  relocateTransferStationsForEditedSubroutes(editedSubrouteIds);
-  normalizeAllTransferStations();
+  relocateTransferStationsForEditedSubroutes(editedSubrouteIds).forEach((stationId) =>
+    transferStationIdsToNormalize.add(stationId)
+  );
+  normalizeTransferStations(transferStationIdsToNormalize);
   syncCountersFromLoadedFeatures();
-  normalizeUserDefaultNames();
   bumpRoutesGeometryRevision();
   refreshSources();
   return { ok: true, newRouteIds };
@@ -1133,7 +1140,11 @@ function expandMergedSubrouteIdsFromStation(station, mergedSubrouteIds) {
 }
 
 function distanceMeters(coordA, coordB) {
-  return T.distance(T.point(coordA), T.point(coordB), { units: "meters" });
+  if (!coordA || !coordB) return Infinity;
+  const lngScale = 111320 * Math.cos((((coordA[1] + coordB[1]) / 2) * Math.PI) / 180);
+  const dx = (coordA[0] - coordB[0]) * lngScale;
+  const dy = (coordA[1] - coordB[1]) * 110540;
+  return Math.sqrt(dx * dx + dy * dy);
 }
 
 function stationDisplayCoordForAbsorption(station) {
@@ -1148,11 +1159,22 @@ function stationDisplayCoordForAbsorption(station) {
   return snapped?.geometry?.coordinates || coord;
 }
 
-function stationDistanceToCoordForAbsorption(station, coord) {
+function stationTouchesAnySubroute(station, subrouteIds) {
+  if (!subrouteIds || subrouteIds.size === 0) return true;
+  const subrouteId = station?.properties?.subroute_id;
+  if (typeof subrouteId === "string" && subrouteIds.has(subrouteId)) return true;
+  const transferRoutes = station?.properties?.transfer_routes;
+  return Array.isArray(transferRoutes) && transferRoutes.some((rid) => subrouteIds.has(rid));
+}
+
+function stationDistanceToCoordForAbsorption(station, coord, relevantSubrouteIds = null) {
   const rawCoord = station?.geometry?.coordinates;
   if (!rawCoord) return Infinity;
 
   const rawDistance = distanceMeters(rawCoord, coord);
+  if (rawDistance <= TRANSFER_ABSORB_METERS) return rawDistance;
+  if (relevantSubrouteIds && !stationTouchesAnySubroute(station, relevantSubrouteIds)) return rawDistance;
+
   const displayCoord = stationDisplayCoordForAbsorption(station);
   if (!displayCoord) return rawDistance;
 
@@ -1163,7 +1185,9 @@ function stationsCoincidentForAbsorption(a, b) {
   const rawA = a?.geometry?.coordinates;
   const rawB = b?.geometry?.coordinates;
   if (!rawA || !rawB) return false;
-  if (distanceMeters(rawA, rawB) <= STATION_COINCIDENT_METERS) return true;
+  const rawDistance = distanceMeters(rawA, rawB);
+  if (rawDistance <= STATION_COINCIDENT_METERS) return true;
+  if (rawDistance > TRANSFER_ABSORB_METERS) return false;
 
   const displayA = stationDisplayCoordForAbsorption(a);
   const displayB = stationDisplayCoordForAbsorption(b);
@@ -1210,7 +1234,7 @@ function collectStationIdsToAbsorbForTransfer(coord, mergedSubrouteIds) {
 
   for (const s of store.stationsFC.features) {
     if (s.properties?.is_transfer_fixed) continue;
-    const d = stationDistanceToCoordForAbsorption(s, coord);
+    const d = stationDistanceToCoordForAbsorption(s, coord, subrouteIds);
     if (d <= TRANSFER_ABSORB_METERS) {
       markForAbsorbAndExpandCoincident(s);
     }
@@ -1234,7 +1258,7 @@ function collectStationIdsToAbsorbForTransfer(coord, mergedSubrouteIds) {
         if (s.properties?.subroute_id !== subrouteId) continue;
         const sc = s.geometry.coordinates;
         const dEnd = distanceMeters(sc, endCoord);
-        const dTr = stationDistanceToCoordForAbsorption(s, coord);
+        const dTr = stationDistanceToCoordForAbsorption(s, coord, subrouteIds);
         if (dEnd <= TRANSFER_ABSORB_METERS || dTr <= TRANSFER_ABSORB_METERS) {
           markForAbsorbAndExpandCoincident(s);
           expandCoincidentStations();
@@ -1247,7 +1271,7 @@ function collectStationIdsToAbsorbForTransfer(coord, mergedSubrouteIds) {
       if (s.properties?.is_transfer_fixed) continue;
       const snapped = T.nearestPointOnLine(line, s.geometry.coordinates, { units: "meters" });
       const dAlong = snapped.properties.dist ?? Infinity;
-      const dToTransfer = stationDistanceToCoordForAbsorption(s, coord);
+      const dToTransfer = stationDistanceToCoordForAbsorption(s, coord, subrouteIds);
       const snappedNearTransfer =
         snapped.geometry?.coordinates && distanceMeters(snapped.geometry.coordinates, coord) <= TRANSFER_ABSORB_METERS;
       if (dAlong <= TRANSFER_ABSORB_METERS && (dToTransfer <= TRANSFER_ABSORB_METERS || snappedNearTransfer)) {
@@ -1280,8 +1304,14 @@ function applyTransferAbsorption(coord, mergedSubrouteIds) {
   return subrouteIds;
 }
 
-function normalizeAllTransferStations() {
-  const transfers = store.stationsFC.features.filter((s) => s.properties?.is_transfer_fixed);
+function normalizeTransferStations(stationIds = null) {
+  const stationIdSet = stationIds ? new Set(stationIds) : null;
+  if (stationIdSet && stationIdSet.size === 0) return;
+  const transfers = store.stationsFC.features.filter((s) => {
+    if (!s.properties?.is_transfer_fixed) return false;
+    if (!stationIdSet) return true;
+    return stationIdSet.has(s.properties?.station_id);
+  });
   for (const tr of transfers) {
     const coord = tr.geometry.coordinates;
     const routes = new Set(
@@ -1297,7 +1327,7 @@ function normalizeAllTransferStations() {
 function addTransferStationAt(coord, subrouteIdA, subrouteIdB) {
   const mergedSubrouteIds = new Set([subrouteIdA, subrouteIdB]);
   const nearbyStations = store.stationsFC.features.filter((s) => {
-    return stationDistanceToCoordForAbsorption(s, coord) <= TRANSFER_ABSORB_METERS;
+    return stationDistanceToCoordForAbsorption(s, coord, mergedSubrouteIds) <= TRANSFER_ABSORB_METERS;
   });
   nearbyStations.forEach((s) => expandMergedSubrouteIdsFromStation(s, mergedSubrouteIds));
 
@@ -1312,7 +1342,6 @@ function addTransferStationAt(coord, subrouteIdA, subrouteIdB) {
     existingTransfer.properties.color = color;
     existingTransfer.properties.is_transfer_fixed = true;
     existingTransfer.properties.transfer_routes = Array.from(finalSubrouteIds);
-    normalizeAllTransferStations();
     refreshSources();
     return existingTransfer.properties.station_id;
   }
@@ -1320,8 +1349,7 @@ function addTransferStationAt(coord, subrouteIdA, subrouteIdB) {
   const stationId = addStationAt(subrouteIdA, coord, null, color, {
     is_transfer_fixed: true,
     transfer_routes: Array.from(finalSubrouteIds),
-  });
-  normalizeAllTransferStations();
+  }, { skipRefresh: true });
   refreshSources();
   return stationId;
 }
