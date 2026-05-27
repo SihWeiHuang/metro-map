@@ -56,7 +56,9 @@ export const store = {
 
 const PERSIST_STORAGE_KEY = "metro-map-data-v2";
 const PERSIST_VERSION = 2;
-export const EXPORT_FILE_FORMAT = "metro-map-x01";
+export const EXPORT_FILE_FORMAT = "metro-multiverse";
+/** @deprecated 舊版匯出檔仍允許匯入 */
+const LEGACY_IMPORT_FORMATS = new Set(["metro-map-x01"]);
 
 const DISPLAY_ONLY_STATION_PROPS = ["label_anchor", "label_offset"];
 
@@ -346,7 +348,7 @@ function schedulePersistToStorage() {
       };
       localStorage.setItem(PERSIST_STORAGE_KEY, JSON.stringify(payload));
     } catch (e) {
-      console.warn("metro-map: could not save map data", e);
+      console.warn("metro-multiverse: could not save map data", e);
     }
   }, 200);
 }
@@ -1864,7 +1866,11 @@ function parseImportPayload(data) {
   if (!data || typeof data !== "object") {
     throw new Error("invalid_json");
   }
-  if (data.format && data.format !== EXPORT_FILE_FORMAT) {
+  if (
+    data.format &&
+    data.format !== EXPORT_FILE_FORMAT &&
+    !LEGACY_IMPORT_FORMATS.has(data.format)
+  ) {
     throw new Error("unsupported_format");
   }
   const allSubroutes = Array.isArray(data.userSubroutesFC?.features)
@@ -1911,11 +1917,11 @@ function exportStamp() {
 }
 
 function getExportFileName() {
-  return `metro-map-${exportStamp()}.json`;
+  return `metro-multiverse-${exportStamp()}.json`;
 }
 
 function getExportFileNameForSelectedRoutes(routeCount) {
-  return `metro-map-selected-${routeCount}-${exportStamp()}.json`;
+  return `metro-multiverse-selected-${routeCount}-${exportStamp()}.json`;
 }
 
 /**

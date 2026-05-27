@@ -1,5 +1,5 @@
 /* ==========================================
-   Metro Map App - Refactored with Claude Design System
+   Metro Multiverse App - Refactored with Claude Design System
    ========================================== */
 
 :root {
@@ -1511,7 +1511,7 @@ html[lang="en"] .route-list-badge {
 }
 
 /* ==========================================
-   X01 markup compatibility (logic unchanged)
+   Legacy markup compatibility (logic unchanged)
    ========================================== */
 
 .app-content-wrapper,

@@ -1,4 +1,6 @@
-# Metro Map
+# Metro Multiverse
+
+捷運多重宇宙 — 在地圖上編輯路線與車站的示意圖工具（非官方）。
 
 ## Local Setup
 
@@ -49,6 +51,14 @@ git add -A && git commit -m "你的提交說明" && git push -u origin HEAD
   - Environments: `Production`, `Preview`, and `Development` (recommended)
 
 Without this variable, the map will not load correctly.
+
+## 上線安全（Mapbox 帳單防護）
+
+正式站：https://metro-multiverse.vercel.app（若尚未重新命名 Vercel 專案，可能仍為 https://metro-map-x01.vercel.app，見 [docs/部署與重新命名.md](docs/部署與重新命名.md)）  
+
+GitHub 請勿上傳 `.env`（專案已用 `.gitignore` 排除）。Mapbox **URL 限制**、**每月花費上限**、Vercel 環境變數確認等步驟見：
+
+**[docs/上線安全設定.md](docs/上線安全設定.md)** · Vercel/GitHub 改名：[docs/部署與重新命名.md](docs/部署與重新命名.md)
 
 ## 核心模組（避免重複 bug 的約定）
 

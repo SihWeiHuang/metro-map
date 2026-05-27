@@ -305,7 +305,7 @@ async function main() {
 
   const payload = {
     ...source,
-    format: "metro-map-x01",
+    format: "metro-multiverse",
     formatVersion: 2,
     exportedAt: new Date().toISOString(),
     fittedRoutes: [...FIT_ROUTE_NAMES],

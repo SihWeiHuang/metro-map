@@ -1,5 +1,5 @@
 /**
- * Convert NLSC MRT shapefile (捷運_1150409) to metro-map-x01 import JSON.
+ * Convert NLSC MRT shapefile (捷運_1150409) to Metro Multiverse import JSON.
  *
  * Usage:
  *   npm run convert:mrt
@@ -353,7 +353,7 @@ async function main() {
   }
 
   const payload = {
-    format: "metro-map-x01",
+    format: "metro-multiverse",
     formatVersion: 2,
     exportedAt: new Date().toISOString(),
     v: 2,
