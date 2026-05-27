@@ -94,13 +94,11 @@ export default function RouteListPanel({
   };
 
   const hideSelected = () => {
-    selectedRouteIds.forEach((routeId) => Route.setRouteHidden(routeId, true));
-    onRefresh();
+    if (Route.setRoutesHidden(Array.from(selectedRouteIds), true)) onRefresh();
   };
 
   const showSelected = () => {
-    selectedRouteIds.forEach((routeId) => Route.setRouteHidden(routeId, false));
-    onRefresh();
+    if (Route.setRoutesHidden(Array.from(selectedRouteIds), false)) onRefresh();
   };
 
   const deleteSelected = () => {
@@ -324,7 +322,7 @@ function RouteRow({
           {t(statusLabelKey)}
         </span>
       </div>
-      {/* 右側固定：使用者／內建（勿移除此區塊順序） */}
+      {/* 右側固定：使用者／預設（勿移除此區塊順序） */}
       <span
         className={`route-list-badge route-kind-badge route-row-tags-kind route-kind-${g.route_kind === Route.ROUTE_KIND_DEFAULT ? "default" : "user"}`}
         title={t("routeList.kindBadgeTitle")}

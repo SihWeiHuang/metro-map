@@ -309,7 +309,10 @@ function App() {
         applyImport(text, "merge");
         return;
       }
-      setPendingImport({ text, duplicateRouteIds: analysis.duplicateRouteIds });
+      setPendingImport({
+        text,
+        duplicateRouteLabels: analysis.duplicateRouteLabels,
+      });
       return;
     }
     applyImport(text, "merge");
@@ -558,10 +561,12 @@ function App() {
         <div className="app-main-column">
           <div className="app-map-stage">
             <MapView onModeChange={onModeChange} />
-            <div className="mode-hint mode-hint-map" role="status" aria-live="polite">
-              {t("app.hintPrefix")}
-              {modeHint}
-            </div>
+            {editToolsOpen && (
+              <div className="mode-hint mode-hint-map" role="status" aria-live="polite">
+                {t("app.hintPrefix")}
+                {modeHint}
+              </div>
+            )}
             {showFinish && editToolsOpen && (
               <div className={`app-map-finish-slot${showModeCommitActions ? " app-map-finish-slot--pair" : ""}`}>
                 {showModeCommitActions ? (
@@ -667,7 +672,7 @@ function App() {
             <p className="app-import-dialog-message">{t("app.importModeMessage")}</p>
             <p className="app-import-dialog-duplicates">
               {t("app.importDuplicateHint", {
-                ids: pendingImport.duplicateRouteIds.join("、"),
+                names: pendingImport.duplicateRouteLabels.join("、"),
               })}
             </p>
             <div className="app-import-dialog-options">

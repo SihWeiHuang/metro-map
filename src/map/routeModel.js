@@ -44,6 +44,8 @@ export const store = {
      */
     queuedStations: [],
     subrouteIdEditing: null,
+    /** 編輯單一路線時暫時隱藏原線；完成／取消時只還原此集合，不影響使用者手動隱藏 */
+    editHiddenSubrouteIds: new Set(),
   },
   hiddenSubrouteIds: new Set(),
   counters: { subroute: 1, route: 1, station: 1 },
@@ -146,9 +148,7 @@ function deepCloneFC(fc) {
 function normalizeBuiltinRoutesAsDefault() {
   for (const f of store.subroutesFC.features) {
     if (!f.properties || typeof f.properties !== "object") f.properties = {};
-    if (f.properties.route_kind !== ROUTE_KIND_DEFAULT && f.properties.route_kind !== ROUTE_KIND_USER) {
-      f.properties.route_kind = ROUTE_KIND_DEFAULT;
-    }
+    f.properties.route_kind = ROUTE_KIND_DEFAULT;
     if (typeof f.properties.country !== "string") f.properties.country = "";
     if (typeof f.properties.region !== "string") f.properties.region = "";
     f.properties.status = normalizeStatus(f.properties.status);
@@ -716,25 +716,9 @@ function refreshTempEditSources() {
   map.getSource("temp-edit-nodes") && map.getSource("temp-edit-nodes").setData(tempNodesFC);
 }
 
-function refreshSources() {
-  if (!skipImportUndoInvalidate && lastImportUndoSnapshot) {
-    lastImportUndoSnapshot = null;
-    notifyImportUndoListeners();
-  }
-  schedulePersistToStorage();
-
+function applyHiddenSubrouteVisibility() {
   const map = getMap();
   if (!map) return;
-  const { stationsDisplayFC, stationLabelsFC } = buildStationDisplayCollections(store.stationsFC, store.subroutesFC);
-  map.getSource("routes") &&
-    map.getSource("routes").setData(featureCollectionWithSmoothedLineStrings(store.subroutesFC));
-  map.getSource("stations") && map.getSource("stations").setData(stationsDisplayFC);
-  map.getSource("station-labels") && map.getSource("station-labels").setData(stationLabelsFC);
-
-  const { tempLineFC, tempNodesFC } = buildTempEditFeatureCollections();
-  map.getSource("temp-edit-line") && map.getSource("temp-edit-line").setData(tempLineFC);
-  map.getSource("temp-edit-nodes") && map.getSource("temp-edit-nodes").setData(tempNodesFC);
-
   const hiddenIds = Array.from(store.hiddenSubrouteIds);
   const visibleSubrouteIds = Array.from(
     new Set(store.subroutesFC.features.map((f) => f.properties.subroute_id).filter((rid) => !store.hiddenSubrouteIds.has(rid)))
@@ -760,6 +744,28 @@ function refreshSources() {
   if (map.getLayer("routes-line")) {
     map.setFilter("routes-line", ["!", ["in", ["get", "subroute_id"], ["literal", hiddenIds]]]);
   }
+}
+
+function refreshSources() {
+  if (!skipImportUndoInvalidate && lastImportUndoSnapshot) {
+    lastImportUndoSnapshot = null;
+    notifyImportUndoListeners();
+  }
+  schedulePersistToStorage();
+
+  const map = getMap();
+  if (!map) return;
+  const { stationsDisplayFC, stationLabelsFC } = buildStationDisplayCollections(store.stationsFC, store.subroutesFC);
+  map.getSource("routes") &&
+    map.getSource("routes").setData(featureCollectionWithSmoothedLineStrings(store.subroutesFC));
+  map.getSource("stations") && map.getSource("stations").setData(stationsDisplayFC);
+  map.getSource("station-labels") && map.getSource("station-labels").setData(stationLabelsFC);
+
+  const { tempLineFC, tempNodesFC } = buildTempEditFeatureCollections();
+  map.getSource("temp-edit-line") && map.getSource("temp-edit-line").setData(tempLineFC);
+  map.getSource("temp-edit-nodes") && map.getSource("temp-edit-nodes").setData(tempNodesFC);
+
+  applyHiddenSubrouteVisibility();
 }
 
 function highlightRoute(subrouteId) {
@@ -898,17 +904,31 @@ function deleteRoutes(routeIds) {
   refreshSources();
 }
 
-function setRouteHidden(routeId, hidden) {
-  const subrouteIds = store.subroutesFC.features.filter((f) => f.properties.route_id === routeId).map((f) => f.properties.subroute_id);
-  if (!subrouteIds.length) return;
-  subrouteIds.forEach((rid) => {
-    if (hidden) store.hiddenSubrouteIds.add(rid);
-    else store.hiddenSubrouteIds.delete(rid);
-  });
-  refreshSources();
-  if (hidden) {
-    clearHover();
+function setRoutesHidden(routeIds, hidden) {
+  if (!Array.isArray(routeIds) || routeIds.length === 0) return false;
+  const routeIdSet = new Set(routeIds);
+  let changed = false;
+  for (const f of store.subroutesFC.features) {
+    const routeId = f.properties?.route_id;
+    const subrouteId = f.properties?.subroute_id;
+    if (!routeIdSet.has(routeId) || typeof subrouteId !== "string") continue;
+    if (hidden) {
+      if (!store.hiddenSubrouteIds.has(subrouteId)) changed = true;
+      store.hiddenSubrouteIds.add(subrouteId);
+    } else if (store.hiddenSubrouteIds.has(subrouteId)) {
+      changed = true;
+      store.hiddenSubrouteIds.delete(subrouteId);
+    }
   }
+  if (!changed) return false;
+  applyHiddenSubrouteVisibility();
+  schedulePersistToStorage();
+  if (hidden) clearHover();
+  return true;
+}
+
+function setRouteHidden(routeId, hidden) {
+  setRoutesHidden([routeId], hidden);
 }
 
 function isRouteHidden(routeId) {
@@ -917,8 +937,20 @@ function isRouteHidden(routeId) {
   return subrouteIds.every((rid) => store.hiddenSubrouteIds.has(rid));
 }
 
+function clearEditSessionHiddenSubroutes() {
+  for (const rid of store.temp.editHiddenSubrouteIds) {
+    store.hiddenSubrouteIds.delete(rid);
+  }
+  store.temp.editHiddenSubrouteIds.clear();
+}
+
+function hideSubrouteForEditSession(subrouteId) {
+  store.temp.editHiddenSubrouteIds.add(subrouteId);
+  store.hiddenSubrouteIds.add(subrouteId);
+}
+
 function startNewTempRoute() {
-  store.hiddenSubrouteIds.clear();
+  clearEditSessionHiddenSubroutes();
   store.temp.previewStations = [];
   store.temp.queuedStations = [];
   store.temp.editingSessions = [{ subrouteId: null, nodes: [] }];
@@ -928,6 +960,7 @@ function startNewTempRoute() {
 function startEditRoute(routeId) {
   const subroutesInRoute = store.subroutesFC.features.filter((f) => f.properties.route_id === routeId);
   if (!subroutesInRoute.length) return;
+  clearEditSessionHiddenSubroutes();
   store.temp.editingSessions = [];
   store.temp.queuedStations = [];
   subroutesInRoute.forEach((route) => {
@@ -935,7 +968,7 @@ function startEditRoute(routeId) {
       subrouteId: route.properties.subroute_id,
       nodes: route.geometry.coordinates.slice(),
     });
-    store.hiddenSubrouteIds.add(route.properties.subroute_id);
+    hideSubrouteForEditSession(route.properties.subroute_id);
   });
   refreshSources();
 }
@@ -1027,7 +1060,7 @@ function endTempEditingAndCommit() {
     });
   }
 
-  store.hiddenSubrouteIds.clear();
+  clearEditSessionHiddenSubroutes();
   store.temp.editingSessions = [];
   store.temp.previewStations = [];
   store.temp.queuedStations = [];
@@ -1050,7 +1083,7 @@ function cancelTempEditing() {
     return true;
   });
 
-  store.hiddenSubrouteIds.clear();
+  clearEditSessionHiddenSubroutes();
   store.temp.editingSessions = [];
   store.temp.previewStations = [];
   store.temp.queuedStations = [];
@@ -1696,6 +1729,7 @@ function clearUserContent() {
     return !(Array.isArray(transferRoutes) && transferRoutes.some((tr) => userSubrouteIds.has(tr)));
   });
   userSubrouteIds.forEach((rid) => store.hiddenSubrouteIds.delete(rid));
+  store.temp.editHiddenSubrouteIds.clear();
   store.temp.editingSessions = [];
   store.temp.previewStations = [];
   store.temp.queuedStations = [];
@@ -1717,6 +1751,10 @@ function normalizeRouteNameForDuplicate(name) {
   return typeof name === "string" ? name.trim().replace(/\s+/g, " ") : "";
 }
 
+function normalizeRouteNameForDuplicateFromProps(props) {
+  return normalizeRouteNameForDuplicate(resolveRouteDisplayNameFromProps(props));
+}
+
 function getExistingUserRouteNameSet() {
   const names = new Set();
   const seenRouteIds = new Set();
@@ -1725,39 +1763,59 @@ function getExistingUserRouteNameSet() {
     const routeId = f.properties?.route_id;
     if (typeof routeId !== "string" || seenRouteIds.has(routeId)) continue;
     seenRouteIds.add(routeId);
-    const name = normalizeRouteNameForDuplicate(f.properties?.name);
+    const name = normalizeRouteNameForDuplicateFromProps(f.properties);
     if (name) names.add(name);
   }
   return names;
 }
 
-/** Import `route_id` values whose normalized route name, or fallback id, already exists. */
-function getImportDuplicateRouteIds(userSubroutes) {
+/**
+ * Detect import lines that collide with existing user lines (by display name or route_id).
+ * @returns {{ duplicateRouteIds: string[], duplicateDisplayNames: Set<string> }}
+ */
+function collectImportDuplicateMatchInfo(userSubroutes) {
   const existingNames = getExistingUserRouteNameSet();
   const existingIds = getExistingUserRouteIdSet();
-  const duplicates = [];
-  const seen = new Set();
+  const duplicateRouteIds = [];
+  const duplicateDisplayNames = new Set();
+  const seenImportRouteIds = new Set();
+
   for (const f of userSubroutes) {
-    const routeId = f.properties?.route_id;
-    if (typeof routeId !== "string" || seen.has(routeId)) continue;
-    const name = normalizeRouteNameForDuplicate(f.properties?.name);
-    const isDuplicate = name ? existingNames.has(name) : existingIds.has(routeId);
+    const props = f.properties;
+    if (!props) continue;
+    const routeId = props.route_id;
+    if (typeof routeId !== "string" || seenImportRouteIds.has(routeId)) continue;
+    seenImportRouteIds.add(routeId);
+    const displayName = normalizeRouteNameForDuplicateFromProps(props);
+    const isDuplicate = displayName ? existingNames.has(displayName) : existingIds.has(routeId);
     if (!isDuplicate) continue;
-    seen.add(routeId);
-    duplicates.push(routeId);
+    duplicateRouteIds.push(routeId);
+    if (displayName) duplicateDisplayNames.add(displayName);
   }
-  return duplicates.sort((a, b) => a.localeCompare(b, "en"));
+
+  duplicateRouteIds.sort((a, b) => a.localeCompare(b, "en"));
+  return { duplicateRouteIds, duplicateDisplayNames };
 }
 
-function deleteUserRoutesByImportMatches(userSubroutes, routeIds) {
-  if (!Array.isArray(routeIds) || !routeIds.length) return;
-  const idSet = new Set(routeIds);
-  const duplicateNames = new Set();
+/** Import `route_id` values whose display name, or fallback id, already exists. */
+function getImportDuplicateRouteIds(userSubroutes) {
+  return collectImportDuplicateMatchInfo(userSubroutes).duplicateRouteIds;
+}
+
+function getImportDuplicateRouteLabels(userSubroutes, duplicateRouteIds) {
+  const labelByRouteId = new Map();
   for (const f of userSubroutes) {
-    if (!idSet.has(f.properties?.route_id)) continue;
-    const name = normalizeRouteNameForDuplicate(f.properties?.name);
-    if (name) duplicateNames.add(name);
+    const routeId = f.properties?.route_id;
+    if (typeof routeId !== "string" || labelByRouteId.has(routeId)) continue;
+    labelByRouteId.set(routeId, resolveRouteDisplayNameFromProps(f.properties));
   }
+  return duplicateRouteIds.map((routeId) => labelByRouteId.get(routeId) ?? routeId);
+}
+
+function deleteUserRoutesByImportMatches(duplicateRouteIds, duplicateDisplayNames) {
+  const idSet = new Set(Array.isArray(duplicateRouteIds) ? duplicateRouteIds : []);
+  const nameSet = duplicateDisplayNames instanceof Set ? duplicateDisplayNames : new Set();
+  if (!idSet.size && !nameSet.size) return;
 
   const toDelete = [];
   const seen = new Set();
@@ -1765,8 +1823,8 @@ function deleteUserRoutesByImportMatches(userSubroutes, routeIds) {
     if (routeKindOf(f) !== ROUTE_KIND_USER) continue;
     const routeId = f.properties?.route_id;
     if (typeof routeId !== "string" || seen.has(routeId)) continue;
-    const name = normalizeRouteNameForDuplicate(f.properties?.name);
-    if ((name && duplicateNames.has(name)) || idSet.has(routeId)) {
+    const displayName = normalizeRouteNameForDuplicateFromProps(f.properties);
+    if ((displayName && nameSet.has(displayName)) || idSet.has(routeId)) {
       seen.add(routeId);
       toDelete.push(routeId);
     }
@@ -1881,13 +1939,18 @@ function exportRoutesJSON(routeIds) {
 
 /**
  * @param {string} jsonString
- * @returns {{ ok: true, duplicateRouteIds: string[] } | { ok: false, error: string }}
+ * @returns {{ ok: true, duplicateRouteIds: string[], duplicateRouteLabels: string[] } | { ok: false, error: string }}
  */
 function analyzeImportJSON(jsonString) {
   try {
     const data = JSON.parse(jsonString);
     const { userSubroutes } = parseImportPayload(data);
-    return { ok: true, duplicateRouteIds: getImportDuplicateRouteIds(userSubroutes) };
+    const duplicateRouteIds = getImportDuplicateRouteIds(userSubroutes);
+    return {
+      ok: true,
+      duplicateRouteIds,
+      duplicateRouteLabels: getImportDuplicateRouteLabels(userSubroutes, duplicateRouteIds),
+    };
   } catch (e) {
     const code = e instanceof Error && e.message ? e.message : "import_failed";
     return { ok: false, error: code };
@@ -1908,12 +1971,13 @@ function importUserStateJSON(jsonString, options = {}) {
     const data = JSON.parse(jsonString);
     const { userSubroutes, userStations, hiddenSubrouteIds, settings, mapView } = parseImportPayload(data);
     const mode = options.mode ?? "merge";
-    const duplicateRouteIds =
-      mode === "replaceMatching" ? getImportDuplicateRouteIds(userSubroutes) : [];
+    const duplicateMatch =
+      mode === "replaceMatching" ? collectImportDuplicateMatchInfo(userSubroutes) : null;
+    const duplicateRouteIds = duplicateMatch?.duplicateRouteIds ?? [];
     if (mode === "replaceAll") {
       clearUserContent();
-    } else if (mode === "replaceMatching") {
-      deleteUserRoutesByImportMatches(userSubroutes, duplicateRouteIds);
+    } else if (mode === "replaceMatching" && duplicateMatch) {
+      deleteUserRoutesByImportMatches(duplicateRouteIds, duplicateMatch.duplicateDisplayNames);
     }
     mergeUserStateIntoStore(userSubroutes, userStations);
     if (Array.isArray(hiddenSubrouteIds)) {
@@ -1960,6 +2024,7 @@ export const Route = {
   deleteRoute,
   deleteRoutes,
   setRouteHidden,
+  setRoutesHidden,
   isRouteHidden,
   highlightRoute,
   clearHover,

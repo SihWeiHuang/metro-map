@@ -139,11 +139,10 @@ function getModeHintText() {
     case "general":
       return t("modeHint.general");
     case "add-route":
-      return t("modeHint.addRoute");
+    case "edit-route-active":
+      return t("modeHint.routeNodeEdit");
     case "edit-route-select":
       return t("modeHint.editRouteSelect");
-    case "edit-route-active":
-      return t("modeHint.editRouteActive");
     case "edit-station":
       return editStationSubmode === "move-label"
         ? t("modeHint.editStationMoveLabel")
@@ -649,10 +648,6 @@ export function setMode(next) {
   onModeChange(next);
   setCursorForMode();
   clearHoverAndPopups();
-  if (store.hiddenSubrouteIds.size > 0 && M.mode !== "edit-route-active") {
-    store.hiddenSubrouteIds.clear();
-    Route.refreshSources();
-  }
   if (M.mode !== "edit-station") {
     setEditStationSubmodeInternal("station");
     setZoomInteractionsEnabled(true);
