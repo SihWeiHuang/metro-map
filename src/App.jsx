@@ -16,6 +16,9 @@ import { Route } from "./map/routeModel.js";
 import { useI18n } from "./i18n/I18nProvider.jsx";
 import { resizeMap } from "./map/mapInstance.js";
 import { requestImportedMapView } from "./map/mapViewState.js";
+import SiteHeaderNav from "./components/SiteHeaderNav.jsx";
+import SiteInfoPage from "./components/SiteInfoPage.jsx";
+import { parseSitePageFromHash, sitePageHash } from "./site/siteRoutes.js";
 
 const ROUTE_LIST_WIDTH_STORAGE_KEY = "metro-route-list-width";
 const AUTO_SHOW_NEW_ROUTE_STATUS_KEY = "metro-auto-show-new-route-status";
@@ -70,6 +73,26 @@ function App() {
   const langMenuRef = useRef(null);
   const [statusDialog, setStatusDialog] = useState(null);
   const [autoShowNewRouteStatus, setAutoShowNewRouteStatus] = useState(readAutoShowNewRouteStatus);
+  const [sitePage, setSitePage] = useState(() =>
+    typeof window !== "undefined" ? parseSitePageFromHash(window.location.hash) : null
+  );
+
+  useEffect(() => {
+    const onHashChange = () => setSitePage(parseSitePageFromHash(window.location.hash));
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  const navigateSitePage = useCallback((pageId) => {
+    window.location.hash = sitePageHash(pageId);
+    setSitePage(pageId);
+  }, []);
+
+  const closeSitePage = useCallback(() => {
+    const base = window.location.pathname + window.location.search;
+    window.history.replaceState(null, "", base);
+    setSitePage(null);
+  }, []);
 
   const startRouteListResize = useCallback((clientX) => {
     const startX = clientX;
@@ -365,10 +388,19 @@ function App() {
     <div className="app-root">
       <header className="app-site-header">
         <div className="app-site-header-inner">
-          <div className="app-site-header-text">
-            <h1 className="app-site-title">{t("app.headerTitle")}</h1>
+          <div className="app-site-header-brand">
+            <h1 className="app-site-title">
+              <button type="button" className="app-site-title-btn" onClick={closeSitePage}>
+                {t("app.headerTitle")}
+              </button>
+            </h1>
             <p className="app-site-tagline">{t("app.headerTagline")}</p>
           </div>
+          <SiteHeaderNav
+            activePage={sitePage}
+            onNavigate={navigateSitePage}
+            onHome={closeSitePage}
+          />
           <div className="app-header-actions">
             <div className="app-lang-dropdown" ref={langMenuRef}>
               <button
@@ -406,6 +438,7 @@ function App() {
           </div>
         </div>
       </header>
+      {sitePage && <SiteInfoPage pageId={sitePage} onClose={closeSitePage} />}
       <div className="app-content-wrapper app-main-layout">
         <aside
           id="route-list-container"

@@ -52,9 +52,16 @@ git add -A && git commit -m "你的提交說明" && git push -u origin HEAD
 
 Without this variable, the map will not load correctly.
 
+Optional site pages (About, Legal, Support):
+
+```env
+VITE_SITE_CONTACT_EMAIL=you@example.com
+VITE_SPONSOR_URL=https://ko-fi.com/yourpage
+```
+
 ## 上線安全（Mapbox 帳單防護）
 
-正式站：https://metro-multiverse.vercel.app（若尚未重新命名 Vercel 專案，可能仍為 https://metro-map-x01.vercel.app，見 [docs/部署與重新命名.md](docs/部署與重新命名.md)）  
+正式站：https://metro-multiverse.vercel.app  
 
 GitHub 請勿上傳 `.env`（專案已用 `.gitignore` 排除）。Mapbox **URL 限制**、**每月花費上限**、Vercel 環境變數確認等步驟見：
 
