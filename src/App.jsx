@@ -396,12 +396,12 @@ function App() {
             </h1>
             <p className="app-site-tagline">{t("app.headerTagline")}</p>
           </div>
-          <SiteHeaderNav
-            activePage={sitePage}
-            onNavigate={navigateSitePage}
-            onHome={closeSitePage}
-          />
           <div className="app-header-actions">
+            <SiteHeaderNav
+              activePage={sitePage}
+              onNavigate={navigateSitePage}
+              onHome={closeSitePage}
+            />
             <div className="app-lang-dropdown" ref={langMenuRef}>
               <button
                 type="button"

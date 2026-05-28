@@ -16,20 +16,23 @@ export default function SiteHeaderNav({ activePage, onNavigate, onHome }) {
 
   return (
     <nav className="app-site-header-nav" aria-label={t("site.navAria")}>
-      {items.map(({ id, labelKey }) => (
-        <button
-          key={id}
-          type="button"
-          className={`app-header-nav-btn${activePage === id ? " is-active" : ""}`}
-          aria-current={activePage === id ? "page" : undefined}
-          onClick={() => {
-            if (activePage === id) onHome();
-            else onNavigate(id);
-          }}
-        >
-          {t(labelKey)}
-        </button>
-      ))}
+      <ul className="app-site-header-nav-list">
+        {items.map(({ id, labelKey }) => (
+          <li key={id}>
+            <button
+              type="button"
+              className={`app-site-nav-link${activePage === id ? " is-active" : ""}`}
+              aria-current={activePage === id ? "page" : undefined}
+              onClick={() => {
+                if (activePage === id) onHome();
+                else onNavigate(id);
+              }}
+            >
+              {t(labelKey)}
+            </button>
+          </li>
+        ))}
+      </ul>
     </nav>
   );
 }

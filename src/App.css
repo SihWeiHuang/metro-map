@@ -38,7 +38,7 @@
   width: 100%;
   padding: var(--spacing-sm) var(--spacing-md);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--spacing-sm) var(--spacing-md);
 }
@@ -80,38 +80,68 @@
 }
 
 .app-site-header-nav {
+  flex-shrink: 0;
+}
+
+.app-site-header-nav-list {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--spacing-xs);
+  justify-content: flex-end;
   flex-wrap: wrap;
-  justify-self: center;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.app-header-nav-btn {
-  padding: var(--spacing-xs) var(--spacing-md);
-  font-size: 0.75rem;
-  font-weight: 500;
-  border-radius: var(--radius-md);
-  border: 0.5px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
+.app-site-header-nav-list > li {
+  display: flex;
+  align-items: center;
+}
+
+.app-site-header-nav-list > li + li::before {
+  content: "";
+  display: block;
+  width: 1px;
+  height: 0.875rem;
+  margin: 0 var(--spacing-md);
+  background: rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+}
+
+/* Website-style text nav — not the same as tool/action buttons */
+.app-site-nav-link {
+  margin: 0;
+  padding: 0.2rem 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.82);
   cursor: pointer;
-  transition:
-    background var(--transition-fast),
-    border-color var(--transition-fast);
   white-space: nowrap;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
-.app-header-nav-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.45);
+.app-site-nav-link:hover {
+  color: #ffffff;
+  border-bottom-color: rgba(255, 255, 255, 0.55);
+  background: none;
+  transform: none;
 }
 
-.app-header-nav-btn.is-active {
-  background: rgba(255, 255, 255, 0.28);
-  border-color: rgba(255, 255, 255, 0.55);
-  font-weight: 600;
+.app-site-nav-link.is-active {
+  color: #ffffff;
+  font-weight: 500;
+  border-bottom-color: #ffffff;
 }
 
 .app-header-actions {
@@ -120,18 +150,25 @@
   justify-content: flex-end;
   flex-shrink: 0;
   justify-self: end;
+  gap: var(--spacing-lg);
 }
 
-/* Site info pages (legal / about / support) */
+/* Site info pages (legal / about / support) — self-contained colors; do not use app theme tokens */
 .site-info-overlay {
+  --site-info-bg: #f1f5f9;
+  --site-info-surface: #ffffff;
+  --site-info-text: #111827;
+  --site-info-text-muted: #4b5563;
+  --site-info-border: #cbd5e1;
+
   position: fixed;
   top: var(--app-header-height, 4.25rem);
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 1200;
-  background: var(--color-background-primary);
-  color: var(--color-text-primary);
+  background: var(--site-info-bg);
+  color: var(--site-info-text);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -156,14 +193,14 @@
   gap: var(--spacing-md);
   flex-shrink: 0;
   padding-bottom: var(--spacing-md);
-  border-bottom: 0.5px solid var(--color-border-primary);
+  border-bottom: 1px solid var(--site-info-border);
 }
 
 .site-info-title {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--color-text-primary);
+  color: var(--site-info-text);
 }
 
 .site-info-close {
@@ -172,14 +209,14 @@
   font-size: 0.8125rem;
   font-weight: 500;
   border-radius: var(--radius-md);
-  border: 0.5px solid var(--color-border-primary);
-  background: var(--color-background-secondary);
-  color: var(--color-text-primary);
+  border: 1px solid var(--site-info-border);
+  background: var(--site-info-surface);
+  color: var(--site-info-text);
   cursor: pointer;
 }
 
 .site-info-close:hover {
-  background: var(--color-background-tertiary);
+  background: #e2e8f0;
 }
 
 .site-info-body {
@@ -187,14 +224,14 @@
   min-height: 0;
   overflow-y: auto;
   padding-top: var(--spacing-md);
-  color: var(--color-text-primary);
+  color: var(--site-info-text);
   font-size: 0.875rem;
   line-height: 1.6;
 }
 
 .site-info-intro {
   margin: 0 0 var(--spacing-lg);
-  color: var(--color-text-secondary);
+  color: var(--site-info-text-muted);
 }
 
 .site-info-section {
@@ -205,16 +242,18 @@
   margin: 0 0 var(--spacing-sm);
   font-size: 1rem;
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--site-info-text);
 }
 
 .site-info-paragraph {
   margin: 0 0 var(--spacing-sm);
+  color: var(--site-info-text);
 }
 
 .site-info-list {
   margin: 0 0 var(--spacing-sm);
   padding-left: 1.25rem;
+  color: var(--site-info-text);
 }
 
 .site-info-list li {
@@ -230,8 +269,8 @@
   align-items: center;
   padding: var(--spacing-sm) var(--spacing-lg);
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%);
-  color: white;
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+  color: #ffffff;
   font-weight: 600;
   text-decoration: none;
   font-size: 0.875rem;
@@ -244,9 +283,9 @@
 .site-info-footer-note {
   margin: var(--spacing-xl) 0 0;
   padding-top: var(--spacing-md);
-  border-top: 0.5px solid var(--color-border-primary);
+  border-top: 1px solid var(--site-info-border);
   font-size: 0.75rem;
-  color: var(--color-text-secondary);
+  color: var(--site-info-text-muted);
 }
 
 .app-file-actions {
@@ -935,28 +974,19 @@
    ========================================== */
 
 @media (max-width: 768px) {
-  .app-site-header-inner {
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-      "brand actions"
-      "nav nav";
-  }
-
-  .app-site-header-brand {
-    grid-area: brand;
-  }
-
-  .app-site-header-nav {
-    grid-area: nav;
-    justify-self: stretch;
-    justify-content: center;
-    padding-top: var(--spacing-xs);
-  }
-
   .app-header-actions {
-    grid-area: actions;
-    width: auto;
+    flex-wrap: wrap;
     justify-content: flex-end;
+    gap: var(--spacing-sm) var(--spacing-md);
+    max-width: min(100%, 20rem);
+  }
+
+  .app-site-header-nav-list > li + li::before {
+    margin: 0 var(--spacing-sm);
+  }
+
+  .app-site-nav-link {
+    font-size: 0.75rem;
   }
 
   .site-info-overlay {
