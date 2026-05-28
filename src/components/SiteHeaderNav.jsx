@@ -12,6 +12,7 @@ export default function SiteHeaderNav({ activePage, onNavigate, onHome }) {
     { id: "legal", labelKey: "site.nav.legal" },
     { id: "about", labelKey: "site.nav.about" },
     { id: "support", labelKey: "site.nav.support" },
+    { id: "contact", labelKey: "site.nav.contact" },
   ]);
 
   return (

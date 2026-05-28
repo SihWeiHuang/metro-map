@@ -140,18 +140,8 @@ export function getPageContent(pageId, locale) {
           title: L(locale, { zh: "維運方式", en: "How it is run" }),
           paragraphs: [
             L(locale, {
-              zh: "由獨立開發者以業餘／專案形式維護，透過 GitHub 與 Vercel 部署。歡迎回饋問題與建議（見下方聯絡方式）。",
-              en: "Maintained as an independent side project, deployed via GitHub and Vercel. Feedback is welcome (see contact below).",
-            }),
-          ],
-        },
-        {
-          id: "contact",
-          title: L(locale, { zh: "聯絡方式", en: "Contact" }),
-          paragraphs: [
-            L(locale, {
-              zh: `電子郵件：${contact}`,
-              en: `Email: ${contact}`,
+              zh: "由獨立開發者以業餘／專案形式維護，透過 GitHub 與 Vercel 部署。歡迎回饋問題與建議（見「聯絡我們」頁）。",
+              en: "Maintained as an independent side project, deployed via GitHub and Vercel. Feedback is welcome (see Contact).",
             }),
           ],
         },
@@ -214,8 +204,62 @@ export function getPageContent(pageId, locale) {
         },
       ],
       footerNote: L(locale, {
-        zh: `最後更新：${SITE_LAST_UPDATED}。聯絡：${contact}`,
-        en: `Last updated: ${SITE_LAST_UPDATED}. Contact: ${contact}`,
+        zh: `最後更新：${SITE_LAST_UPDATED}`,
+        en: `Last updated: ${SITE_LAST_UPDATED}`,
+      }),
+    };
+  }
+
+  if (pageId === "contact") {
+    const emailConfigured = Boolean(SITE_CONTACT_EMAIL);
+    return {
+      title: L(locale, { zh: "聯絡我們", en: "Contact us" }),
+      intro: L(locale, {
+        zh: "若有使用問題、錯誤回報或合作洽詢，歡迎來信。本頁無法處理捷運營運、票務或官方路線爭議，請逕向相關單位查詢。",
+        en: "For usage questions, bug reports, or collaboration inquiries, email us. This page cannot handle official metro operations, fares, or line disputes—please contact the relevant authorities.",
+      }),
+      sections: [
+        {
+          id: "email",
+          title: L(locale, { zh: "電子郵件", en: "Email" }),
+          paragraphs: emailConfigured
+            ? [
+                L(locale, {
+                  zh: "請點選下方信箱地址寄信（會開啟你的郵件程式）：",
+                  en: "Tap the address below to compose an email in your mail app:",
+                }),
+              ]
+            : [
+                L(locale, {
+                  zh: "聯絡信箱尚未設定。維運者可在 Vercel 或本機 `.env` 加入 VITE_SITE_CONTACT_EMAIL。",
+                  en: "Contact email is not configured yet. Set VITE_SITE_CONTACT_EMAIL in Vercel or local `.env`.",
+                }),
+              ],
+          contactEmail: emailConfigured ? SITE_CONTACT_EMAIL : null,
+        },
+        {
+          id: "topics",
+          title: L(locale, { zh: "適合來信的主題", en: "What to write about" }),
+          list: [
+            L(locale, { zh: "網站錯誤、地圖無法載入、匯入匯出問題", en: "Site errors, map load failures, import/export issues" }),
+            L(locale, { zh: "功能建議或介面回饋", en: "Feature ideas or UI feedback" }),
+            L(locale, { zh: "媒體、教學或合作洽詢", en: "Press, education, or collaboration" }),
+          ],
+        },
+        {
+          id: "notice",
+          title: L(locale, { zh: "回覆說明", en: "Response expectations" }),
+          paragraphs: [
+            L(locale, {
+              zh: "此為業餘專案，無法保證即時回覆；若未收到回覆，可能是信件進入垃圾郵件或目前無法處理該類請求。",
+              en: "This is a side project; timely replies are not guaranteed. If you do not hear back, check spam or note that some requests may be out of scope.",
+            }),
+          ],
+        },
+      ],
+      footerNote: L(locale, {
+        zh: `最後更新：${SITE_LAST_UPDATED}`,
+        en: `Last updated: ${SITE_LAST_UPDATED}`,
       }),
     };
   }

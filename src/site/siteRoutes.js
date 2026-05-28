@@ -1,7 +1,7 @@
-/** @typedef {'legal' | 'about' | 'support'} SitePageId */
+/** @typedef {'legal' | 'about' | 'support' | 'contact'} SitePageId */
 
 /** @type {SitePageId[]} */
-export const SITE_PAGE_IDS = ["legal", "about", "support"];
+export const SITE_PAGE_IDS = ["legal", "about", "support", "contact"];
 
 /**
  * @param {string} hash
@@ -13,6 +13,7 @@ export function parseSitePageFromHash(hash) {
   if (path === "legal" || path === "privacy" || path === "terms") return "legal";
   if (path === "about") return "about";
   if (path === "support" || path === "sponsor") return "support";
+  if (path === "contact") return "contact";
   return null;
 }
 

@@ -260,6 +260,18 @@
   margin-bottom: var(--spacing-xs);
 }
 
+.site-info-mail-link {
+  color: #1d4ed8;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+
+.site-info-mail-link:hover {
+  color: #1e3a8a;
+}
+
 .site-info-sponsor-action {
   margin: var(--spacing-md) 0 0;
 }

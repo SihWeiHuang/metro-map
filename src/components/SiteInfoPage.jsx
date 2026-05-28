@@ -32,6 +32,13 @@ export default function SiteInfoPage({ pageId, onClose }) {
                   {para}
                 </p>
               ))}
+              {section.contactEmail && (
+                <p className="site-info-paragraph">
+                  <a href={`mailto:${section.contactEmail}`} className="site-info-mail-link">
+                    {section.contactEmail}
+                  </a>
+                </p>
+              )}
               {section.list?.length > 0 && (
                 <ul className="site-info-list">
                   {section.list.map((item, i) => (
