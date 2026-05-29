@@ -18,7 +18,11 @@ import { resizeMap } from "./map/mapInstance.js";
 import { requestImportedMapView } from "./map/mapViewState.js";
 import SiteHeaderNav from "./components/SiteHeaderNav.jsx";
 import SiteInfoPage from "./components/SiteInfoPage.jsx";
+import ShareLinkDialog from "./components/ShareLinkDialog.jsx";
+import ShareViewBanner from "./components/ShareViewBanner.jsx";
 import { parseSitePageFromHash, sitePageHash } from "./site/siteRoutes.js";
+import { parseShareIdFromPathname } from "./share/parseSharePath.js";
+import { fetchShareById } from "./share/shareApi.js";
 
 const ROUTE_LIST_WIDTH_STORAGE_KEY = "metro-route-list-width";
 const AUTO_SHOW_NEW_ROUTE_STATUS_KEY = "metro-auto-show-new-route-status";
@@ -78,6 +82,14 @@ function App() {
   const [sitePage, setSitePage] = useState(() =>
     typeof window !== "undefined" ? parseSitePageFromHash(window.location.hash) : null
   );
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareViewTick, setShareViewTick] = useState(0);
+  const [shareBootstrap, setShareBootstrap] = useState(() => {
+    if (typeof window === "undefined") return { phase: "idle", id: null, error: "" };
+    const id = parseShareIdFromPathname(window.location.pathname);
+    return id ? { phase: "loading", id, error: "" } : { phase: "idle", id: null, error: "" };
+  });
+  const [shareActionBusy, setShareActionBusy] = useState(false);
 
   useEffect(() => {
     const onHashChange = () => setSitePage(parseSitePageFromHash(window.location.hash));
@@ -211,6 +223,35 @@ function App() {
 
   useEffect(() => Route.subscribeImportUndoAvailability(setImportUndoAvailable), []);
 
+  const bumpShareView = () => setShareViewTick((n) => n + 1);
+
+  useEffect(() => {
+    if (shareBootstrap.phase !== "loading" || !shareBootstrap.id) return;
+    let cancelled = false;
+    (async () => {
+      const fetched = await fetchShareById(shareBootstrap.id);
+      if (cancelled) return;
+      if (!fetched.ok) {
+        setShareBootstrap({ phase: "error", id: shareBootstrap.id, error: fetched.error });
+        return;
+      }
+      const opened = Route.openShareView(fetched.payload, { expiresAt: fetched.expiresAt });
+      if (!opened.ok) {
+        setShareBootstrap({ phase: "error", id: shareBootstrap.id, error: opened.error || "import_failed" });
+        return;
+      }
+      setShareBootstrap({ phase: "ready", id: shareBootstrap.id, error: "" });
+      setEditToolsOpen(false);
+      setMode("general");
+      bumpRouteList();
+      bumpShareView();
+      requestImportedMapView(opened.mapView);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shareBootstrap.phase, shareBootstrap.id]);
+
   useEffect(() => {
     if (mode !== "general" || !editToolsOpen) {
       setFileMenuOpen(false);
@@ -268,7 +309,9 @@ function App() {
   const isEditRouteMode = mode === "edit-route-select" || mode === "edit-route-active";
   const showEditStationSubmodeButtons = mode === "edit-station";
 
-  const toolsDisabled = !editToolsOpen;
+  const shareViewActive = Route.isShareViewActive();
+  void shareViewTick;
+  const toolsDisabled = !editToolsOpen || shareViewActive;
 
   /** 任一模式中（未完成／取消前）不可關閉「編輯模式」開關 */
   const editModeToggleLocked = editToolsOpen && mode !== "general";
@@ -309,6 +352,7 @@ function App() {
   };
 
   const toggleEditTools = () => {
+    if (shareViewActive) return;
     setEditToolsOpen((prev) => {
       const next = !prev;
       if (!next) {
@@ -411,7 +455,59 @@ function App() {
     requestImportedMapView(restoredMapView);
   };
 
+  const shareLoadErrorMessage = (code) => {
+    if (code === "not_found") return t("share.loadNotFound");
+    if (code === "kv_not_configured") return t("share.errorNotConfigured");
+    if (code === "network_error") return t("share.errorNetwork");
+    if (code === "unsupported_format" || code === "missing_features" || code === "invalid_json") {
+      return importErrorMessage(code);
+    }
+    return t("share.loadErrorGeneric");
+  };
+
+  const handleExitShareView = () => {
+    setShareActionBusy(true);
+    const result = Route.exitShareView();
+    setShareActionBusy(false);
+    if (!result.ok) return;
+    setShareBootstrap({ phase: "idle", id: null, error: "" });
+    bumpRouteList();
+    bumpShareView();
+  };
+
+  const handleAdoptShareView = async () => {
+    setShareActionBusy(true);
+    const result = Route.adoptShareToMyMap();
+    setShareActionBusy(false);
+    if (!result.ok) {
+      if (result.error) alert(importErrorMessage(result.error));
+      return;
+    }
+    setShareBootstrap({ phase: "idle", id: null, error: "" });
+    bumpRouteList();
+    bumpShareView();
+    const successKey =
+      result.mode === "replaceMatching" ? "app.importSuccessReplaceMatching" : "app.importSuccess";
+    const successVars =
+      result.mode === "replaceMatching"
+        ? {
+            replacedSubRoutes: result.replacedSubRouteCount,
+            addedSubRoutes: result.addedSubRouteCount,
+            stations: result.stationCount,
+          }
+        : {
+            subRoutes: result.subRouteCount,
+            stations: result.stationCount,
+          };
+    alert(t(successKey, successVars));
+    requestImportedMapView(result.mapView);
+  };
+
   const openFileMenu = () => {
+    if (shareViewActive) {
+      setFileMenuOpen(true);
+      return;
+    }
     if (modeBtnDisabled(false)) return;
     setFileMenuOpen(true);
   };
@@ -431,6 +527,13 @@ function App() {
     closeFileMenu();
     handleUndoLastImport();
   };
+
+  const handleFileMenuShare = () => {
+    closeFileMenu();
+    setShareDialogOpen(true);
+  };
+
+  const shareExpiresAt = Route.getShareViewExpiresAt();
 
   return (
     <div className="app-root">
@@ -492,6 +595,34 @@ function App() {
         </div>
       </header>
       {sitePage && <SiteInfoPage pageId={sitePage} onClose={closeSitePage} />}
+      {shareViewActive ? (
+        <ShareViewBanner
+          expiresAt={shareExpiresAt}
+          busy={shareActionBusy}
+          onAdopt={handleAdoptShareView}
+          onExit={handleExitShareView}
+        />
+      ) : null}
+      {shareBootstrap.phase === "loading" ? (
+        <div className="app-share-loading" role="status" aria-live="polite">
+          {t("share.loading")}
+        </div>
+      ) : null}
+      {shareBootstrap.phase === "error" ? (
+        <div className="app-share-load-error" role="alert">
+          <p>{shareLoadErrorMessage(shareBootstrap.error)}</p>
+          <button
+            type="button"
+            className="app-share-view-btn"
+            onClick={() => {
+              window.history.replaceState(null, "", window.location.pathname);
+              setShareBootstrap({ phase: "idle", id: null, error: "" });
+            }}
+          >
+            {t("share.dismissLoadError")}
+          </button>
+        </div>
+      ) : null}
       <div className="app-content-wrapper app-main-layout">
         <aside
           id="route-list-container"
@@ -519,16 +650,18 @@ function App() {
                 id="edit-mode-toggle"
                 type="button"
                 className={`app-edit-mode-toggle${editToolsOpen ? " active-button" : ""}`}
-                disabled={editModeToggleLocked}
+                disabled={editModeToggleLocked || shareViewActive}
                 onClick={toggleEditTools}
                 aria-expanded={editToolsOpen}
                 aria-controls="edit-tools-panel"
                 title={
-                  editModeToggleLocked
-                    ? t("app.editModeToggleLockedTitle")
-                    : editToolsOpen
-                      ? t("app.editModeToggleAriaCollapse")
-                      : t("app.editModeToggleAriaExpand")
+                  shareViewActive
+                    ? t("share.editDisabledTitle")
+                    : editModeToggleLocked
+                      ? t("app.editModeToggleLockedTitle")
+                      : editToolsOpen
+                        ? t("app.editModeToggleAriaCollapse")
+                        : t("app.editModeToggleAriaExpand")
                 }
               >
                 <span className="app-edit-mode-toggle-label">{t("app.controlsSectionTitle")}</span>
@@ -721,6 +854,14 @@ function App() {
               {t("app.routeFilesDialogTitle")}
             </h2>
             <div className="app-file-menu-actions">
+              <button
+                type="button"
+                className="app-file-menu-btn app-file-menu-btn--primary"
+                onClick={handleFileMenuShare}
+                title={t("share.menuTitle")}
+              >
+                {t("share.menuLabel")}
+              </button>
               <button type="button" className="app-file-menu-btn" onClick={handleFileMenuExport} title={t("app.exportRoutesTitle")}>
                 {t("app.exportRoutes")}
               </button>
@@ -745,6 +886,7 @@ function App() {
           </div>
         </div>
       )}
+      <ShareLinkDialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} />
       {pendingImport != null && (
         <div className="app-import-dialog-backdrop" role="presentation" onClick={closeImportDialog}>
           <div

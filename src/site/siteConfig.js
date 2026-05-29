@@ -4,4 +4,4 @@ export const SITE_CONTACT_EMAIL =
 
 export const SPONSOR_URL = import.meta.env.VITE_SPONSOR_URL?.trim() || "";
 
-export const SITE_LAST_UPDATED = "2026-05-27";
+export const SITE_LAST_UPDATED = "2026-05-29";

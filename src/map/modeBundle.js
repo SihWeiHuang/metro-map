@@ -684,6 +684,10 @@ export function finishEditing() {
     return { ok: true, newRouteIds: [] };
   }
   const result = Route.endTempEditingAndCommit();
+  if (!result.ok && result.code === "route_limit_reached") {
+    alert(t("routeModel.routeLimitReached", { limit: result.limit, current: result.current }));
+    return result;
+  }
   if (result.ok) {
     setMode("general");
   }
@@ -1277,8 +1281,15 @@ Modes["split-line"] = {
 export function pickSubRouteForSplitLine(subrouteId) {
   if (M.mode !== "split-line" || typeof subrouteId !== "string") return { ok: false };
   const res = Route.splitLine(subrouteId);
-  if (!res.ok) alert(res.msg);
-  else alert(t("routeModel.splitLineSuccess"));
+  if (!res.ok) {
+    if (res.code === "route_limit_reached") {
+      alert(t("routeModel.routeLimitReached", { limit: res.limit, current: res.current }));
+    } else if (res.msg) {
+      alert(res.msg);
+    }
+  } else {
+    alert(t("routeModel.splitLineSuccess"));
+  }
   setMode("general");
   return res;
 }

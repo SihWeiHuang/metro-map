@@ -23,8 +23,8 @@ export function getPageContent(pageId, locale) {
     return {
       title: L(locale, { zh: "條款與隱私", en: "Legal & privacy" }),
       intro: L(locale, {
-        zh: "以下說明 Metro Multiverse 的使用條件、免責事項、隱私權與資料來源。本文為一般資訊說明，不構成法律意見。",
-        en: "Terms, disclaimers, privacy, and data sources for Metro Multiverse. This is general information, not legal advice.",
+        zh: "本頁載列 Metro Multiverse（「本服務」）之使用條款、免責、隱私及資料來源。以下僅供參考，不構成法律意見；爭議以適用法令及主管、司法機關認定為準。",
+        en: "Terms, disclaimer, privacy, and data sources for Metro Multiverse (“the Service”). For general reference only, not legal advice; disputes are governed by applicable law and competent authorities or courts.",
       }),
       sections: [
         {
@@ -32,16 +32,16 @@ export function getPageContent(pageId, locale) {
           title: L(locale, { zh: "非官方聲明與免責", en: "Non-official disclaimer" }),
           paragraphs: [
             L(locale, {
-              zh: "Metro Multiverse 由獨立開發者維運，與台北捷運公司、臺北市政府或任何交通機關無關，亦不代表官方路線圖或即時營運資訊。",
-              en: "Metro Multiverse is operated by an independent developer. It is not affiliated with Taipei Metro, the Taipei City Government, or any transit authority, and does not represent official maps or real-time operations.",
+              zh: "本服務由獨立開發者營運，與臺北大眾捷運公司、臺北市政府及交通主管機關無隸屬或合作關係，亦不提供官方路線、時刻或即時營運資訊。",
+              en: "The Service is operated independently and is not affiliated with Taipei Rapid Transit Corporation, the Taipei City Government, or any transit authority, and does not provide official routes, schedules, or real-time operations.",
             }),
             L(locale, {
-              zh: "本站路線、車站位置、營運狀態標籤等皆供示意、創作、教學或規劃討論使用，不得作為實際乘車、安全、投資或法律決策之依據。資料可能有誤、過期或不完整，使用者應自行判斷並承擔使用風險。",
-              en: "Lines, station positions, and status labels are for illustration, creative work, education, or planning discussion only. Do not rely on them for travel, safety, investment, or legal decisions. Data may be wrong, outdated, or incomplete; you use the service at your own risk.",
+              zh: "本站路線、車站及營運狀態僅供示意、創作、教學或規劃討論，不得作為搭車、安全、投資或法律行為之依據。資料可能有誤、延遲或不完整，使用者應自行查證並承擔使用風險。",
+              en: "Routes, stations, and status labels are for schematic, creative, educational, or planning use only—not for travel, safety, investment, or legal decisions. Data may be wrong, delayed, or incomplete; users verify at their own risk.",
             }),
             L(locale, {
-              zh: "開發者對因使用或無法使用本服務所生之直接或間接損害，於法律允許之範圍內不負賠償責任。",
-              en: "To the extent permitted by law, the developer is not liable for direct or indirect damages arising from use or inability to use this service.",
+              zh: "於法律允許範圍內，營運者對因使用或無法使用本服務所致之直接、間接或衍生損害不負賠償責任。",
+              en: "To the extent permitted by law, the operator is not liable for direct, indirect, or consequential damages from use or inability to use the Service.",
             }),
           ],
         },
@@ -50,26 +50,30 @@ export function getPageContent(pageId, locale) {
           title: L(locale, { zh: "隱私權", en: "Privacy" }),
           paragraphs: [
             L(locale, {
-              zh: "目前本站不要求註冊帳號，亦不主動收集姓名、電話、身分證字號等可直接識別身分之資料。",
-              en: "The site does not require accounts and does not actively collect directly identifiable personal data such as your legal name, phone number, or national ID.",
+              zh: "本服務不要求註冊，亦不主動蒐集可單獨識別身分之資料（如姓名、電話、身分證字號）。",
+              en: "No registration is required; the Service does not actively collect data that identifies you alone (e.g. name, phone, national ID).",
             }),
             L(locale, {
-              zh: "瀏覽器可能在本機儲存路線編輯資料、介面偏好與語言設定（localStorage），資料留在你的裝置上，除非你清除瀏覽器資料或匯出檔案自行分享。",
-              en: "Your browser may store route edits, UI preferences, and language settings in localStorage on your device unless you clear site data or share exported files yourself.",
+              zh: "瀏覽器可能以 localStorage 於本機儲存編輯資料、介面偏好及語言設定；除使用者自行清除、匯出、或主動產生「分享連結」外，本服務不主動取得本機路線。",
+              en: "Your browser may store edits, UI preferences, and language in localStorage; the Service does not obtain local line data unless you clear it, export it, or create a share link.",
+            }),
+            L(locale, {
+              zh: "當您使用「分享連結」時，所選路線 JSON 會上傳至 Vercel 所連結之 Redis（KV）儲存，並產生短期有效的公開網址；到期後資料會自動刪除。任何持有連結者皆可讀取該次上傳內容，請勿分享敏感或未授權資料。",
+              en: "When you create a share link, your line JSON is uploaded to Redis (KV) connected via Vercel, with a short-lived public URL; data is deleted after expiry. Anyone with the link can read that upload—do not share sensitive or unauthorized content.",
             }),
           ],
           list: [
             L(locale, {
-              zh: "Mapbox：載入地圖時，你的 IP 與瀏覽器資訊可能由 Mapbox 依其隱私政策處理。",
-              en: "Mapbox: loading the map may send your IP and browser information to Mapbox under their privacy policy.",
+              zh: "Mapbox：載入地圖時，IP 及瀏覽器資訊可能依 Mapbox 隱私政策處理。",
+              en: "Mapbox: loading the map may send IP and browser data under Mapbox’s privacy policy.",
             }),
             L(locale, {
-              zh: "Vercel：代管網站時可能記錄存取紀錄（如 IP、時間）以供託管與安全維運。",
-              en: "Vercel: hosting may log access metadata (e.g. IP, time) for operations and security.",
+              zh: "Vercel：託管期間可能記錄 IP、存取時間等紀錄以供託管與安全維運。",
+              en: "Vercel: hosting may log IP, access time, etc. for operations and security.",
             }),
             L(locale, {
-              zh: "未來若新增分析、贊助或付費金流，將更新本頁並於網站上公告。",
-              en: "If analytics, sponsorship, or paid checkout is added later, this page will be updated and announced on the site.",
+              zh: "若日後新增分析、贊助或付費功能，將修訂本政策並公告。",
+              en: "If analytics, sponsorship, or paid features are added, this policy will be revised and announced.",
             }),
           ],
         },
@@ -78,16 +82,16 @@ export function getPageContent(pageId, locale) {
           title: L(locale, { zh: "使用條款", en: "Terms of use" }),
           paragraphs: [
             L(locale, {
-              zh: "使用本站即表示你同意遵守適用法律，並不得濫用服務（包含以程式大量請求地圖、嘗試破解或干擾系統、上傳違法內容等）。",
-              en: "By using this site you agree to comply with applicable laws and not misuse the service (including automated map requests, attempts to disrupt the system, or unlawful content).",
+              zh: "使用本服務即視為同意本頁條款及中華民國相關法令。不得濫用服務，包括自動化大量請求地圖、侵入或干擾系統、散布違法或不當內容等。",
+              en: "Use of the Service means you agree to these terms and applicable laws of the Republic of China. Misuse includes automated bulk map requests, intrusion or disruption, and unlawful or inappropriate content.",
             }),
             L(locale, {
-              zh: "網站介面、程式與品牌名稱由開發者保留權利；你透過本站創作並匯出的路線資料，其權利與使用責任由你自行確保不侵害他人權益。",
-              en: "The UI, code, and branding remain the developer’s property. You are responsible for rights and compliance of route data you create and export.",
+              zh: "介面、程式碼及品牌等智慧財產權歸營運者所有；使用者匯出路線之權利與使用責任自行負擔，並應不侵害第三人權益。",
+              en: "Interface, code, and branding belong to the operator. You are responsible for exported route data and must not infringe third-party rights.",
             }),
             L(locale, {
-              zh: "服務內容、功能與免費提供方式可能隨時調整、暫停或終止，恕不另行對每位使用者個別通知。",
-              en: "Features, content, and free access may change, pause, or end at any time without individual notice.",
+              zh: "營運者得調整、暫停或終止內容、功能或免費提供方式，恕不另行個別通知。",
+              en: "The operator may change, suspend, or end content, features, or free access without individual notice.",
             }),
           ],
         },
@@ -96,16 +100,16 @@ export function getPageContent(pageId, locale) {
           title: L(locale, { zh: "資料來源標示", en: "Data sources" }),
           paragraphs: [
             L(locale, {
-              zh: "底圖與地理顯示由 Mapbox 提供，並受 Mapbox 服務條款與授權規範。",
-              en: "Base maps and geospatial display are provided by Mapbox under Mapbox terms and licenses.",
+              zh: "底圖由 Mapbox 提供，受 Mapbox 服務條款及授權規範拘束。",
+              en: "Base maps are provided by Mapbox under its terms and licenses.",
             }),
             L(locale, {
-              zh: "內建台北捷運示意路線／車站資料來自政府開放資料（內政部國土測繪中心等公開之捷運圖資），僅作為預設展示與編輯起點；顯示名稱與營運狀態可能經人工整理，不等同官方公告。",
-              en: "Built-in Taipei Metro schematic routes/stations are derived from government open data (e.g. NLSC-published MRT datasets) as a default starting point only; labels and status may be curated and are not official announcements.",
+              zh: "內建臺北捷運示意資料取自政府開放資料（如國土測繪中心捷運圖資），僅作預設起點；名稱與狀態可能經整理，非官方或即時資訊。",
+              en: "Built-in Taipei Metro schematic data comes from government open data (e.g. NLSC MRT datasets) as a default only; names and status may be curated and are not official or real-time.",
             }),
             L(locale, {
-              zh: "使用者自行繪製或匯入的路線由使用者負責，與開源圖資或第三方內容之授權無涉。",
-              en: "User-drawn or imported routes are the user’s responsibility and are separate from open-government or third-party licenses.",
+              zh: "使用者自行繪製或匯入之路線，其內容、授權及使用責任由使用者自行負擔。",
+              en: "User-drawn or imported routes are the user’s responsibility for content, licensing, and use.",
             }),
           ],
         },
@@ -121,27 +125,79 @@ export function getPageContent(pageId, locale) {
     return {
       title: L(locale, { zh: "關於本站", en: "About" }),
       intro: L(locale, {
-        zh: "Metro Multiverse（捷運多重宇宙）是在地圖上編輯示意路線與車站的網頁工具，靈感來自「多重宇宙」——每一條線都是一種可能的路網。",
-        en: "Metro Multiverse is a web tool for editing schematic transit lines and stations on a map — each line can be its own “universe” of possibilities.",
+        zh: "Metro Multiverse 為整合雙北捷運路網、支援自訂繪製與路線交換之網頁應用。以下為本站三大功能定位。",
+        en: "Metro Multiverse is a web application that integrates the Taipei–New Taipei metro network, supports custom route drawing, and enables route exchange. The three core capabilities are outlined below.",
       }),
       sections: [
         {
-          id: "what",
-          title: L(locale, { zh: "可以做什麼", en: "What you can do" }),
+          id: "integrated-map",
+          title: L(locale, { zh: "整合路網檢視", en: "Integrated network view" }),
           paragraphs: [
             L(locale, {
-              zh: "檢視內建示意路線、新增與編輯路線／車站、合併路線、匯入匯出 JSON，適合創作、教學、簡報或假想路網討論。",
-              en: "View built-in schematic lines, add and edit routes and stations, merge lines, and import/export JSON — useful for creative work, teaching, slides, or hypothetical networks.",
+              zh: "本站提供預設路線，於地圖上呈現雙北地區營運中、規劃中及興建中之捷運路線。營運、規劃與施工階段之路網整合於同一張地圖，使用者無須分別查閱多個來源，即可檢視未來捷運路網於地理空間上的分布概況。",
+              en: "The site provides default routes showing operating, planned, and under-construction metro lines in the Taipei–New Taipei area on one map. By combining networks at all three stages on a single view, users can see how future lines are distributed spatially without consulting multiple separate sources.",
+            }),
+            L(locale, {
+              zh: "此種整合呈現方式，在一般市面公開資源中較為少見。",
+              en: "This kind of integrated presentation is uncommon among typical public resources.",
+            }),
+          ],
+        },
+        {
+          id: "draw-share",
+          title: L(locale, { zh: "繪製與分享", en: "Draw and share" }),
+          paragraphs: [
+            L(locale, {
+              zh: "使用者可於地圖上自行繪製路線與車站，建立個人構想或假想路網，並將成果分享予他人，供教學、簡報、討論或創作使用。",
+              en: "Users may draw their own routes and stations on the map to build personal or hypothetical networks and share the results with others for teaching, presentations, discussion, or creative work.",
+            }),
+            L(locale, {
+              zh: "全站使用者路線（路線層級）上限為 50 條，以維持瀏覽器效能與穩定度。",
+              en: "There is a site-wide limit of 50 user-drawn lines (line level) to keep the app responsive.",
+            }),
+          ],
+        },
+        {
+          id: "share-link",
+          title: L(locale, { zh: "短網址分享", en: "Short share links" }),
+          paragraphs: [
+            L(locale, {
+              zh: "於「路線檔案」選單可產生分享連結（格式如 /r/xxxxxxxx）。僅在您按下產生時才上傳路線；連結預設 30 天有效，單次分享檔案上限 200 KB。他人開啟連結後可先以「僅檢視」模式瀏覽，再選擇是否加入自己的地圖。",
+              en: 'Use the Line files menu to create a share link (e.g. /r/xxxxxxxx). Upload happens only when you create the link; links expire after 30 days by default, with a 200 KB cap per share. Visitors can browse in view-only mode, then optionally add lines to their map.',
+            }),
+          ],
+        },
+        {
+          id: "import-export",
+          title: L(locale, { zh: "匯入與匯出", en: "Import and export" }),
+          paragraphs: [
+            L(locale, {
+              zh: "本站支援以 JSON 匯入他人所繪製之路線，亦可匯出自己繪製之路線，便於保存、交換與後續編輯。",
+              en: "The site supports importing routes drawn by others and exporting your own routes as JSON for storage, exchange, and further editing.",
+            }),
+          ],
+        },
+        {
+          id: "direction",
+          title: L(locale, { zh: "更新與方向", en: "Updates & direction" }),
+          paragraphs: [
+            L(locale, {
+              zh: "營運者將持續嘗試更新、精進本站功能與使用體驗。此為目前之發展方向，並不構成服務承諾或時程保證。",
+              en: "The operator intends to continue updating and refining site features and the user experience. This reflects current development direction only and does not constitute a service commitment or fixed timeline.",
+            }),
+            L(locale, {
+              zh: "實際進度受可用時間與資源限制；功能優先順序可能調整，部分項目可能暫緩或變更方向。如有功能建議，歡迎透過「聯絡我們」頁面來信。",
+              en: "Progress depends on available time and resources. Priorities may change, and some items may be deferred or revised. Feature suggestions are welcome via the Contact page.",
             }),
           ],
         },
         {
           id: "who",
-          title: L(locale, { zh: "維運方式", en: "How it is run" }),
+          title: L(locale, { zh: "維運說明", en: "Operations" }),
           paragraphs: [
             L(locale, {
-              zh: "由獨立開發者以業餘／專案形式維護，透過 GitHub 與 Vercel 部署。歡迎回饋問題與建議（見「聯絡我們」頁）。",
-              en: "Maintained as an independent side project, deployed via GitHub and Vercel. Feedback is welcome (see Contact).",
+              zh: "本站由獨立開發者於業餘時間維護，透過 GitHub 與 Vercel 部署。若於使用過程中發現問題或有建議，歡迎透過「聯絡我們」頁面來信。",
+              en: "The site is maintained by an independent developer in spare time and deployed via GitHub and Vercel. For issues or suggestions encountered during use, please contact us via the Contact page.",
             }),
           ],
         },
@@ -158,8 +214,8 @@ export function getPageContent(pageId, locale) {
     return {
       title: L(locale, { zh: "贊助支持", en: "Support" }),
       intro: L(locale, {
-        zh: "若你覺得 Metro Multiverse 有用，歡迎自願贊助支持開發與伺服器、地圖等營運成本。",
-        en: "If Metro Multiverse is useful to you, voluntary support helps cover development and operating costs (hosting, maps, etc.).",
+        zh: "如果你覺得 Metro Multiverse 對你有幫助，一小筆自願贊助可以支持我持續維護網站、負擔伺服器與地圖等營運開支。非常感謝你的支持！",
+        en: "If Metro Multiverse has been helpful, a voluntary tip helps keep the site running — hosting, maps, and ongoing maintenance. Thank you so much for your support!",
       }),
       sections: [
         {
@@ -167,20 +223,20 @@ export function getPageContent(pageId, locale) {
           title: L(locale, { zh: "贊助性質", en: "What sponsorship means" }),
           paragraphs: [
             L(locale, {
-              zh: "贊助為自願性捐款，用於支持專案持續維護，並非向台北捷運或任何政府機關捐款。",
-              en: "Support is a voluntary tip to maintain the project, not a donation to Taipei Metro or any government agency.",
+              zh: "贊助是自願的支持，用來幫助這個小專案持續運作；它不是捐給台北捷運或任何政府單位的款項。",
+              en: "Tips are voluntary support to keep this little project going — not a donation to Taipei Metro or any government body.",
             }),
             L(locale, {
-              zh: "除非日後另行公告，贊助不會自動解鎖特定功能，也不構成購買服務契約。",
-              en: "Unless announced otherwise, tips do not automatically unlock features and are not a purchase contract.",
+              zh: "目前贊助不會解鎖額外功能，也不是購買服務的合約；若日後有變化，會在網站上清楚公告。",
+              en: "Tips don’t unlock extra features and aren’t a purchase contract. If that ever changes, we’ll say so clearly on the site.",
             }),
             L(locale, {
-              zh: "金流由第三方平台處理（如 Buy Me a Coffee、Ko-fi 等），退款與帳務依該平台規定。",
-              en: "Payments are processed by third-party platforms (e.g. Buy Me a Coffee, Ko-fi); refunds and billing follow their policies.",
+              zh: "金流由 Ko-fi 處理，退款與帳務依 Ko-fi 規定辦理。",
+              en: "Payments are processed by Ko-fi; refunds and billing follow Ko-fi’s policies.",
             }),
             L(locale, {
-              zh: "贊助收入可能須依你所在地稅法申報，請自行留意。",
-              en: "Tips may be taxable depending on your jurisdiction; please consult local tax rules.",
+              zh: "若你所在地的法規要求申報，請依自身狀況處理即可。",
+              en: "If your local rules require reporting tips for tax purposes, that’s up to you to handle.",
             }),
           ],
         },
@@ -190,14 +246,14 @@ export function getPageContent(pageId, locale) {
           paragraphs: sponsorConfigured
             ? [
                 L(locale, {
-                  zh: "請使用下方按鈕前往贊助頁面（將開啟新分頁）。",
-                  en: "Use the button below to open the sponsorship page in a new tab.",
+                  zh: "點下方按鈕即可前往贊助頁面（會在新分頁開啟）。",
+                  en: "Hit the button below to open the sponsorship page in a new tab.",
                 }),
               ]
             : [
                 L(locale, {
-                  zh: "贊助連結尚未設定。維運者可在 Vercel 環境變數加入 VITE_SPONSOR_URL（例如 Buy Me a Coffee 或 Ko-fi 網址）。",
-                  en: "The sponsor link is not configured yet. Set VITE_SPONSOR_URL in Vercel (e.g. your Buy Me a Coffee or Ko-fi URL).",
+                  zh: "贊助連結尚未設定。維運者可在 Vercel 環境變數加入 VITE_SPONSOR_URL（Ko-fi 網址）。",
+                  en: "The sponsor link is not configured yet. Set VITE_SPONSOR_URL in Vercel (your Ko-fi page URL).",
                 }),
               ],
           sponsorUrl: sponsorConfigured ? SPONSOR_URL : null,
@@ -215,8 +271,8 @@ export function getPageContent(pageId, locale) {
     return {
       title: L(locale, { zh: "聯絡我們", en: "Contact us" }),
       intro: L(locale, {
-        zh: "若有使用問題、錯誤回報或合作洽詢，歡迎來信。本頁無法處理捷運營運、票務或官方路線爭議，請逕向相關單位查詢。",
-        en: "For usage questions, bug reports, or collaboration inquiries, email us. This page cannot handle official metro operations, fares, or line disputes—please contact the relevant authorities.",
+        zh: "有使用上的疑問、發現 bug、或想聊聊合作，都歡迎來信！不過關於捷運實際營運、票務或官方路線爭議，還請直接向相關單位洽詢，這邊無法代為處理。",
+        en: "Questions, bug reports, or collaboration ideas — we’re happy to hear from you! For real-world metro operations, fares, or official line disputes, please contact the relevant authorities; we can’t help with those here.",
       }),
       sections: [
         {
@@ -225,8 +281,8 @@ export function getPageContent(pageId, locale) {
           paragraphs: emailConfigured
             ? [
                 L(locale, {
-                  zh: "請點選下方信箱地址寄信（會開啟你的郵件程式）：",
-                  en: "Tap the address below to compose an email in your mail app:",
+                  zh: "點一下方的信箱，就會開啟你的郵件程式：",
+                  en: "Tap the address below to open your mail app:",
                 }),
               ]
             : [
@@ -241,7 +297,10 @@ export function getPageContent(pageId, locale) {
           id: "topics",
           title: L(locale, { zh: "適合來信的主題", en: "What to write about" }),
           list: [
-            L(locale, { zh: "網站錯誤、地圖無法載入、匯入匯出問題", en: "Site errors, map load failures, import/export issues" }),
+            L(locale, {
+              zh: "網站錯誤、地圖無法載入、匯入匯出或分享連結問題",
+              en: "Site errors, map load failures, import/export, or share link issues",
+            }),
             L(locale, { zh: "功能建議或介面回饋", en: "Feature ideas or UI feedback" }),
             L(locale, { zh: "媒體、教學或合作洽詢", en: "Press, education, or collaboration" }),
           ],
@@ -251,8 +310,8 @@ export function getPageContent(pageId, locale) {
           title: L(locale, { zh: "回覆說明", en: "Response expectations" }),
           paragraphs: [
             L(locale, {
-              zh: "此為業餘專案，無法保證即時回覆；若未收到回覆，可能是信件進入垃圾郵件或目前無法處理該類請求。",
-              en: "This is a side project; timely replies are not guaranteed. If you do not hear back, check spam or note that some requests may be out of scope.",
+              zh: "這是一個業餘小專案，我會盡力回覆，但無法保證即時。若久未收到回信，不妨先看看垃圾郵件匣——也可能是該類問題目前無法處理。仍感謝你的來信！",
+              en: "This is a side project — I’ll do my best to reply, but can’t promise instant responses. If you don’t hear back, check spam; some requests may be out of scope. Thanks for reaching out anyway!",
             }),
           ],
         },

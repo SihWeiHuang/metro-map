@@ -13,6 +13,7 @@ import { computeMapViewFromFeatures, normalizeImportedMapView } from "./mapGeoBo
 import { scheduleImportMapView } from "./mapViewState.js";
 import { setStationLabelBaseMask } from "./mapHoverFilters.js";
 import { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER } from "./layers.js";
+import { MAX_USER_ROUTES } from "../../shared/shareLimits.js";
 import {
   allocateDefaultRouteLabel,
   allocateDefaultStationLabel,
@@ -52,6 +53,8 @@ export const store = {
   settings: {
     stationMinPerRoute: 1,
   },
+  /** 檢視他人分享連結時為 true；不寫入 localStorage。 */
+  shareViewActive: false,
 };
 
 const PERSIST_STORAGE_KEY = "metro-map-data-v2";
@@ -329,7 +332,34 @@ loadBuiltinDefaultState();
 loadPersistedUserState();
 
 let persistTimer = null;
+function countUserRoutes() {
+  const ids = new Set();
+  for (const f of store.subroutesFC.features) {
+    if (routeKindOf(f) !== ROUTE_KIND_USER) continue;
+    const routeId = f.properties?.route_id;
+    if (typeof routeId === "string") ids.add(routeId);
+  }
+  return ids.size;
+}
+
+/**
+ * @param {number} [additionalRoutes]
+ * @returns {{ ok: true } | { ok: false, code: "route_limit_reached", limit: number, current: number }}
+ */
+function assertCanAddUserRoutes(additionalRoutes = 1) {
+  const current = countUserRoutes();
+  const limit = MAX_USER_ROUTES;
+  if (current + additionalRoutes > limit) {
+    return { ok: false, code: "route_limit_reached", limit, current };
+  }
+  return { ok: true };
+}
+
+/** @type {{ restoreSnapshot: ReturnType<typeof captureUserStateSnapshot>, payloadText: string, expiresAt: string | null } | null} */
+let shareViewSession = null;
+
 function schedulePersistToStorage() {
+  if (store.shareViewActive) return;
   if (typeof localStorage === "undefined") return;
   if (persistTimer) clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
@@ -1002,6 +1032,10 @@ function endTempEditingAndCommit() {
         }
       });
     } else {
+      const routeLimit = assertCanAddUserRoutes(1);
+      if (!routeLimit.ok) {
+        return routeLimit;
+      }
       const new_subroute_id = nextSubrouteId();
       const new_route_id = nextRouteId();
       const defaultRoute = allocateDefaultRouteLabel(store.subroutesFC.features, isUserRouteFeature);
@@ -1590,6 +1624,17 @@ function splitLine(subrouteId) {
     return { ok: false, msg: t("routeModel.splitLineSingle") };
   }
 
+  const additionalRoutes = subroutesInRoute.length - 1;
+  const routeLimit = assertCanAddUserRoutes(additionalRoutes);
+  if (!routeLimit.ok) {
+    return {
+      ok: false,
+      code: routeLimit.code,
+      limit: routeLimit.limit,
+      current: routeLimit.current,
+    };
+  }
+
   subroutesInRoute.forEach((route) => {
     route.properties.route_id = nextRouteId();
   });
@@ -1970,6 +2015,82 @@ function analyzeImportJSON(jsonString) {
  * @param {{ mode?: ImportMode }} [options]
  * @returns {({ ok: true } & ReturnType<typeof buildImportResultStats>) | { ok: false, error: string }}
  */
+/**
+ * @param {string} jsonString
+ * @param {{ expiresAt?: string | null }} [meta]
+ */
+function openShareView(jsonString, meta = {}) {
+  if (shareViewSession) {
+    restoreUserStateSnapshot(shareViewSession.restoreSnapshot);
+    shareViewSession = null;
+  }
+  let mapView = null;
+  try {
+    const data = JSON.parse(jsonString);
+    const { userSubroutes, userStations, hiddenSubrouteIds, settings, mapView: mv } = parseImportPayload(data);
+    mapView = mv;
+    shareViewSession = {
+      restoreSnapshot: captureUserStateSnapshot(),
+      payloadText: jsonString,
+      expiresAt: meta.expiresAt ?? null,
+    };
+    store.shareViewActive = true;
+    clearUserContent();
+    mergeUserStateIntoStore(userSubroutes, userStations);
+    if (Array.isArray(hiddenSubrouteIds)) {
+      for (const rid of hiddenSubrouteIds) {
+        if (typeof rid === "string") store.hiddenSubrouteIds.add(rid);
+      }
+    }
+    if (settings && typeof settings.stationMinPerRoute === "number") {
+      store.settings.stationMinPerRoute = settings.stationMinPerRoute;
+    }
+    syncCountersFromLoadedFeatures();
+    normalizeAllSubroutesMetadata();
+    normalizeUserDefaultNames();
+    refreshSources();
+    scheduleImportMapView(mapView);
+    return { ok: true, mapView, subRouteCount: userSubroutes.length, stationCount: userStations.length };
+  } catch (e) {
+    store.shareViewActive = false;
+    shareViewSession = null;
+    const code = e instanceof Error && e.message ? e.message : "import_failed";
+    return { ok: false, error: code };
+  }
+}
+
+function exitShareView() {
+  if (!shareViewSession) return { ok: false };
+  restoreUserStateSnapshot(shareViewSession.restoreSnapshot);
+  store.shareViewActive = false;
+  shareViewSession = null;
+  refreshSources();
+  const userSubroutes = store.subroutesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
+  const userSubrouteIds = new Set(userSubroutes.map((f) => f.properties?.subroute_id).filter((id) => typeof id === "string"));
+  const userStations = extractUserStationsByRoutes(store.stationsFC.features, userSubrouteIds);
+  scheduleImportMapView(computeMapViewFromFeatures(userSubroutes, userStations));
+  schedulePersistToStorage();
+  return { ok: true };
+}
+
+function adoptShareToMyMap() {
+  if (!shareViewSession) return { ok: false, error: "no_share_view" };
+  const text = shareViewSession.payloadText;
+  const restoreSnapshot = shareViewSession.restoreSnapshot;
+  store.shareViewActive = false;
+  shareViewSession = null;
+  restoreUserStateSnapshot(restoreSnapshot);
+  return importUserStateJSON(text, { mode: "merge" });
+}
+
+function isShareViewActive() {
+  return store.shareViewActive;
+}
+
+function getShareViewExpiresAt() {
+  return shareViewSession?.expiresAt ?? null;
+}
+
 function importUserStateJSON(jsonString, options = {}) {
   skipImportUndoInvalidate = true;
   const snapshotBeforeImport = captureUserStateSnapshot();
@@ -2070,5 +2191,13 @@ export const Route = {
   canUndoLastImport,
   undoLastImport,
   subscribeImportUndoAvailability,
+  countUserRoutes,
+  getMaxUserRoutes: () => MAX_USER_ROUTES,
+  assertCanAddUserRoutes,
+  openShareView,
+  exitShareView,
+  adoptShareToMyMap,
+  isShareViewActive,
+  getShareViewExpiresAt,
   _store: store,
 };

@@ -52,6 +52,10 @@ git add -A && git commit -m "你的提交說明" && git push -u origin HEAD
 
 Without this variable, the map will not load correctly.
 
+### Share links (short URLs)
+
+Route sharing uses Vercel serverless APIs and **Redis (KV)**. Connect a Redis integration in the Vercel project, then redeploy. Setup steps (Traditional Chinese): **[docs/分享連結設定.md](docs/分享連結設定.md)**.
+
 Optional site pages (About, Legal, Support):
 
 ```env
@@ -75,5 +79,7 @@ GitHub 請勿上傳 `.env`（專案已用 `.gitignore` 排除）。Mapbox **URL 
 | `src/map/mapPopups.js` | **唯一**管理地圖 hover／提示 popup，並依模式強制規則（例如 `edit-station` 不顯示路線 hover，只顯示「新增轉乘站」）。請勿在 `modeBundle.js` 直接 `new mapboxgl.Popup()`。 |
 | `src/map/modeBundle.js` | 模式切換、游標、hover 編排；popup 一律委派給 `mapPopups.js`。 |
 | `src/map/routeModel.js` | 資料與商業邏輯；命名與 popup 顯示邏輯不在此重複實作。 |
+| `shared/shareLimits.js` | 分享連結與全站路線數上限常數（前後端共用）。 |
+| `api/share/` | 建立／讀取分享連結的 Serverless API。 |
 
 驗證預設命名：`npm run test:names`
