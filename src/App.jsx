@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import "./App.css";
 import MapView from "./components/MapView.jsx";
 import RouteListPanel from "./components/RouteListPanel.jsx";
@@ -70,7 +70,9 @@ function App() {
   const [importUndoAvailable, setImportUndoAvailable] = useState(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [langMenuStyle, setLangMenuStyle] = useState(null);
   const langMenuRef = useRef(null);
+  const siteHeaderRef = useRef(null);
   const [statusDialog, setStatusDialog] = useState(null);
   const [autoShowNewRouteStatus, setAutoShowNewRouteStatus] = useState(readAutoShowNewRouteStatus);
   const [sitePage, setSitePage] = useState(() =>
@@ -83,7 +85,53 @@ function App() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  useEffect(() => {
+    if (sitePage) setLangMenuOpen(false);
+  }, [sitePage]);
+
+  const updateLangMenuPosition = useCallback(() => {
+    const trigger = langMenuRef.current?.querySelector(".app-lang-dropdown-trigger");
+    if (!trigger) {
+      setLangMenuStyle(null);
+      return;
+    }
+    const rect = trigger.getBoundingClientRect();
+    setLangMenuStyle({
+      position: "fixed",
+      top: rect.bottom + 6,
+      left: rect.left,
+      minWidth: Math.max(rect.width, 160),
+      zIndex: 10000,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!langMenuOpen) {
+      setLangMenuStyle(null);
+      return;
+    }
+    updateLangMenuPosition();
+    window.addEventListener("resize", updateLangMenuPosition);
+    return () => window.removeEventListener("resize", updateLangMenuPosition);
+  }, [langMenuOpen, updateLangMenuPosition, sitePage, locale]);
+
+  useLayoutEffect(() => {
+    const headerEl = siteHeaderRef.current;
+    if (!headerEl) return;
+    const syncHeaderHeight = () => {
+      document.documentElement.style.setProperty("--app-header-height", `${headerEl.offsetHeight}px`);
+    };
+    syncHeaderHeight();
+    const observer = new ResizeObserver(syncHeaderHeight);
+    observer.observe(headerEl);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--app-header-height");
+    };
+  }, []);
+
   const navigateSitePage = useCallback((pageId) => {
+    setLangMenuOpen(false);
     window.location.hash = sitePageHash(pageId);
     setSitePage(pageId);
   }, []);
@@ -386,7 +434,7 @@ function App() {
 
   return (
     <div className="app-root">
-      <header className="app-site-header">
+      <header className="app-site-header" ref={siteHeaderRef}>
         <div className="app-site-header-inner">
           <div className="app-site-header-brand">
             <h1 className="app-site-title">
@@ -414,8 +462,13 @@ function App() {
                 <span>{locale === "en" ? t("lang.en") : t("lang.zh")}</span>
                 <span className="app-lang-dropdown-chevron" aria-hidden="true" />
               </button>
-              {langMenuOpen && (
-                <ul className="app-lang-dropdown-menu" role="listbox" aria-label={t("lang.ariaLabel")}>
+              {langMenuOpen && langMenuStyle && (
+                <ul
+                  className="app-lang-dropdown-menu app-lang-dropdown-menu--fixed"
+                  style={langMenuStyle}
+                  role="listbox"
+                  aria-label={t("lang.ariaLabel")}
+                >
                   {LOCALE_OPTIONS.map((opt) => (
                     <li key={opt.id} role="presentation">
                       <button

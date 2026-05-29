@@ -25,6 +25,8 @@
    ========================================== */
 
 .app-site-header {
+  position: relative;
+  z-index: 1500;
   flex-shrink: 0;
   overflow: visible;
   border-bottom: 0.5px solid var(--color-border-primary);
@@ -145,6 +147,8 @@
 }
 
 .app-header-actions {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -166,7 +170,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 1200;
+  z-index: 1100;
   background: var(--site-info-bg);
   color: var(--site-info-text);
   display: flex;
@@ -999,10 +1003,6 @@
 
   .app-site-nav-link {
     font-size: 0.75rem;
-  }
-
-  .site-info-overlay {
-    top: 5.5rem;
   }
 
   .app-content-wrapper {
@@ -1955,7 +1955,7 @@ html[lang="en"] .route-list-badge {
   top: calc(100% + var(--spacing-sm));
   right: 0;
   left: auto;
-  z-index: 1000;
+  z-index: 10;
   min-width: 10rem;
   margin: 0;
   padding: 0;
@@ -1964,6 +1964,13 @@ html[lang="en"] .route-list-badge {
   border: 0.5px solid var(--color-border-primary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
+}
+
+.app-lang-dropdown-menu--fixed {
+  position: fixed;
+  top: auto;
+  right: auto;
+  z-index: 10000;
 }
 
 .app-lang-dropdown-menu li {
