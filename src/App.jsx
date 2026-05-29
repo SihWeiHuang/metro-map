@@ -58,6 +58,8 @@ const LOCALE_OPTIONS = [
   { id: "en", labelKey: "lang.en" },
 ];
 
+const DEFAULT_DOCUMENT_TITLE = "Metro Multiverse";
+
 function App() {
   const { t, locale, setLocale } = useI18n();
   const [mode, setModeState] = useState("general");
@@ -281,6 +283,22 @@ function App() {
   }, [locale]);
 
   useEffect(() => {
+    if (shareBootstrap.phase === "loading") {
+      document.title = t("share.documentTitleLoading");
+      return () => {
+        document.title = DEFAULT_DOCUMENT_TITLE;
+      };
+    }
+    if (Route.isShareViewActive()) {
+      document.title = t("share.documentTitle");
+      return () => {
+        document.title = DEFAULT_DOCUMENT_TITLE;
+      };
+    }
+    document.title = DEFAULT_DOCUMENT_TITLE;
+  }, [shareViewTick, shareBootstrap.phase, locale]);
+
+  useEffect(() => {
     const id = requestAnimationFrame(() => {
       resizeMap();
     });
@@ -311,6 +329,14 @@ function App() {
 
   const shareViewActive = Route.isShareViewActive();
   void shareViewTick;
+
+  useEffect(() => {
+    if (shareViewActive) {
+      setEditToolsOpen(false);
+      setMode("general");
+    }
+  }, [shareViewActive]);
+
   const toolsDisabled = !editToolsOpen || shareViewActive;
 
   /** 任一模式中（未完成／取消前）不可關閉「編輯模式」開關 */
@@ -536,13 +562,15 @@ function App() {
   const shareExpiresAt = Route.getShareViewExpiresAt();
 
   return (
-    <div className="app-root">
+    <div className={`app-root${shareViewActive ? " app-root--share-view" : ""}`}>
       <header className="app-site-header" ref={siteHeaderRef}>
         <div className="app-site-header-inner">
           <div className="app-site-header-brand">
             <h1 className="app-site-title">
               <button type="button" className="app-site-title-btn" onClick={closeSitePage}>
-                {t("app.headerTitle")}
+                {shareViewActive || shareBootstrap.phase === "loading"
+                  ? t("share.headerTitle")
+                  : t("app.headerTitle")}
               </button>
             </h1>
             <p className="app-site-tagline">{t("app.headerTagline")}</p>
@@ -595,14 +623,6 @@ function App() {
         </div>
       </header>
       {sitePage && <SiteInfoPage pageId={sitePage} onClose={closeSitePage} />}
-      {shareViewActive ? (
-        <ShareViewBanner
-          expiresAt={shareExpiresAt}
-          busy={shareActionBusy}
-          onAdopt={handleAdoptShareView}
-          onExit={handleExitShareView}
-        />
-      ) : null}
       {shareBootstrap.phase === "loading" ? (
         <div className="app-share-loading" role="status" aria-live="polite">
           {t("share.loading")}
@@ -643,6 +663,12 @@ function App() {
               onEditRouteMetadata={openRouteMetadataDialog}
             />
           </div>
+          {shareViewActive ? (
+            <div className="app-share-sidebar-note" role="note">
+              <span className="app-share-sidebar-note-badge">{t("share.viewModeBadge")}</span>
+              <p>{t("share.sidebarNote")}</p>
+            </div>
+          ) : (
           <div className={`app-side-panel-footer app-controls-dock${editToolsOpen ? " app-controls-dock-open" : ""}`}>
             <div className="app-mode-tools">
             <div className="app-edit-mode-toggle-row">
@@ -757,6 +783,7 @@ function App() {
             </div>
             </div>
           </div>
+          )}
         </aside>
         <div
           className="route-list-resize-handle"
@@ -782,6 +809,14 @@ function App() {
         <div className="app-main-column">
           <div className="app-map-stage">
             <MapView onModeChange={onModeChange} />
+            {shareViewActive ? (
+              <ShareViewBanner
+                expiresAt={shareExpiresAt}
+                busy={shareActionBusy}
+                onAdopt={handleAdoptShareView}
+                onExit={handleExitShareView}
+              />
+            ) : null}
             {editToolsOpen && (
               <div className="mode-hint mode-hint-map" role="status" aria-live="polite">
                 {t("app.hintPrefix")}

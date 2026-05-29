@@ -1030,51 +1030,114 @@
   cursor: not-allowed;
 }
 
-.app-share-view-banner {
+/* Share view: full-width bar; right inset mirrors Mapbox +/− margin (10px + ctrl + 10px) */
+.app-share-view-chip {
+  --mapbox-ctrl-edge-gap: 10px;
+  --mapbox-ctrl-top-right-width: 29px;
+  /* 地圖上方說明欄透明度：0 = 全透明，1 = 不透明（建議 0.65～0.85） */
+  --share-view-bar-opacity: 0.72;
+  position: absolute;
+  top: var(--mapbox-ctrl-edge-gap);
+  left: var(--mapbox-ctrl-edge-gap);
+  right: calc(
+    var(--mapbox-ctrl-edge-gap) + var(--mapbox-ctrl-top-right-width) + var(--mapbox-ctrl-edge-gap)
+  );
+  z-index: 12;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md) var(--spacing-lg);
-  background: linear-gradient(90deg, rgba(30, 136, 229, 0.12), rgba(30, 136, 229, 0.04));
-  border-bottom: 0.5px solid var(--color-border-primary);
+  gap: var(--spacing-sm) var(--spacing-md);
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  border: 0.5px solid rgba(30, 136, 229, 0.28);
+  background: rgba(15, 23, 42, var(--share-view-bar-opacity));
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  pointer-events: auto;
+  box-sizing: border-box;
 }
 
-.app-share-view-banner-text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  font-size: 0.8125rem;
-  color: var(--color-text-secondary);
-  max-width: 42rem;
-}
-
-.app-share-view-banner-text strong {
-  font-size: 0.9375rem;
-  color: var(--color-text-primary);
-}
-
-.app-share-view-banner-expires {
+.app-share-view-chip-hint {
+  margin: 0;
+  flex: 1 1 12rem;
+  min-width: 0;
   font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.4;
 }
 
-.app-share-view-banner-actions {
+.app-share-view-chip-expires {
+  font-size: 0.6875rem;
+  color: var(--color-text-secondary);
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-share-view-chip-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-xs);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+@media (max-width: 520px) {
+  .app-share-view-chip-actions {
+    width: 100%;
+    justify-content: flex-end;
+    margin-left: 0;
+  }
+}
+
+.app-share-sidebar-note {
+  flex-shrink: 0;
+  margin: var(--spacing-sm) var(--spacing-md) var(--spacing-md);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  border: 0.5px solid var(--color-border-primary);
+  background: rgba(15, 23, 42, 0.92);
+  box-sizing: border-box;
+}
+
+.app-share-sidebar-note-badge {
+  display: inline-block;
+  margin: 0 0 var(--spacing-sm);
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--color-primary);
+  white-space: nowrap;
+}
+
+.app-share-sidebar-note p {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.app-root--share-view .app-map-stage {
+  /* Slightly more map room when edit dock is hidden */
+  min-height: 0;
 }
 
 .app-share-view-btn {
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: 4px 10px;
   border: 0.5px solid var(--color-border-primary);
   border-radius: var(--radius-md);
   background: var(--color-background-secondary);
   cursor: pointer;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 500;
   font-family: var(--font-sans);
   color: var(--color-text-primary);
+  white-space: nowrap;
 }
 
 .app-share-view-btn:hover:not(:disabled) {
