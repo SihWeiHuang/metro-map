@@ -514,27 +514,29 @@ function App() {
           </div>
           <div className={`app-side-panel-footer app-controls-dock${editToolsOpen ? " app-controls-dock-open" : ""}`}>
             <div className="app-mode-tools">
-            <button
-              id="edit-mode-toggle"
-              type="button"
-              className={`app-edit-mode-toggle${editToolsOpen ? " active-button" : ""}`}
-              disabled={editModeToggleLocked}
-              onClick={toggleEditTools}
-              aria-expanded={editToolsOpen}
-              aria-controls="edit-tools-panel"
-              title={
-                editModeToggleLocked
-                  ? t("app.editModeToggleLockedTitle")
-                  : editToolsOpen
-                    ? t("app.editModeToggleAriaCollapse")
-                    : t("app.editModeToggleAriaExpand")
-              }
-            >
-              <span className="app-edit-mode-toggle-label">{t("app.controlsSectionTitle")}</span>
-              <span className="app-edit-mode-chevron" aria-hidden>
-                {editToolsOpen ? "▾" : "▸"}
-              </span>
-            </button>
+            <div className="app-edit-mode-toggle-row">
+              <button
+                id="edit-mode-toggle"
+                type="button"
+                className={`app-edit-mode-toggle${editToolsOpen ? " active-button" : ""}`}
+                disabled={editModeToggleLocked}
+                onClick={toggleEditTools}
+                aria-expanded={editToolsOpen}
+                aria-controls="edit-tools-panel"
+                title={
+                  editModeToggleLocked
+                    ? t("app.editModeToggleLockedTitle")
+                    : editToolsOpen
+                      ? t("app.editModeToggleAriaCollapse")
+                      : t("app.editModeToggleAriaExpand")
+                }
+              >
+                <span className="app-edit-mode-toggle-label">{t("app.controlsSectionTitle")}</span>
+                <span className="app-edit-mode-chevron" aria-hidden>
+                  {editToolsOpen ? "▾" : "▸"}
+                </span>
+              </button>
+            </div>
             <div
               id="edit-tools-panel"
               className={`app-controls-toolbar${editToolsOpen ? "" : " app-controls-toolbar--collapsed"}`}
