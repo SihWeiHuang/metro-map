@@ -457,9 +457,9 @@ export function initializeLayers(map, store) {
     type: "circle",
     source: "transfer-snaps",
     paint: {
-      "circle-radius": 4.25,
+      "circle-radius": 5,
       "circle-color": "#fdd835",
-      "circle-stroke-width": 1.25,
+      "circle-stroke-width": 1.5,
       "circle-stroke-color": "#5d4037",
     },
   });

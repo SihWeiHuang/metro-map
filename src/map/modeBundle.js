@@ -348,19 +348,21 @@ function isStationHoverLayerId(layerId) {
   );
 }
 
-/** Prefer stations over route lines so transfer hubs list every line served. */
+/** Topmost rendered feature wins (Mapbox returns hits top → bottom). */
 function pickHoverTarget(map, point) {
   const hits = map.queryRenderedFeatures(point, { layers: HOVER_PICK_LAYERS });
   if (!hits.length) return null;
 
-  const stationHit = hits.find((f) => isStationHoverLayerId(f.layer?.id));
-  if (stationHit) return { type: "station", feature: stationHit };
-
-  const snapHit = hits.find((f) => f.layer?.id === "transfer-snaps-layer");
-  if (snapHit) return { type: "transfer-snap", feature: snapHit };
-
-  const routeHit = hits.find((f) => f.layer?.id === "routes-line");
-  if (routeHit) return { type: "route", feature: routeHit };
+  const layerId = hits[0].layer?.id;
+  if (isStationHoverLayerId(layerId)) {
+    return { type: "station", feature: hits[0] };
+  }
+  if (layerId === "transfer-snaps-layer") {
+    return { type: "transfer-snap", feature: hits[0] };
+  }
+  if (layerId === "routes-line") {
+    return { type: "route", feature: hits[0] };
+  }
 
   return null;
 }
@@ -1118,6 +1120,19 @@ Modes["edit-station"] = {
     scheduleTransferSnapHintUpdate(e.lngLat, TRANSFER_SNAP_HINT_DEPS);
   },
 
+  onTransferSnapClick(e) {
+    e.preventDefault();
+    const feature = e.features?.[0];
+    if (!feature || feature.layer?.id !== "transfer-snaps-layer") return;
+    const properties = feature.properties;
+    if (M.hover.transferSnapId !== (properties.snap_id || "")) return;
+    const ridA = properties.subroute_id_a;
+    const ridB = properties.subroute_id_b;
+    if (ridA && ridB) {
+      Route.addTransferStationAt(feature.geometry.coordinates, ridA, ridB);
+    }
+  },
+
   onMapClick(e) {
     const map = getMap();
     const hitFeatures = map.queryRenderedFeatures(e.point, {
@@ -1125,15 +1140,19 @@ Modes["edit-station"] = {
     });
 
     if (hitFeatures.length) {
-      const hoveredStation = editStationSubmode !== "move-label" ? findHoveredStationFeature(hitFeatures) : null;
-      if (hoveredStation) {
-        popupStationForEditing(hoveredStation);
+      if (hitFeatures[0].layer?.id === "transfer-snaps-layer") {
         return;
       }
 
       const topFeature = hitFeatures[0];
       const topLayerId = topFeature.layer.id;
       const properties = topFeature.properties;
+
+      const hoveredStation = editStationSubmode !== "move-label" ? findHoveredStationFeature(hitFeatures) : null;
+      if (hoveredStation) {
+        popupStationForEditing(hoveredStation);
+        return;
+      }
 
       switch (topLayerId) {
         case "stations-circle":
@@ -1145,16 +1164,6 @@ Modes["edit-station"] = {
             popupStationForEditing(topFeature);
           }
           break;
-        case "transfer-snaps-layer": {
-          if (M.hover.transferSnapId !== (properties.snap_id || "")) break;
-          const coord = topFeature.geometry.coordinates;
-          const ridA = properties.subroute_id_a;
-          const ridB = properties.subroute_id_b;
-          if (ridA && ridB) {
-            Route.addTransferStationAt(coord, ridA, ridB);
-          }
-          break;
-        }
         case "routes-line": {
           if (addNearbyTransferStationFromClick(e.lngLat, properties.subroute_id)) {
             break;
@@ -1360,6 +1369,7 @@ export function initializeEventListeners() {
 
   map.on("click", (e) => cur()?.onMapClick?.(e));
   map.on("click", "routes-line", (e) => cur()?.onRouteClick?.(e));
+  map.on("click", "transfer-snaps-layer", (e) => cur()?.onTransferSnapClick?.(e));
   map.on("click", "stations-circle", (e) => cur()?.onStationClick?.(e));
   map.on("click", "transfer-stations-circle", (e) => cur()?.onStationClick?.(e));
   map.on("click", "stations-label", (e) => cur()?.onStationClick?.(e));
