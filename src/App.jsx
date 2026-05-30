@@ -6,6 +6,7 @@ import RouteStatusDialog from "./components/RouteStatusDialog.jsx";
 import {
   setMode,
   finishEditing,
+  exitEditRouteSelectMode,
   cancelMerge,
   cancelRouteEditing,
   setEditStationSubmode,
@@ -318,10 +319,12 @@ function App() {
     mode === "edit-route-active" ||
     mode === "edit-station";
   const showMergeCancel = mode === "merge" || mode === "split-line";
-  const showModeCommitActions =
-    mode === "add-route" || mode === "edit-route-select" || mode === "edit-route-active";
-  const routeListEditActions =
-    mode === "edit-route-select" || mode === "edit-route-active";
+  const isEditingRouteActive = mode === "edit-route-active";
+  const isEditRouteSelect = mode === "edit-route-select";
+  const showAddRouteCommitActions = mode === "add-route";
+  const showEditRouteSelectEndAction = isEditRouteSelect;
+  const showEditRouteActiveCommitActions = isEditingRouteActive;
+  const routeListEditActions = isEditRouteSelect || isEditingRouteActive;
   const mergeSelectMode = mode === "merge";
   const splitLineSelectMode = mode === "split-line";
   const isEditRouteMode = mode === "edit-route-select" || mode === "edit-route-active";
@@ -359,6 +362,11 @@ function App() {
 
   const handleCancelRouteEditing = () => {
     cancelRouteEditing();
+    bumpRouteList();
+  };
+
+  const handleExitEditRouteSelect = () => {
+    exitEditRouteSelectMode();
     bumpRouteList();
   };
 
@@ -824,8 +832,42 @@ function App() {
               </div>
             )}
             {showFinish && editToolsOpen && (
-              <div className={`app-map-finish-slot${showModeCommitActions ? " app-map-finish-slot--pair" : ""}`}>
-                {showModeCommitActions ? (
+              <div
+                className={`app-map-finish-slot${
+                  showEditRouteActiveCommitActions || showAddRouteCommitActions
+                    ? " app-map-finish-slot--pair"
+                    : ""
+                }`}
+              >
+                {showEditRouteActiveCommitActions ? (
+                  <>
+                    <button
+                      type="button"
+                      id="cancelRouteEditButton"
+                      className="mode-cancel-bar"
+                      onClick={handleCancelRouteEditing}
+                    >
+                      {t("app.cancelRouteEdit")}
+                    </button>
+                    <button
+                      type="button"
+                      id="finishRouteEditButton"
+                      className="mode-finish-bar"
+                      onClick={handleFinishEditing}
+                    >
+                      {t("app.finishRouteEdit")}
+                    </button>
+                  </>
+                ) : showEditRouteSelectEndAction ? (
+                  <button
+                    type="button"
+                    id="endEditRouteButton"
+                    className="mode-finish-bar"
+                    onClick={handleExitEditRouteSelect}
+                  >
+                    {t("app.endEditRoute")}
+                  </button>
+                ) : showAddRouteCommitActions ? (
                   <>
                     <button
                       type="button"

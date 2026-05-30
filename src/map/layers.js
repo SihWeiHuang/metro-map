@@ -3,15 +3,32 @@ import {
   featureCollectionWithSmoothedLineStrings,
 } from "./displayLineSmoothing.js";
 import { STATION_LABEL_FRAME_IMAGE_ID } from "./labelMoveFrameImage.js";
+import {
+  getMrtReferenceLayerPaint,
+  getMrtReferenceRoutesDisplayFC,
+  getMrtReferenceStationsFC,
+  getMrtReferenceStationsLayerPaint,
+  MRT_REFERENCE_LAYER_ID,
+  MRT_REFERENCE_OVERLAY_ENABLED,
+  MRT_REFERENCE_SOURCE_ID,
+  MRT_REFERENCE_STATIONS_LAYER_ID,
+  MRT_REFERENCE_STATIONS_SOURCE_ID,
+} from "./mrtReferenceOverlay.js";
 
 /** Bottom of the metro stack — anchored below basemap labels. */
-const METRO_ROUTE_LAYER_IDS = ["routes-line", "routes-line-hover"];
+const METRO_ROUTE_LAYER_IDS = [
+  ...(MRT_REFERENCE_OVERLAY_ENABLED ? [MRT_REFERENCE_LAYER_ID] : []),
+  "routes-line",
+  "routes-line-hover",
+];
 
 /** Above routes, still below basemap labels (bottom → top). */
 const METRO_OVERLAY_LAYER_IDS = [
+  ...(MRT_REFERENCE_OVERLAY_ENABLED ? [MRT_REFERENCE_STATIONS_LAYER_ID] : []),
   "stations-circle",
   "temp-edit-line-casing-layer",
   "temp-edit-line-layer",
+  "temp-edit-line-hit-layer",
   "temp-edit-nodes-layer",
   "label-drag-limit-layer",
   "stations-label-move-frame",
@@ -30,6 +47,7 @@ const METRO_HOVER_OVERLAY_LAYER_IDS = [
 /** Recreated on each initializeLayers (hot reload). */
 const METRO_RECREATED_LAYER_IDS = [
   ...METRO_ROUTE_LAYER_IDS,
+  ...(MRT_REFERENCE_OVERLAY_ENABLED ? [MRT_REFERENCE_STATIONS_LAYER_ID] : []),
   "stations-circle",
   "stations-circle-hover",
   "transfer-snaps-layer",
@@ -47,6 +65,7 @@ const METRO_SOURCE_IDS = new Set([
   "temp-edit-line",
   "temp-edit-nodes",
   "label-drag-limit",
+  ...(MRT_REFERENCE_OVERLAY_ENABLED ? [MRT_REFERENCE_SOURCE_ID, MRT_REFERENCE_STATIONS_SOURCE_ID] : []),
 ]);
 
 /**
@@ -351,6 +370,32 @@ export function initializeLayers(map, store) {
   // Always recreate route/geometry layers so slot / beforeId placement stays correct after hot reload.
   removeMetroRecreatedLayers(map);
 
+  if (MRT_REFERENCE_OVERLAY_ENABLED) {
+    addOrSetSource(MRT_REFERENCE_SOURCE_ID, getMrtReferenceRoutesDisplayFC());
+    addOrSetSource(MRT_REFERENCE_STATIONS_SOURCE_ID, getMrtReferenceStationsFC());
+    addMetroRouteLayer(map, {
+      id: MRT_REFERENCE_LAYER_ID,
+      type: "line",
+      source: MRT_REFERENCE_SOURCE_ID,
+      paint: getMrtReferenceLayerPaint(),
+      layout: {
+        "line-join": "round",
+        "line-cap": "round",
+      },
+    });
+    addMetroOverlayLayer(map, {
+      id: MRT_REFERENCE_STATIONS_LAYER_ID,
+      type: "circle",
+      source: MRT_REFERENCE_STATIONS_SOURCE_ID,
+      paint: getMrtReferenceStationsLayerPaint(),
+    });
+  } else {
+    removeLayerIfExists(map, MRT_REFERENCE_LAYER_ID);
+    removeLayerIfExists(map, MRT_REFERENCE_STATIONS_LAYER_ID);
+    if (map.getSource(MRT_REFERENCE_SOURCE_ID)) map.removeSource(MRT_REFERENCE_SOURCE_ID);
+    if (map.getSource(MRT_REFERENCE_STATIONS_SOURCE_ID)) map.removeSource(MRT_REFERENCE_STATIONS_SOURCE_ID);
+  }
+
   addMetroRouteLayer(map, {
     id: "routes-line",
     type: "line",
@@ -566,6 +611,11 @@ export function initializeLayers(map, store) {
     });
   }
 
+  const TEMP_EDIT_LINE_WIDTH = 6;
+  const TEMP_EDIT_LINE_CASING_WIDTH = 13;
+  /** Invisible pick target: 2px beyond white casing on each side. */
+  const TEMP_EDIT_LINE_HIT_WIDTH = TEMP_EDIT_LINE_CASING_WIDTH + 4;
+
   if (!map.getLayer("temp-edit-line-casing-layer")) {
     addMetroOverlayLayer(map, {
       id: "temp-edit-line-casing-layer",
@@ -573,7 +623,7 @@ export function initializeLayers(map, store) {
       source: "temp-edit-line",
       paint: {
         "line-color": "#ffffff",
-        "line-width": 10,
+        "line-width": TEMP_EDIT_LINE_CASING_WIDTH,
         "line-opacity": 0.95,
       },
       layout: {
@@ -590,9 +640,26 @@ export function initializeLayers(map, store) {
       source: "temp-edit-line",
       paint: {
         "line-color": "#7b1fa2",
-        "line-width": 4,
+        "line-width": TEMP_EDIT_LINE_WIDTH,
         "line-dasharray": [0.8, 1.2],
         "line-opacity": 0.95,
+      },
+      layout: {
+        "line-join": "round",
+        "line-cap": "round",
+      },
+    });
+  }
+
+  if (!map.getLayer("temp-edit-line-hit-layer")) {
+    addMetroOverlayLayer(map, {
+      id: "temp-edit-line-hit-layer",
+      type: "line",
+      source: "temp-edit-line",
+      paint: {
+        "line-color": "#000000",
+        "line-width": TEMP_EDIT_LINE_HIT_WIDTH,
+        "line-opacity": 0,
       },
       layout: {
         "line-join": "round",

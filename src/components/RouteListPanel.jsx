@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useI18n } from "../i18n/I18nProvider.jsx";
 import { Route } from "../map/routeModel.js";
 import {
@@ -234,6 +235,331 @@ export default function RouteListPanel({
   );
 }
 
+const ROUTE_COLOR_PICKER_Z_INDEX = 1400;
+const ROUTE_COLOR_POPOVER_WIDTH = 168;
+const ROUTE_COLOR_POPOVER_GAP = 8;
+const ROUTE_COLOR_TRIGGER_GAP = 6;
+const ROUTE_COLOR_NATIVE_ANCHOR_SIZE = 28;
+const ROUTE_COLOR_VIEW_MARGIN = 8;
+
+function getEditControlsDockTop() {
+  const dock = document.querySelector(".app-controls-dock");
+  return dock ? dock.getBoundingClientRect().top : window.innerHeight;
+}
+
+function layoutRouteColorPickerUi(triggerEl, popoverEl) {
+  if (!triggerEl || !popoverEl) return null;
+
+  const tr = triggerEl.getBoundingClientRect();
+  const dockTop = getEditControlsDockTop();
+  const popoverHeight = popoverEl.offsetHeight;
+  const popoverWidth = ROUTE_COLOR_POPOVER_WIDTH;
+
+  const spaceBelowTrigger = dockTop - tr.bottom - ROUTE_COLOR_TRIGGER_GAP;
+  const spaceAboveTrigger = tr.top - ROUTE_COLOR_VIEW_MARGIN;
+  const placePopoverBelow = spaceBelowTrigger >= popoverHeight || spaceBelowTrigger >= spaceAboveTrigger;
+
+  let popoverTop;
+  let placement;
+  if (placePopoverBelow) {
+    popoverTop = tr.bottom + ROUTE_COLOR_TRIGGER_GAP;
+    placement = "below";
+  } else {
+    popoverTop = Math.max(ROUTE_COLOR_VIEW_MARGIN, tr.top - popoverHeight - ROUTE_COLOR_TRIGGER_GAP);
+    placement = "above";
+  }
+
+  let popoverLeft = tr.right - popoverWidth;
+  popoverLeft = Math.max(
+    ROUTE_COLOR_VIEW_MARGIN,
+    Math.min(popoverLeft, window.innerWidth - popoverWidth - ROUTE_COLOR_VIEW_MARGIN),
+  );
+
+  const popoverBottom = popoverTop + popoverHeight;
+  const spaceBelowPopover = dockTop - popoverBottom - ROUTE_COLOR_POPOVER_GAP;
+  const nativeBelowPopover = spaceBelowPopover >= ROUTE_COLOR_NATIVE_ANCHOR_SIZE;
+
+  let nativeTop;
+  if (nativeBelowPopover) {
+    nativeTop = popoverBottom + ROUTE_COLOR_POPOVER_GAP;
+  } else {
+    nativeTop = Math.max(ROUTE_COLOR_VIEW_MARGIN, popoverTop - ROUTE_COLOR_NATIVE_ANCHOR_SIZE - ROUTE_COLOR_POPOVER_GAP);
+  }
+  const nativeLeft = popoverLeft + (popoverWidth - ROUTE_COLOR_NATIVE_ANCHOR_SIZE) / 2;
+
+  return {
+    placement,
+    popoverStyle: {
+      position: "fixed",
+      top: `${popoverTop}px`,
+      left: `${popoverLeft}px`,
+      width: `${popoverWidth}px`,
+      zIndex: ROUTE_COLOR_PICKER_Z_INDEX,
+    },
+    nativeAnchorStyle: {
+      position: "fixed",
+      top: `${nativeTop}px`,
+      left: `${nativeLeft}px`,
+      width: `${ROUTE_COLOR_NATIVE_ANCHOR_SIZE}px`,
+      height: `${ROUTE_COLOR_NATIVE_ANCHOR_SIZE}px`,
+      zIndex: ROUTE_COLOR_PICKER_Z_INDEX,
+    },
+  };
+}
+
+function normalizeRouteHexColor(input) {
+  const raw = String(input ?? "").trim().replace(/^#/, "");
+  if (/^[0-9a-fA-F]{6}$/.test(raw)) return `#${raw.toLowerCase()}`;
+  if (/^[0-9a-fA-F]{3}$/.test(raw)) {
+    return `#${raw
+      .split("")
+      .map((c) => c + c)
+      .join("")
+      .toLowerCase()}`;
+  }
+  return null;
+}
+
+function RouteColorPicker({ routeId, color, disabled, onRefresh }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(color);
+  const [hexText, setHexText] = useState(color);
+  const originalColorRef = useRef(color);
+  const rootRef = useRef(null);
+  const triggerRef = useRef(null);
+  const layerRef = useRef(null);
+  const popoverRef = useRef(null);
+  const nativeColorInputRef = useRef(null);
+  const openRef = useRef(false);
+  const suppressOutsideCloseRef = useRef(false);
+  const [placement, setPlacement] = useState("below");
+  const [popoverStyle, setPopoverStyle] = useState(null);
+  const [nativeAnchorStyle, setNativeAnchorStyle] = useState(null);
+
+  const syncPickerLayout = useCallback(() => {
+    const layout = layoutRouteColorPickerUi(triggerRef.current, popoverRef.current);
+    if (!layout) return;
+    setPlacement(layout.placement);
+    setPopoverStyle(layout.popoverStyle);
+    setNativeAnchorStyle(layout.nativeAnchorStyle);
+  }, []);
+
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setDraft(color);
+      setHexText(color);
+      setPopoverStyle(null);
+      setNativeAnchorStyle(null);
+      setPlacement("below");
+    }
+  }, [color, open]);
+
+  const previewOnMap = (nextColor) => {
+    setDraft(nextColor);
+    setHexText(nextColor);
+    Route.setRouteColor(routeId, nextColor);
+  };
+
+  const revertPreview = () => {
+    Route.setRouteColor(routeId, originalColorRef.current);
+  };
+
+  const revertAndClose = () => {
+    revertPreview();
+    onRefresh();
+    setOpen(false);
+  };
+
+  const confirmAndClose = () => {
+    Route.setRouteColor(routeId, draft);
+    onRefresh();
+    setOpen(false);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onWindowBlur = () => {
+      suppressOutsideCloseRef.current = true;
+    };
+    const onWindowFocus = () => {
+      window.setTimeout(() => {
+        suppressOutsideCloseRef.current = false;
+      }, 0);
+    };
+    window.addEventListener("blur", onWindowBlur);
+    window.addEventListener("focus", onWindowFocus);
+    return () => {
+      window.removeEventListener("blur", onWindowBlur);
+      window.removeEventListener("focus", onWindowFocus);
+    };
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    syncPickerLayout();
+    const scrollEl = document.querySelector(".route-list-sidebar-scroll");
+    const onReposition = () => syncPickerLayout();
+    window.addEventListener("resize", onReposition);
+    scrollEl?.addEventListener("scroll", onReposition, { passive: true });
+    return () => {
+      window.removeEventListener("resize", onReposition);
+      scrollEl?.removeEventListener("scroll", onReposition);
+    };
+  }, [open, syncPickerLayout, draft, hexText]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e) => {
+      if (suppressOutsideCloseRef.current) return;
+      if (rootRef.current?.contains(e.target)) return;
+      if (layerRef.current?.contains(e.target)) return;
+      revertAndClose();
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [open, routeId, onRefresh]);
+
+  const togglePicker = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (disabled) return;
+    if (openRef.current) {
+      revertAndClose();
+      return;
+    }
+    originalColorRef.current = color;
+    setDraft(color);
+    setHexText(color);
+    setOpen(true);
+  };
+
+  const commitHexField = () => {
+    const next = normalizeRouteHexColor(hexText);
+    if (next) previewOnMap(next);
+    else setHexText(draft);
+  };
+
+  const openNativeColorPicker = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    syncPickerLayout();
+    requestAnimationFrame(() => {
+      syncPickerLayout();
+      nativeColorInputRef.current?.click();
+    });
+  };
+
+  const confirm = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const next = normalizeRouteHexColor(hexText);
+    if (next) Route.setRouteColor(routeId, next);
+    else Route.setRouteColor(routeId, draft);
+    confirmAndClose();
+  };
+
+  const cancel = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    revertAndClose();
+  };
+
+  const displayColor = open ? draft : color;
+
+  const pickerPortal = open
+    ? createPortal(
+          <div ref={layerRef} className="route-color-picker-layer">
+            <div
+              ref={popoverRef}
+              className={`route-color-picker-popover route-color-picker-popover--portal route-color-picker-popover--placement-${placement}`}
+              style={{
+                ...(popoverStyle ?? { position: "fixed", left: "-9999px", top: 0 }),
+                visibility: popoverStyle ? "visible" : "hidden",
+              }}
+              role="dialog"
+              aria-label={t("routeList.colorTitle")}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button type="button" className="route-color-picker-native-btn" onClick={openNativeColorPicker}>
+                {t("routeList.colorOpenNative")}
+              </button>
+              <label className="route-color-picker-hex-field">
+                <span className="route-color-picker-hex-label">{t("routeList.colorHexLabel")}</span>
+                <input
+                  type="text"
+                  className="route-color-picker-hex-input"
+                  value={hexText}
+                  spellCheck={false}
+                  autoComplete="off"
+                  maxLength={7}
+                  onChange={(e) => setHexText(e.target.value)}
+                  onBlur={commitHexField}
+                  onKeyDown={(ev) => {
+                    if (ev.key === "Enter") {
+                      ev.preventDefault();
+                      commitHexField();
+                    }
+                  }}
+                />
+              </label>
+              <div className="route-color-picker-actions">
+                <button type="button" className="route-color-picker-btn route-color-picker-btn--cancel" onClick={cancel}>
+                  {t("app.cancel")}
+                </button>
+                <button type="button" className="route-color-picker-btn route-color-picker-btn--done" onClick={confirm}>
+                  {t("app.finish")}
+                </button>
+              </div>
+            </div>
+            <input
+              ref={nativeColorInputRef}
+              type="color"
+              className="route-color-picker-native-anchor"
+              style={nativeAnchorStyle ?? undefined}
+              value={draft}
+              tabIndex={-1}
+              aria-hidden
+              onChange={(e) => previewOnMap(e.target.value)}
+            />
+          </div>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <>
+      <div
+        className={`route-color-picker${open ? " route-color-picker--open" : ""}`}
+        ref={rootRef}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          ref={triggerRef}
+          type="button"
+          className="route-color-picker-trigger"
+          style={{ backgroundColor: displayColor }}
+          title={t("routeList.colorTitle")}
+          aria-label={t("routeList.colorTitle")}
+          disabled={disabled}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          onClick={togglePicker}
+        >
+          <span className="route-color-picker-trigger-ring" aria-hidden />
+        </button>
+      </div>
+      {pickerPortal}
+    </>
+  );
+}
+
 function RouteRow({
   g,
   currentName,
@@ -253,6 +579,15 @@ function RouteRow({
   t,
   onEditRouteMetadata,
 }) {
+  const rowEditPressRef = useRef(false);
+
+  const isRowEditExcludedTarget = (target) => {
+    if (!(target instanceof Element)) return true;
+    if (target.closest(".route-row-trailing, .route-row-tags-col")) return true;
+    if (target.closest("button, input, label, a, select, textarea")) return true;
+    return false;
+  };
+
   const handleMouseEnter = () => {
     Route.highlightRoute(g.subroutes[0].subroute_id);
   };
@@ -266,16 +601,20 @@ function RouteRow({
   const disableRowActions = isLockedByOtherRow;
 
   const startEdit = (e) => {
+    rowEditPressRef.current = false;
     if (!showRouteActions || disableRowActions || blockRowEdit) return;
-    if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT" || e.target.tagName === "B") return;
+    if (isRowEditExcludedTarget(e.target)) return;
+    rowEditPressRef.current = true;
     Route.clearHover();
     M.suppressNextEditMapClick = true;
     Route.startEditRoute(g.route_id);
   };
 
   const endMouseUp = (e) => {
+    if (!rowEditPressRef.current) return;
+    rowEditPressRef.current = false;
     if (!showRouteActions || disableRowActions || blockRowEdit) return;
-    if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT" || e.target.tagName === "B") return;
+    if (isRowEditExcludedTarget(e.target)) return;
     setMode("edit-route-active");
   };
 
@@ -336,22 +675,11 @@ function RouteRow({
 
   const trailingActions = showRouteActions && cols.actions && (
     <div className="route-row-trailing">
-      <input
-        type="color"
-        className="route-color-input"
-        defaultValue={g.subroutes[0]?.color || "#1e88e5"}
-        title={t("routeList.colorTitle")}
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}
+      <RouteColorPicker
+        routeId={g.route_id}
+        color={g.subroutes[0]?.color || "#1e88e5"}
         disabled={disableRowActions}
-        onChange={(e) => {
-          Route.setRouteColor(g.route_id, e.target.value);
-          Route.clearHover();
-          onRefresh();
-        }}
-        onBlur={() => {
-          Route.clearHover();
-        }}
+        onRefresh={onRefresh}
       />
       <button
         type="button"

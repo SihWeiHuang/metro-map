@@ -83,3 +83,7 @@ GitHub 請勿上傳 `.env`（專案已用 `.gitignore` 排除）。Mapbox **URL 
 | `api/share/` | 建立／讀取分享連結的 Serverless API。 |
 
 驗證預設命名：`npm run test:names`
+
+### 暫用：官方路線灰色參考圖層（對齊 fitted 時）
+
+對 `taipei-mrt-import-fitted` 跑位時，可在地圖上疊一層官方原始幾何（灰色、在正式路線下方、不進路線清單）。啟用方式與完成後如何刪除程式，見 **[docs/TEMP_MRT_REFERENCE_OVERLAY.md](docs/TEMP_MRT_REFERENCE_OVERLAY.md)**（`npm run dev:reference` 或 `.env` 設 `VITE_MRT_REFERENCE_OVERLAY=true`）。

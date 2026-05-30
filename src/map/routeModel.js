@@ -51,7 +51,7 @@ export const store = {
   hiddenSubrouteIds: new Set(),
   counters: { subroute: 1, route: 1, station: 1 },
   settings: {
-    stationMinPerRoute: 1,
+    stationMinPerRoute: 0,
   },
   /** 檢視他人分享連結時為 true；不寫入 localStorage。 */
   shareViewActive: false,
@@ -317,9 +317,7 @@ function loadPersistedUserState() {
     if (Array.isArray(data.hiddenSubrouteIds)) {
       store.hiddenSubrouteIds = new Set(data.hiddenSubrouteIds);
     }
-    if (data.settings && typeof data.settings.stationMinPerRoute === "number") {
-      store.settings.stationMinPerRoute = data.settings.stationMinPerRoute;
-    }
+    store.settings.stationMinPerRoute = 0;
     syncCountersFromLoadedFeatures();
     normalizeAllSubroutesMetadata();
     normalizeUserDefaultNames();
@@ -800,36 +798,31 @@ function refreshSources() {
   applyHiddenSubrouteVisibility();
 }
 
-function highlightRoute(subrouteId) {
+function applyRouteHoverHighlightFilters(visibleSubrouteIds) {
   const map = getMap();
   if (!map) return;
-  const route = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteId);
-  const routeId = route ? route.properties.route_id : "";
   const hiddenIds = Array.from(store.hiddenSubrouteIds);
+  const ids = visibleSubrouteIds.filter((rid) => !store.hiddenSubrouteIds.has(rid));
 
   if (map.getLayer("routes-line-hover")) {
-    if (!routeId) {
+    if (!ids.length) {
       map.setFilter("routes-line-hover", ["==", ["get", "subroute_id"], ""]);
     } else {
       map.setFilter("routes-line-hover", [
         "all",
-        ["==", ["get", "route_id"], routeId],
+        ["in", ["get", "subroute_id"], ["literal", ids]],
         ["!", ["in", ["get", "subroute_id"], ["literal", hiddenIds]]],
       ]);
     }
   }
 
-  const subrouteIdsInRoute = routeId
-    ? store.subroutesFC.features.filter((f) => f.properties.route_id === routeId).map((f) => f.properties.subroute_id)
-    : [];
-  const visibleSubrouteIdsInRoute = subrouteIdsInRoute.filter((rid) => !store.hiddenSubrouteIds.has(rid));
-  const transferAnyMatchExpr = visibleSubrouteIdsInRoute.length
-    ? ["any", ...visibleSubrouteIdsInRoute.map((rid) => ["in", rid, ["coalesce", ["get", "transfer_routes"], ["literal", []]]])]
+  const transferAnyMatchExpr = ids.length
+    ? ["any", ...ids.map((rid) => ["in", rid, ["coalesce", ["get", "transfer_routes"], ["literal", []]]])]
     : false;
   const stationHoverFilter =
-    visibleSubrouteIdsInRoute.length === 0
+    ids.length === 0
       ? ["==", ["get", "station_id"], ""]
-      : ["any", ["in", ["get", "subroute_id"], ["literal", visibleSubrouteIdsInRoute]], transferAnyMatchExpr];
+      : ["any", ["in", ["get", "subroute_id"], ["literal", ids]], transferAnyMatchExpr];
 
   map.getLayer("stations-circle-hover") &&
     map.setFilter("stations-circle-hover", ["all", REGULAR_STATION_LAYER_FILTER, stationHoverFilter]);
@@ -837,11 +830,25 @@ function highlightRoute(subrouteId) {
   map.getLayer("transfer-stations-circle-hover") &&
     map.setFilter("transfer-stations-circle-hover", ["all", TRANSFER_STATION_LAYER_FILTER, stationHoverFilter]);
 
-  // Route-hover should highlight station labels too.
-  // (Do NOT set this in refreshSources; it must remain hover-driven.)
-  map.getLayer("stations-label-hover") &&
-    map.setFilter("stations-label-hover", stationHoverFilter);
-  setStationLabelBaseMask(map, visibleSubrouteIdsInRoute.length === 0 ? null : stationHoverFilter);
+  map.getLayer("stations-label-hover") && map.setFilter("stations-label-hover", stationHoverFilter);
+  setStationLabelBaseMask(map, ids.length === 0 ? null : stationHoverFilter);
+}
+
+function highlightRoute(subrouteId) {
+  const route = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteId);
+  const routeId = route ? route.properties.route_id : "";
+  const subrouteIdsInRoute = routeId
+    ? store.subroutesFC.features.filter((f) => f.properties.route_id === routeId).map((f) => f.properties.subroute_id)
+    : subrouteId
+      ? [subrouteId]
+      : [];
+  applyRouteHoverHighlightFilters(subrouteIdsInRoute);
+}
+
+/** Highlight every sub-route that serves a station (e.g. fixed transfer). */
+function highlightPassingSubroutes(subrouteIds) {
+  const ids = Array.isArray(subrouteIds) ? subrouteIds.filter((id) => typeof id === "string" && id !== "") : [];
+  applyRouteHoverHighlightFilters(ids);
 }
 
 function clearHover() {
@@ -1427,10 +1434,13 @@ function removeStation(station_id) {
   const st = store.stationsFC.features.find((f) => f.properties.station_id === station_id);
   if (!st) return false;
   const rid = st.properties.subroute_id;
-  const count = store.stationsFC.features.filter((f) => f.properties.subroute_id === rid).length;
-  if (count <= store.settings.stationMinPerRoute) {
-    alert(t("routeModel.alertMinStations", { min: store.settings.stationMinPerRoute }));
-    return false;
+  const minStations = store.settings.stationMinPerRoute;
+  if (minStations > 0) {
+    const count = store.stationsFC.features.filter((f) => f.properties.subroute_id === rid).length;
+    if (count <= minStations) {
+      alert(t("routeModel.alertMinStations", { min: minStations }));
+      return false;
+    }
   }
   store.stationsFC.features = store.stationsFC.features.filter((f) => f.properties.station_id !== station_id);
   syncCountersFromLoadedFeatures();
@@ -2027,7 +2037,7 @@ function openShareView(jsonString, meta = {}) {
   let mapView = null;
   try {
     const data = JSON.parse(jsonString);
-    const { userSubroutes, userStations, hiddenSubrouteIds, settings, mapView: mv } = parseImportPayload(data);
+    const { userSubroutes, userStations, hiddenSubrouteIds, mapView: mv } = parseImportPayload(data);
     mapView = mv;
     shareViewSession = {
       restoreSnapshot: captureUserStateSnapshot(),
@@ -2042,9 +2052,7 @@ function openShareView(jsonString, meta = {}) {
         if (typeof rid === "string") store.hiddenSubrouteIds.add(rid);
       }
     }
-    if (settings && typeof settings.stationMinPerRoute === "number") {
-      store.settings.stationMinPerRoute = settings.stationMinPerRoute;
-    }
+    store.settings.stationMinPerRoute = 0;
     syncCountersFromLoadedFeatures();
     normalizeAllSubroutesMetadata();
     normalizeUserDefaultNames();
@@ -2096,7 +2104,7 @@ function importUserStateJSON(jsonString, options = {}) {
   const snapshotBeforeImport = captureUserStateSnapshot();
   try {
     const data = JSON.parse(jsonString);
-    const { userSubroutes, userStations, hiddenSubrouteIds, settings, mapView } = parseImportPayload(data);
+    const { userSubroutes, userStations, hiddenSubrouteIds, mapView } = parseImportPayload(data);
     const mode = options.mode ?? "merge";
     const duplicateMatch =
       mode === "replaceMatching" ? collectImportDuplicateMatchInfo(userSubroutes) : null;
@@ -2112,9 +2120,7 @@ function importUserStateJSON(jsonString, options = {}) {
         if (typeof rid === "string") store.hiddenSubrouteIds.add(rid);
       }
     }
-    if (settings && typeof settings.stationMinPerRoute === "number") {
-      store.settings.stationMinPerRoute = settings.stationMinPerRoute;
-    }
+    store.settings.stationMinPerRoute = 0;
     syncCountersFromLoadedFeatures();
     normalizeAllSubroutesMetadata();
     normalizeUserDefaultNames();
@@ -2154,6 +2160,7 @@ export const Route = {
   setRoutesHidden,
   isRouteHidden,
   highlightRoute,
+  highlightPassingSubroutes,
   clearHover,
   startNewTempRoute,
   startEditRoute,

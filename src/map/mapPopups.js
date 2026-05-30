@@ -237,6 +237,7 @@ export function showStationBrowsePopup(lngLat, bodyHtml, point, estHeight) {
   if (!map) return;
 
   hideTransferSnapHint();
+  hideRouteHoverPopup();
 
   const placement = resolvePopupPlacement(map, popupScreenPoint(map, lngLat, point), { estHeight });
   if (popups.station) {
