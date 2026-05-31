@@ -16,7 +16,7 @@ import {
 import { Route } from "./map/routeModel.js";
 import { useI18n } from "./i18n/I18nProvider.jsx";
 import { resizeMap } from "./map/mapInstance.js";
-import { requestImportedMapView } from "./map/mapViewState.js";
+import { requestDefaultMapView, requestImportedMapView } from "./map/mapViewState.js";
 import SiteHeaderNav from "./components/SiteHeaderNav.jsx";
 import SiteInfoPage from "./components/SiteInfoPage.jsx";
 import ShareLinkDialog from "./components/ShareLinkDialog.jsx";
@@ -579,6 +579,28 @@ function App() {
     setShareDialogOpen(true);
   };
 
+  const dismissSharePathIfPresent = () => {
+    if (typeof window === "undefined") return;
+    if (!parseShareIdFromPathname(window.location.pathname)) return;
+    window.history.replaceState(null, "", "/");
+    setShareBootstrap({ phase: "idle", id: null, error: "" });
+  };
+
+  const handleFileMenuReset = () => {
+    if (!window.confirm(t("app.resetToDefaultConfirm"))) return;
+    closeFileMenu();
+    cancelRouteEditing();
+    setMode("general");
+    setEditToolsOpen(false);
+    setPendingImport(null);
+    setShareDialogOpen(false);
+    Route.resetToDefaultState();
+    dismissSharePathIfPresent();
+    bumpRouteList();
+    bumpShareView();
+    requestDefaultMapView();
+  };
+
   const shareExpiresAt = Route.getShareViewExpiresAt();
 
   return (
@@ -970,6 +992,14 @@ function App() {
                 title={t("app.undoLastImportTitle")}
               >
                 {t("app.undoLastImport")}
+              </button>
+              <button
+                type="button"
+                className="app-file-menu-btn app-file-menu-btn--danger"
+                onClick={handleFileMenuReset}
+                title={t("app.resetToDefaultTitle")}
+              >
+                {t("app.resetToDefault")}
               </button>
             </div>
             <div className="app-import-dialog-actions">

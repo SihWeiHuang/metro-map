@@ -1,18 +1,12 @@
 import { computeBoundsFromFeatures, computeMapViewFromFeatures, normalizeImportedMapView } from "./mapGeoBounds.js";
+import { DEFAULT_MAP_VIEW } from "./defaultMapViewConstants.js";
 import { getMap } from "./mapInstance.js";
 import { store } from "./routeModel.js";
 
 export { computeMapViewFromFeatures, normalizeImportedMapView };
+export { DEFAULT_MAP_VIEW, TAIPEI_MAIN_STATION_CENTER, DEFAULT_MAP_ZOOM } from "./defaultMapViewConstants.js";
 
 export const MAP_VIEW_STORAGE_KEY = "metro-map-view-v1";
-
-/** 無儲存視野、且無法依路線對準時的後備（雙北） */
-export const DEFAULT_MAP_VIEW = {
-  center: [121.51, 25.03],
-  zoom: 14,
-  bearing: 0,
-  pitch: 0,
-};
 
 const SAVE_DEBOUNCE_MS = 400;
 const SUPPRESS_SAVE_MS = 800;
@@ -132,20 +126,18 @@ export function fitMapToRoutes(map, { animate = true, saveAfter = false, padding
   return true;
 }
 
-/** 建立地圖時使用的初始鏡頭（已儲存視野或台北後備） */
+/** 建立地圖時使用的初始鏡頭（已儲存視野或預設定值） */
 export function getInitialMapCamera() {
   return loadSavedMapView() ?? { ...DEFAULT_MAP_VIEW };
 }
 
 /**
- * 地圖 load 後：若無儲存視野，則依路線自動對準；否則維持已還原的儲存視野。
+ * 地圖 load 後：若無儲存視野，套用預設定值（台北車站＋涵蓋雙北捷運預設路網之縮放）。
  */
 export function applyMapCameraAfterLoad(map) {
   if (!map) return;
   if (loadSavedMapView()) return;
-  if (!fitMapToRoutes(map, { animate: false, saveAfter: true })) {
-    applyCamera(map, DEFAULT_MAP_VIEW, { animate: false });
-  }
+  applyCamera(map, DEFAULT_MAP_VIEW, { animate: false });
 }
 
 /**
@@ -213,6 +205,45 @@ export function scheduleImportMapView(mapView) {
  */
 export function requestImportedMapView(mapView) {
   scheduleImportMapView(mapView);
+}
+
+/** 清除已儲存視野並飛回內建預設鏡頭（雙北）。 */
+export function requestDefaultMapView({ animate = true } = {}) {
+  pendingImportMapViewApply = undefined;
+  stopImportMapViewRetry();
+  if (typeof localStorage !== "undefined") {
+    try {
+      localStorage.removeItem(MAP_VIEW_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+  const map = getMap();
+  if (!map) return false;
+  markSuppressSave();
+  const view = { ...DEFAULT_MAP_VIEW };
+  if (animate) {
+    map.flyTo({
+      center: view.center,
+      zoom: view.zoom,
+      bearing: view.bearing ?? 0,
+      pitch: view.pitch ?? 0,
+      duration: 800,
+    });
+  } else {
+    map.jumpTo({
+      center: view.center,
+      zoom: view.zoom,
+      bearing: view.bearing ?? 0,
+      pitch: view.pitch ?? 0,
+    });
+  }
+  if (animate) {
+    map.once("moveend", () => {
+      if (Date.now() >= suppressSaveUntil - 50) saveMapView(map);
+    });
+  }
+  return true;
 }
 
 export function applyImportedMapView(map, mapView, { animate = false, saveAfter = true } = {}) {

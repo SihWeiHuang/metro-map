@@ -951,6 +951,17 @@
   color: #fff;
 }
 
+.app-file-menu-btn--danger {
+  color: #b71c1c;
+  border-color: rgba(183, 28, 28, 0.35);
+}
+
+.app-file-menu-btn--danger:hover:not(:disabled) {
+  background: rgba(183, 28, 28, 0.08);
+  border-color: #b71c1c;
+  color: #b71c1c;
+}
+
 .app-share-dialog {
   max-width: 440px;
 }

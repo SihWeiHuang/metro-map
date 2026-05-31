@@ -1858,6 +1858,43 @@ function hasUserContent() {
   return store.subroutesFC.features.some((f) => routeKindOf(f) === ROUTE_KIND_USER);
 }
 
+function abandonShareViewWithoutRestore() {
+  shareViewSession = null;
+  store.shareViewActive = false;
+}
+
+/**
+ * 清除所有使用者路線、還原內建預設路線，並清空本機路線存檔。
+ * @returns {{ ok: true }}
+ */
+function resetToDefaultState() {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  abandonShareViewWithoutRestore();
+  cancelTempEditing();
+  lastImportUndoSnapshot = null;
+  notifyImportUndoListeners();
+
+  loadBuiltinDefaultState();
+  store.hiddenSubrouteIds.clear();
+  store.settings.stationMinPerRoute = 0;
+  bumpRoutesGeometryRevision();
+  refreshSources();
+
+  if (typeof localStorage !== "undefined") {
+    try {
+      localStorage.removeItem(PERSIST_STORAGE_KEY);
+      localStorage.removeItem("metro-map-data-v1");
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }
+
+  return { ok: true };
+}
+
 function clearUserContent() {
   const userSubrouteIds = new Set(
     store.subroutesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER).map((f) => f.properties.subroute_id)
@@ -2305,6 +2342,7 @@ export const Route = {
   assertCanAddUserRoutes,
   projectUserRouteCountAfterImport,
   assertImportWithinUserRouteLimit,
+  resetToDefaultState,
   openShareView,
   exitShareView,
   adoptShareToMyMap,
