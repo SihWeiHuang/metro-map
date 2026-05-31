@@ -4,6 +4,12 @@ import {
 } from "./displayLineSmoothing.js";
 import { STATION_LABEL_FRAME_IMAGE_ID } from "./labelMoveFrameImage.js";
 import {
+  applyStationLabelCollision,
+  CORE_PLACE_BASEMAP_COLLISION_YIELD,
+  getStationLabelCollisionLayout,
+  STATION_LABEL_COLLISION_LEVEL,
+} from "./stationLabelCollision.js";
+import {
   getMrtReferenceLayerPaint,
   getMrtReferenceRoutesDisplayFC,
   getMrtReferenceStationsFC,
@@ -205,6 +211,28 @@ function applyReducedBasemapIconDensity(map) {
   }
 }
 
+function isCorePlaceBasemapTextLayer(layer) {
+  if (!isTextLabelBasemapLayer(layer) || isMetroLayer(layer)) return false;
+  return CORE_PLACE_LABEL_RE.test(layerLabelKey(layer));
+}
+
+/** 主要行政地名參與碰撞且優先級低於站名，重疊時可被擠掉。 */
+function applyBasemapCorePlaceLabelCollisionYield(map, level = STATION_LABEL_COLLISION_LEVEL) {
+  if (!map || level <= 0) return;
+  const layers = map.getStyle()?.layers;
+  if (!Array.isArray(layers)) return;
+  for (const layer of layers) {
+    if (!isCorePlaceBasemapTextLayer(layer)) continue;
+    for (const [key, value] of Object.entries(CORE_PLACE_BASEMAP_COLLISION_YIELD)) {
+      try {
+        map.setLayoutProperty(layer.id, key, value);
+      } catch {
+        /* Standard import 圖層可能拒絕 runtime 修改 */
+      }
+    }
+  }
+}
+
 /**
  * Mapbox Standard（含 imports）— 關閉 POI／底圖大眾運輸；保留路名與行政地名。
  * 自訂 Classic 樣式無 imports 時會靜默略過。
@@ -232,32 +260,17 @@ function applyMapboxStandardBasemapConfig(map) {
   }
 }
 
-const STATION_LABEL_LAYER_IDS = ["stations-label", "stations-label-hover"];
-
-/** 站名優先於底圖地名：允許重疊、不參與碰撞閃避。 */
-export function applyStationLabelPlacementPriority(map) {
-  if (!map) return;
-  for (const layerId of STATION_LABEL_LAYER_IDS) {
-    if (!map.getLayer(layerId)) continue;
-    try {
-      map.setLayoutProperty(layerId, "text-allow-overlap", true);
-      map.setLayoutProperty(layerId, "text-ignore-placement", true);
-      map.setLayoutProperty(layerId, "text-optional", false);
-      map.setLayoutProperty(layerId, "symbol-sort-key", 100);
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
 /** 盡量減少底圖雜訊（文字、POI 圖示、Standard config）。 */
 export function applyBasemapClutterReduction(map) {
   if (!map?.getStyle) return;
   applyMapboxStandardBasemapConfig(map);
   applyReducedBasemapTextDensity(map);
   applyReducedBasemapIconDensity(map);
-  applyStationLabelPlacementPriority(map);
+  applyBasemapCorePlaceLabelCollisionYield(map);
+  applyStationLabelCollision(map);
 }
+
+export { applyStationLabelCollision } from "./stationLabelCollision.js";
 
 /** First basemap symbol layer with text — fallback insert anchor (classic styles). */
 function findLabelAnchorLayerId(map) {
@@ -547,9 +560,9 @@ export function initializeLayers(map, store) {
     source: "stations",
     filter: REGULAR_STATION_LAYER_FILTER,
     paint: {
-      "circle-radius": 6.5,
+      "circle-radius": 7,
       "circle-color": ["coalesce", ["get", "color"], "#1e88e5"],
-      "circle-stroke-width": 1.25,
+      "circle-stroke-width": 2.2,
       "circle-stroke-color": "#ffffff",
     },
   });
@@ -562,7 +575,7 @@ export function initializeLayers(map, store) {
     paint: {
       "circle-radius": 9.5,
       "circle-color": ["coalesce", ["get", "color"], "#1e88e5"],
-      "circle-stroke-width": 1.75,
+      "circle-stroke-width": 2.2,
       "circle-stroke-color": "#ffffff",
     },
   });
@@ -572,7 +585,7 @@ export function initializeLayers(map, store) {
     type: "circle",
     source: "transfer-snaps",
     paint: {
-      "circle-radius": 5,
+      "circle-radius": 5.5,
       "circle-color": "#fdd835",
       "circle-stroke-width": 1.5,
       "circle-stroke-color": "#5d4037",
@@ -585,9 +598,9 @@ export function initializeLayers(map, store) {
     source: "stations",
     filter: TRANSFER_STATION_LAYER_FILTER,
     paint: {
-      "circle-radius": 6.75,
+      "circle-radius": 7.2,
       "circle-color": "#ffffff",
-      "circle-stroke-width": 2,
+      "circle-stroke-width": 2.2,
       "circle-stroke-color": "#000000",
     },
   });
@@ -662,10 +675,7 @@ export function initializeLayers(map, store) {
       source: "station-labels",
       layout: {
         ...stationLabelLayoutBase,
-        "text-allow-overlap": true,
-        "text-ignore-placement": true,
-        "text-optional": false,
-        "symbol-sort-key": 100,
+        ...getStationLabelCollisionLayout(),
       },
       paint: {
         "text-color": [
@@ -709,8 +719,7 @@ export function initializeLayers(map, store) {
           ["get", "label_offset_xy"],
           ["literal", [0, 0]],
         ],
-        "text-allow-overlap": true,
-        "text-ignore-placement": true,
+        ...getStationLabelCollisionLayout(),
       },
       paint: {
         "text-color": [

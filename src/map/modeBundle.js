@@ -1,6 +1,7 @@
 import * as turf from "@turf/turf";
 import { getMap } from "./mapInstance.js";
-import { applyStationLabelPlacementPriority, ensureMetroLayerStackOrder } from "./layers.js";
+import { applyStationLabelCollision, ensureMetroLayerStackOrder } from "./layers.js";
+import { applyStationLabelDragPlacement } from "./stationLabelCollision.js";
 import { nearestPointOnSmoothedRoute } from "./displayLineSmoothing.js";
 import { setStationHoverPairFilters } from "./mapHoverFilters.js";
 import {
@@ -249,7 +250,7 @@ function applyEditStationSubmode() {
   } else {
     setStationLabelMoveFrameVisibility(false);
   }
-  applyStationLabelPlacementPriority(map);
+  applyStationLabelCollision(map);
 }
 
 function updateTransferSnapVisibility() {
@@ -1105,7 +1106,7 @@ Modes["edit-station"] = {
     if (map) {
       clearLabelDragLimitCircle(map);
       setStationLabelMoveFrameVisibility(false);
-      applyStationLabelPlacementPriority(map);
+      applyStationLabelCollision(map);
     }
     setZoomInteractionsEnabled(true);
     setEditStationSubmodeInternal("station");
@@ -1196,10 +1197,7 @@ Modes["edit-station"] = {
       scheduleStationDragPreview(map, sid, [ev.lngLat.lng, ev.lngLat.lat]);
     };
 
-    if (map.getLayer("stations-label")) {
-      map.setLayoutProperty("stations-label", "text-allow-overlap", true);
-      map.setLayoutProperty("stations-label", "text-ignore-placement", true);
-    }
+    applyStationLabelDragPlacement(map);
     map.on("mousemove", onDragStation);
 
     map.once("mouseup", () => {
@@ -1214,7 +1212,7 @@ Modes["edit-station"] = {
       }
       const finalCoord = getDisplayedStationCenter(map, sid, feature.geometry.coordinates);
       Route.moveStationAlongRoute(sid, finalCoord);
-      applyStationLabelPlacementPriority(map);
+      applyStationLabelCollision(map);
       M.dragging.type = null;
       M.dragging.stationId = null;
       setCursorForMode();
@@ -1239,9 +1237,7 @@ Modes["edit-station"] = {
     M.dragging.stationId = sid;
 
     setStationHoverPairFilters(map, "");
-    if (map.getLayer("stations-label")) {
-      map.setLayoutProperty("stations-label", "text-allow-overlap", true);
-    }
+    applyStationLabelDragPlacement(map);
     const dragCenter = getDisplayedStationCenter(map, sid, st.geometry.coordinates);
     drawLabelDragLimitCircle(map, dragCenter, LABEL_DRAG_RADIUS_METERS);
 
@@ -1266,7 +1262,7 @@ Modes["edit-station"] = {
       map.off("mousemove", onDragLabel);
       Route.setStationLabelPosition(sid, currentLabelCoord);
       clearLabelDragLimitCircle(map);
-      applyStationLabelPlacementPriority(map);
+      applyStationLabelCollision(map);
       M.dragging.type = null;
       M.dragging.stationId = null;
       setCursorForMode();
