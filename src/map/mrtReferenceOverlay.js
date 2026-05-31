@@ -1,13 +1,16 @@
 /**
- * TEMP — official Taipei MRT geometry as a gray underlay while tuning fitted defaults.
- *
- * Enable: VITE_MRT_REFERENCE_OVERLAY=true (or `npm run dev:reference`)
- * Remove when done: see docs/TEMP_MRT_REFERENCE_OVERLAY.md
+ * 官方路線參考圖層（幾何與繪製）。開關見 referenceOverlayConfig.js
  */
 import referenceImportData from "../default-routes/taipei-mrt-import-reference-temp.json";
 import { featureCollectionWithSmoothedLineStrings } from "./displayLineSmoothing.js";
+import { MRT_REFERENCE_OVERLAY_ON } from "./referenceOverlayConfig.js";
 
-export const MRT_REFERENCE_OVERLAY_ENABLED = import.meta.env.VITE_MRT_REFERENCE_OVERLAY === "true";
+const DEV_SCRIPT_ENABLED = import.meta.env.VITE_MRT_REFERENCE_OVERLAY === "true";
+
+/** @returns {boolean} */
+export function isMrtReferenceOverlayActive() {
+  return MRT_REFERENCE_OVERLAY_ON === 1 || DEV_SCRIPT_ENABLED;
+}
 
 export const MRT_REFERENCE_SOURCE_ID = "mrt-reference-routes";
 export const MRT_REFERENCE_LAYER_ID = "mrt-reference-line";

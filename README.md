@@ -87,4 +87,4 @@ GitHub 請勿上傳 `.env`（專案已用 `.gitignore` 排除）。Mapbox **URL 
 
 ### 暫用：官方路線灰色參考圖層（對齊 fitted 時）
 
-對 `taipei-mrt-import-fitted` 跑位時，可在地圖上疊一層官方原始幾何（灰色、在正式路線下方、不進路線清單）。啟用方式與完成後如何刪除程式，見 **[docs/TEMP_MRT_REFERENCE_OVERLAY.md](docs/TEMP_MRT_REFERENCE_OVERLAY.md)**（`npm run dev:reference` 或 `.env` 設 `VITE_MRT_REFERENCE_OVERLAY=true`）。
+官方路線參考圖層（深灰疊圖、僅開發者開關）：改 `src/map/referenceOverlayConfig.js` 的 `MRT_REFERENCE_OVERLAY_ON`（`0` 關、`1` 開），或本機 `npm run dev:reference`。說明見 **[docs/MRT_REFERENCE_OVERLAY.md](docs/MRT_REFERENCE_OVERLAY.md)**。

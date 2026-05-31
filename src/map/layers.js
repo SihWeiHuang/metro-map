@@ -14,32 +14,35 @@ import {
   getMrtReferenceRoutesDisplayFC,
   getMrtReferenceStationsFC,
   getMrtReferenceStationsLayerPaint,
+  isMrtReferenceOverlayActive,
   MRT_REFERENCE_LAYER_ID,
-  MRT_REFERENCE_OVERLAY_ENABLED,
   MRT_REFERENCE_SOURCE_ID,
   MRT_REFERENCE_STATIONS_LAYER_ID,
   MRT_REFERENCE_STATIONS_SOURCE_ID,
 } from "./mrtReferenceOverlay.js";
 
-/** Bottom of the metro stack — anchored below basemap labels. */
-const METRO_ROUTE_LAYER_IDS = [
-  ...(MRT_REFERENCE_OVERLAY_ENABLED ? [MRT_REFERENCE_LAYER_ID] : []),
-  "routes-line",
-  "routes-line-hover",
-];
+function metroRouteLayerIds() {
+  return [
+    ...(isMrtReferenceOverlayActive() ? [MRT_REFERENCE_LAYER_ID] : []),
+    "routes-line",
+    "routes-line-hover",
+  ];
+}
 
 /** Above routes, still below basemap labels (bottom → top). */
-const METRO_OVERLAY_LAYER_IDS = [
-  ...(MRT_REFERENCE_OVERLAY_ENABLED ? [MRT_REFERENCE_STATIONS_LAYER_ID] : []),
-  "stations-circle",
-  "temp-edit-line-casing-layer",
-  "temp-edit-line-layer",
-  "temp-edit-line-hit-layer",
-  "temp-edit-nodes-layer",
-  "label-drag-limit-layer",
-  "stations-label-move-frame",
-  "stations-label",
-];
+function metroOverlayLayerIds() {
+  return [
+    ...(isMrtReferenceOverlayActive() ? [MRT_REFERENCE_STATIONS_LAYER_ID] : []),
+    "stations-circle",
+    "temp-edit-line-casing-layer",
+    "temp-edit-line-layer",
+    "temp-edit-line-hit-layer",
+    "temp-edit-nodes-layer",
+    "label-drag-limit-layer",
+    "stations-label-move-frame",
+    "stations-label",
+  ];
+}
 
 /** Transient hover/edit overlays — kept above basemap labels and station hover circles. */
 const METRO_HOVER_OVERLAY_LAYER_IDS = [
@@ -51,29 +54,33 @@ const METRO_HOVER_OVERLAY_LAYER_IDS = [
 ];
 
 /** Recreated on each initializeLayers (hot reload). */
-const METRO_RECREATED_LAYER_IDS = [
-  ...METRO_ROUTE_LAYER_IDS,
-  ...(MRT_REFERENCE_OVERLAY_ENABLED ? [MRT_REFERENCE_STATIONS_LAYER_ID] : []),
-  "stations-circle",
-  "stations-circle-hover",
-  "transfer-snaps-layer",
-  "transfer-stations-circle",
-  "transfer-stations-circle-hover",
-];
+function metroRecreatedLayerIds() {
+  return [
+    ...metroRouteLayerIds(),
+    ...(isMrtReferenceOverlayActive() ? [MRT_REFERENCE_STATIONS_LAYER_ID] : []),
+    "stations-circle",
+    "stations-circle-hover",
+    "transfer-snaps-layer",
+    "transfer-stations-circle",
+    "transfer-stations-circle-hover",
+  ];
+}
+
+function metroSourceIds() {
+  return new Set([
+    "routes",
+    "stations",
+    "station-labels",
+    "transfer-snaps",
+    "temp-edit-line",
+    "temp-edit-nodes",
+    "label-drag-limit",
+    ...(isMrtReferenceOverlayActive() ? [MRT_REFERENCE_SOURCE_ID, MRT_REFERENCE_STATIONS_SOURCE_ID] : []),
+  ]);
+}
 
 const REGULAR_STATION_LAYER_FILTER = ["!=", ["coalesce", ["get", "is_transfer_fixed"], false], true];
 const TRANSFER_STATION_LAYER_FILTER = ["==", ["coalesce", ["get", "is_transfer_fixed"], false], true];
-const METRO_SOURCE_IDS = new Set([
-  "routes",
-  "stations",
-  "station-labels",
-  "transfer-snaps",
-  "temp-edit-line",
-  "temp-edit-nodes",
-  "label-drag-limit",
-  ...(MRT_REFERENCE_OVERLAY_ENABLED ? [MRT_REFERENCE_SOURCE_ID, MRT_REFERENCE_STATIONS_SOURCE_ID] : []),
-]);
-
 /**
  * Routes in `middle` (above roads, below 3D buildings; emissive paint avoids depth hide).
  * Points / nodes in `top` (above routes; GL batches line+circle in `middle` so circles get covered).
@@ -149,7 +156,7 @@ function layerLabelKey(layer) {
 }
 
 function isMetroLayer(layer) {
-  return METRO_SOURCE_IDS.has(layer.source);
+  return metroSourceIds().has(layer.source);
 }
 
 function shouldHideBasemapTextLayer(layer) {
@@ -438,17 +445,17 @@ export function ensureMetroLayerStackOrder(map) {
   const usesSlots = styleUsesMapboxSlots(map);
 
   if (usesSlots) {
-    chainLayerOrder(map, METRO_ROUTE_LAYER_IDS);
-    chainLayerOrder(map, METRO_OVERLAY_LAYER_IDS);
+    chainLayerOrder(map, metroRouteLayerIds());
+    chainLayerOrder(map, metroOverlayLayerIds());
     chainLayerOrder(map, METRO_HOVER_OVERLAY_LAYER_IDS);
   } else {
-    chainLayerOrder(map, [...METRO_ROUTE_LAYER_IDS, ...METRO_OVERLAY_LAYER_IDS]);
+    chainLayerOrder(map, [...metroRouteLayerIds(), ...metroOverlayLayerIds()]);
     chainLayerOrder(map, METRO_HOVER_OVERLAY_LAYER_IDS);
   }
 
   const topAnchoredMetroId = usesSlots
-    ? [...METRO_OVERLAY_LAYER_IDS].reverse().find((id) => map.getLayer(id))
-    : [...METRO_ROUTE_LAYER_IDS, ...METRO_OVERLAY_LAYER_IDS].reverse().find((id) => map.getLayer(id));
+    ? [...metroOverlayLayerIds()].reverse().find((id) => map.getLayer(id))
+    : [...metroRouteLayerIds(), ...metroOverlayLayerIds()].reverse().find((id) => map.getLayer(id));
 
   if (topAnchoredMetroId && mapLabelBeforeId) {
     try {
@@ -469,7 +476,7 @@ export function ensureMetroLayerStackOrder(map) {
 }
 
 function removeMetroRecreatedLayers(map) {
-  for (const layerId of METRO_RECREATED_LAYER_IDS) {
+  for (const layerId of metroRecreatedLayerIds()) {
     removeLayerIfExists(map, layerId);
   }
 }
@@ -498,7 +505,7 @@ export function initializeLayers(map, store) {
   // Always recreate route/geometry layers so slot / beforeId placement stays correct after hot reload.
   removeMetroRecreatedLayers(map);
 
-  if (MRT_REFERENCE_OVERLAY_ENABLED) {
+  if (isMrtReferenceOverlayActive()) {
     addOrSetSource(MRT_REFERENCE_SOURCE_ID, getMrtReferenceRoutesDisplayFC());
     addOrSetSource(MRT_REFERENCE_STATIONS_SOURCE_ID, getMrtReferenceStationsFC());
     addMetroRouteLayer(map, {
