@@ -115,8 +115,32 @@ function isTextLabelBasemapLayer(layer) {
   return layer.type === "symbol" && layer.layout?.["text-field"];
 }
 
-const HIGH_PRIORITY_BASEMAP_LABEL_RE =
-  /place|settlement|city|town|village|hamlet|locality|neighbourhood|neighborhood|suburb|district|admin|country|state|province|region/i;
+/** 保留：縣市、行政區等（不含里鄰／聚落級 place 圖層，避免與站名搶位） */
+const CORE_PLACE_LABEL_RE =
+  /place-(city|town|state|country|capital)|(?:^|[/_-])(admin|country|state|province|region|district|county|city|town|metropolis)(?:[/_-]|$)|^admin-/i;
+
+/** 聚落、鄰里地名（石牌、唭哩岸等）— 與捷運站名重疊時以站名為主 */
+const NEIGHBOURHOOD_PLACE_LABEL_RE =
+  /(?:^|[/_-])(place|settlement)(?:[/_-]|$)|place-label|settlement-label|settlement-minor|place-neighbour|place-neighbor|place-suburb|place-village|place-hamlet|place-locality|place-quarter/i;
+
+/** 保留：道路名稱文字 */
+const ROAD_NAME_LABEL_RE =
+  /road-label|road-name|road_label|street-label|street-name|street_label|(?:^|[/_-])(road|street)(?:[/_-]|$)|motorway|trunk|primary|secondary|tertiary|path|track|bridge|tunnel|ferry/i;
+
+/** 一律隱藏：POI 文字、門牌、路盾圖示層等（不含路名，見 ROAD_NAME_LABEL_RE） */
+const CLUTTER_BASEMAP_LABEL_RE =
+  /poi|shop|store|retail|food|amenity|housenum|house-num|junction|exit|guide|arrow|transit|ferry-label|waterway|natural|landuse|park-label|airport|harbor|hospital|school|university|college|golf|stadium|museum|library|worship|commercial|industrial|minor|auxiliary|ref|label-dot|symbol-label|poi-|marker|brand|fuel|parking|entrance|building-number|block-/i;
+
+/** 隱藏：里鄰、村落等過密的小地名（保留 CORE 層級即可） */
+const LOCAL_PLACE_LABEL_RE = /suburb|neighbourhood|neighborhood|village|hamlet|locality|quarter|isolated|microhood|macrohood|block-group/i;
+
+/** 底圖 POI / 設施圖示（非文字） */
+const CLUTTER_BASEMAP_ICON_RE =
+  /poi|shop|store|retail|food|amenity|marker|icon|dot|indicator|brand|fuel|parking|museum|hospital|school|stadium|golf|library|worship|commercial|industrial|entrance/i;
+
+function layerLabelKey(layer) {
+  return `${layer.id || ""} ${layer["source-layer"] || ""}`.toLowerCase();
+}
 
 function isMetroLayer(layer) {
   return METRO_SOURCE_IDS.has(layer.source);
@@ -124,11 +148,43 @@ function isMetroLayer(layer) {
 
 function shouldHideBasemapTextLayer(layer) {
   if (!isTextLabelBasemapLayer(layer) || isMetroLayer(layer)) return false;
-  const id = layer.id || "";
-  const sourceLayer = layer["source-layer"] || "";
-  const labelKey = `${id} ${sourceLayer}`;
-  if (HIGH_PRIORITY_BASEMAP_LABEL_RE.test(labelKey)) return false;
+  const key = layerLabelKey(layer);
+  if (CLUTTER_BASEMAP_LABEL_RE.test(key)) return true;
+  if (LOCAL_PLACE_LABEL_RE.test(key)) return true;
+  if (NEIGHBOURHOOD_PLACE_LABEL_RE.test(key)) return true;
+  if (ROAD_NAME_LABEL_RE.test(key)) return false;
+  if (CORE_PLACE_LABEL_RE.test(key)) return false;
   return true;
+}
+
+function shouldHideBasemapIconLayer(layer) {
+  if (isMetroLayer(layer) || layer.type !== "symbol") return false;
+  if (!layer.layout?.["icon-image"]) return false;
+  const key = layerLabelKey(layer);
+  if (CLUTTER_BASEMAP_ICON_RE.test(key)) return true;
+  if (/road|shield|motorway|exit|junction|guide|arrow|ref|route|street/.test(key)) return true;
+  return false;
+}
+
+function hideBasemapLayer(map, layerId, layer) {
+  try {
+    map.setLayoutProperty(layerId, "visibility", "none");
+    return;
+  } catch {
+    /* Standard import layers may reject visibility */
+  }
+  if (layer?.type === "symbol") {
+    try {
+      if (layer.layout?.["text-field"]) map.setPaintProperty(layerId, "text-opacity", 0);
+    } catch {
+      /* ignore */
+    }
+    try {
+      if (layer.layout?.["icon-image"]) map.setPaintProperty(layerId, "icon-opacity", 0);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 function applyReducedBasemapTextDensity(map) {
@@ -136,12 +192,71 @@ function applyReducedBasemapTextDensity(map) {
   if (!Array.isArray(layers)) return;
   for (const layer of layers) {
     if (!shouldHideBasemapTextLayer(layer)) continue;
+    hideBasemapLayer(map, layer.id, layer);
+  }
+}
+
+function applyReducedBasemapIconDensity(map) {
+  const layers = map.getStyle()?.layers;
+  if (!Array.isArray(layers)) return;
+  for (const layer of layers) {
+    if (!shouldHideBasemapIconLayer(layer)) continue;
+    hideBasemapLayer(map, layer.id, layer);
+  }
+}
+
+/**
+ * Mapbox Standard（含 imports）— 關閉 POI／底圖大眾運輸；保留路名與行政地名。
+ * 自訂 Classic 樣式無 imports 時會靜默略過。
+ */
+function applyMapboxStandardBasemapConfig(map) {
+  const imports = map.getStyle()?.imports;
+  if (!Array.isArray(imports) || imports.length === 0) return;
+
+  const importId = imports.find((item) => item.id === "basemap")?.id ?? imports[0]?.id;
+  if (!importId) return;
+
+  const configs = [
+    ["showPointOfInterestLabels", false],
+    ["showRoadLabels", true],
+    ["showTransitLabels", false],
+    ["showPlaceLabels", true],
+  ];
+
+  for (const [key, value] of configs) {
     try {
-      map.setLayoutProperty(layer.id, "visibility", "none");
+      map.setConfigProperty(importId, key, value);
     } catch {
-      // Imported Mapbox Standard layers may reject direct edits; skip unsupported layers.
+      /* 非 Standard 或 import 尚未就緒 */
     }
   }
+}
+
+const STATION_LABEL_LAYER_IDS = ["stations-label", "stations-label-hover"];
+
+/** 站名優先於底圖地名：允許重疊、不參與碰撞閃避。 */
+export function applyStationLabelPlacementPriority(map) {
+  if (!map) return;
+  for (const layerId of STATION_LABEL_LAYER_IDS) {
+    if (!map.getLayer(layerId)) continue;
+    try {
+      map.setLayoutProperty(layerId, "text-allow-overlap", true);
+      map.setLayoutProperty(layerId, "text-ignore-placement", true);
+      map.setLayoutProperty(layerId, "text-optional", false);
+      map.setLayoutProperty(layerId, "symbol-sort-key", 100);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** 盡量減少底圖雜訊（文字、POI 圖示、Standard config）。 */
+export function applyBasemapClutterReduction(map) {
+  if (!map?.getStyle) return;
+  applyMapboxStandardBasemapConfig(map);
+  applyReducedBasemapTextDensity(map);
+  applyReducedBasemapIconDensity(map);
+  applyStationLabelPlacementPriority(map);
 }
 
 /** First basemap symbol layer with text — fallback insert anchor (classic styles). */
@@ -304,7 +419,7 @@ function chainLayerOrder(map, layerIds) {
  * Classic: one stack, chain routes then overlays, anchor normal layers below map labels.
  */
 export function ensureMetroLayerStackOrder(map) {
-  applyReducedBasemapTextDensity(map);
+  applyBasemapClutterReduction(map);
 
   const mapLabelBeforeId = findMetroGeometryInsertBeforeLayerId(map);
   const usesSlots = styleUsesMapboxSlots(map);
@@ -547,8 +662,10 @@ export function initializeLayers(map, store) {
       source: "station-labels",
       layout: {
         ...stationLabelLayoutBase,
-        "text-allow-overlap": false,
-        "text-ignore-placement": false,
+        "text-allow-overlap": true,
+        "text-ignore-placement": true,
+        "text-optional": false,
+        "symbol-sort-key": 100,
       },
       paint: {
         "text-color": [

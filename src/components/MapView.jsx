@@ -11,7 +11,7 @@ import {
   snapshotMapView,
 } from "../map/mapViewState.js";
 import { addStationLabelFrameImage } from "../map/labelMoveFrameImage.js";
-import { initializeLayers } from "../map/layers.js";
+import { applyBasemapClutterReduction, initializeLayers } from "../map/layers.js";
 import { Route, store } from "../map/routeModel.js";
 import { initializeEventListeners, registerModeChange } from "../map/modeBundle.js";
 
@@ -52,6 +52,7 @@ export default function MapView({ onModeChange }) {
     setMapInstance(map);
 
     const onStyleReady = () => {
+      applyBasemapClutterReduction(map);
       addStationLabelFrameImage(map);
       initializeLayers(map, store);
       Route.refreshSources();

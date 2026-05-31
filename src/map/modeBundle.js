@@ -1,6 +1,6 @@
 import * as turf from "@turf/turf";
 import { getMap } from "./mapInstance.js";
-import { ensureMetroLayerStackOrder } from "./layers.js";
+import { applyStationLabelPlacementPriority, ensureMetroLayerStackOrder } from "./layers.js";
 import { nearestPointOnSmoothedRoute } from "./displayLineSmoothing.js";
 import { setStationHoverPairFilters } from "./mapHoverFilters.js";
 import {
@@ -246,17 +246,10 @@ function applyEditStationSubmode() {
       map.setFilter("transfer-stations-circle-hover", ["==", ["get", "station_id"], ""]);
     }
     setStationLabelMoveFrameVisibility(true);
-    if (map.getLayer("stations-label")) {
-      map.setLayoutProperty("stations-label", "text-allow-overlap", true);
-      map.setLayoutProperty("stations-label", "text-ignore-placement", true);
-    }
   } else {
     setStationLabelMoveFrameVisibility(false);
-    if (map.getLayer("stations-label") && M.dragging.type !== "station") {
-      map.setLayoutProperty("stations-label", "text-allow-overlap", false);
-      map.setLayoutProperty("stations-label", "text-ignore-placement", false);
-    }
   }
+  applyStationLabelPlacementPriority(map);
 }
 
 function updateTransferSnapVisibility() {
@@ -1112,10 +1105,7 @@ Modes["edit-station"] = {
     if (map) {
       clearLabelDragLimitCircle(map);
       setStationLabelMoveFrameVisibility(false);
-      if (map.getLayer("stations-label")) {
-        map.setLayoutProperty("stations-label", "text-allow-overlap", false);
-        map.setLayoutProperty("stations-label", "text-ignore-placement", false);
-      }
+      applyStationLabelPlacementPriority(map);
     }
     setZoomInteractionsEnabled(true);
     setEditStationSubmodeInternal("station");
@@ -1224,10 +1214,7 @@ Modes["edit-station"] = {
       }
       const finalCoord = getDisplayedStationCenter(map, sid, feature.geometry.coordinates);
       Route.moveStationAlongRoute(sid, finalCoord);
-      if (map.getLayer("stations-label")) {
-        map.setLayoutProperty("stations-label", "text-allow-overlap", false);
-        map.setLayoutProperty("stations-label", "text-ignore-placement", false);
-      }
+      applyStationLabelPlacementPriority(map);
       M.dragging.type = null;
       M.dragging.stationId = null;
       setCursorForMode();
@@ -1279,9 +1266,7 @@ Modes["edit-station"] = {
       map.off("mousemove", onDragLabel);
       Route.setStationLabelPosition(sid, currentLabelCoord);
       clearLabelDragLimitCircle(map);
-      if (map.getLayer("stations-label")) {
-        map.setLayoutProperty("stations-label", "text-allow-overlap", false);
-      }
+      applyStationLabelPlacementPriority(map);
       M.dragging.type = null;
       M.dragging.stationId = null;
       setCursorForMode();

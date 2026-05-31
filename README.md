@@ -33,13 +33,13 @@ npm run dev
 Stage all changes, create a commit, and push to the remote in one command. Replace the message with a short description of your changes:
 
 ```bash
-git add -A && git commit -m "你的提交說明" && git push
+git add -A && git commit -m "簡短英文commit説明" && git push
 ```
 
 If this branch has no upstream yet, use:
 
 ```bash
-git add -A && git commit -m "你的提交說明" && git push -u origin HEAD
+git add -A && git commit -m "簡短英文commit説明" && git push -u origin HEAD
 ```
 
 ## Deploy to Vercel (GitHub Auto Deploy)
@@ -81,6 +81,7 @@ GitHub 請勿上傳 `.env`（專案已用 `.gitignore` 排除）。Mapbox **URL 
 | `src/map/routeModel.js` | 資料與商業邏輯；命名與 popup 顯示邏輯不在此重複實作。 |
 | `shared/shareLimits.js` | 分享連結與全站路線數上限常數（前後端共用）。 |
 | `api/share/` | 建立／讀取分享連結的 Serverless API。 |
+| `src/map/layers.js` | 底圖減雜訊（`applyBasemapClutterReduction`）；細部與 Studio 分工見 **[docs/底圖樣式調整.md](docs/底圖樣式調整.md)**。 |
 
 驗證預設命名：`npm run test:names`
 
