@@ -2,7 +2,7 @@
  * 網站預設地圖視野（固定常數，非即時 fitBounds）。
  *
  * 中心：台北車站 WGS84（121.51722, 25.04778），來源 Wikipedia「臺北車站」。
- * 縮放：依 `src/default-routes/taipei-mrt-import-fitted.json` 雙北捷運預設路網外框，
+ * 縮放：依 `default-data/taipei-mrt-import-fitted.json` 雙北捷運預設路網外框，
  *       以台北車站為中心、用與 `estimateZoomForBounds` 相同公式反推（約 12% 邊距）→ zoom ≈ 10.25。
  */
 

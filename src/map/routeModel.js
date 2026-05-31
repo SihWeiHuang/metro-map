@@ -8,7 +8,7 @@ import {
   smoothLineStringForDisplay,
   tempLineFeaturesWithSmoothedGeometry,
 } from "./displayLineSmoothing.js";
-import { DEFAULT_BUILTIN_MAP_DATA } from "./defaultBuiltinData.js";
+import { DEFAULT_BUILTIN_MAP_DATA } from "./defaultData.js";
 import { computeMapViewFromFeatures, normalizeImportedMapView } from "./mapGeoBounds.js";
 import { scheduleImportMapView } from "./mapViewState.js";
 import { setStationLabelBaseMask } from "./mapHoverFilters.js";

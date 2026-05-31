@@ -75,6 +75,7 @@ GitHub 請勿上傳 `.env`（專案已用 `.gitignore` 排除）。Mapbox **URL 
 
 | 模組 | 職責 |
 |------|------|
+| `src/map/defaultData.js` | **唯一**從 `default-data/` 載入預設路線 JSON；新增預設資料請放 `default-data/` 並在此 export。 |
 | `src/map/defaultNames.js` | **唯一**處理預設路線／車站名稱。新增路線請用 `allocateDefaultRouteLabel()`，新增車站請用 `allocateDefaultStationLabel()`，顯示名稱請用 `resolveRouteDisplayNameFromProps()` / `resolveStationDisplayName()`。內部 `subroute_id` / `station_id` 與顯示編號（`user_default_route_label` / `user_default_label`）分離。 |
 | `src/map/mapPopups.js` | **唯一**管理地圖 hover／提示 popup，並依模式強制規則（例如 `edit-station` 不顯示路線 hover，只顯示「新增轉乘站」）。請勿在 `modeBundle.js` 直接 `new mapboxgl.Popup()`。 |
 | `src/map/modeBundle.js` | 模式切換、游標、hover 編排；popup 一律委派給 `mapPopups.js`。 |
@@ -84,6 +85,14 @@ GitHub 請勿上傳 `.env`（專案已用 `.gitignore` 排除）。Mapbox **URL 
 | `src/map/layers.js` | 底圖減雜訊（`applyBasemapClutterReduction`）；細部與 Studio 分工見 **[docs/底圖樣式調整.md](docs/底圖樣式調整.md)**。 |
 
 驗證預設命名：`npm run test:names`
+
+### 預設路線資料（`default-data/`）
+
+| 檔案 | 用途 |
+|------|------|
+| `default-data/taipei-mrt-import-fitted.json` | 網站內建預設路線（`npm run fit:mrt` 產出） |
+
+原始匯入與參考疊圖仍分別放在 `data/`、`src/default-routes/`（見 [docs/MRT_REFERENCE_OVERLAY.md](docs/MRT_REFERENCE_OVERLAY.md)）。
 
 ### 暫用：官方路線灰色參考圖層（對齊 fitted 時）
 

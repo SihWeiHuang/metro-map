@@ -33,19 +33,22 @@ npm run dev:reference
 
 - 深灰路線與車站疊在**正式彩色路線下面**
 - **不會**出現在路線清單，也**不能**點選編輯
-- 要改預設 fitted 仍須改 `src/default-routes/taipei-mrt-import-fitted.json` 再部署
+- 要改預設 fitted 仍須改 `default-data/taipei-mrt-import-fitted.json` 再部署
 
-## 參考資料放哪
+## 資料放哪
 
 | 檔案 | 說明 |
 |------|------|
+| `default-data/taipei-mrt-import-fitted.json` | **預設路線**（網站載入；`npm run fit:mrt` 產出） |
+| `data/taipei-mrt-import.json` | 官方原始匯入（`convert-mrt-shp` 產出或手動維護） |
 | `data/taipei-mrt-import-temp.json` | 可手動維護的工作副本 |
-| `src/default-routes/taipei-mrt-import-reference-temp.json` | 實際打包進網站的資料 |
+| `src/default-routes/taipei-mrt-import-reference-temp.json` | 參考疊圖打包用（與原始匯入同步） |
 
-若更新了 `data/taipei-mrt-import.json`，請同步複製到上述兩個檔，再 build／部署。
+若更新了 `data/taipei-mrt-import.json`，請同步複製到 `data/taipei-mrt-import-temp.json` 與 `src/default-routes/taipei-mrt-import-reference-temp.json`，再 build／部署。
 
 ## 相關程式（保留、不必刪）
 
+- `default-data/` — **預設路線 JSON**（網站經 `src/map/defaultData.js` 載入）
 - `src/map/referenceOverlayConfig.js` — **開關（0／1）**
-- `src/map/mrtReferenceOverlay.js` — 資料與樣式
+- `src/map/mrtReferenceOverlay.js` — 參考疊圖資料與樣式
 - `src/map/layers.js` — 搜尋 `MRT_REFERENCE` 或 `mrt-reference`

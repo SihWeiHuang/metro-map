@@ -1,6 +1,6 @@
 /**
  * Rebuild selected MRT lines as single sub-routes via station-ordered spline fitting.
- * Reads data/taipei-mrt-import.json and writes data/taipei-mrt-import-fitted.json
+ * Reads data/taipei-mrt-import.json and writes default-data/taipei-mrt-import-fitted.json
  * without modifying the original file.
  *
  * Usage: npm run fit:mrt
@@ -17,7 +17,7 @@ import * as turf from "@turf/turf";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const SOURCE_PATH = path.join(ROOT, "data", "taipei-mrt-import.json");
-const OUT_PATH = path.join(ROOT, "data", "taipei-mrt-import-fitted.json");
+const OUT_PATH = path.join(ROOT, "default-data", "taipei-mrt-import-fitted.json");
 const STATION_SHP_PATH = path.join(ROOT, "捷運車站_1150409", "MARK_捷運車站_1150409.shp");
 const STATION_DBF_PATH = path.join(ROOT, "捷運車站_1150409", "MARK_捷運車站_1150409.dbf");
 
