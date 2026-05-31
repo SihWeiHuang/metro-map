@@ -5,6 +5,7 @@ import { createShareLink } from "../share/shareApi.js";
 import { buildShareUrl } from "../share/parseSharePath.js";
 import {
   MAX_SHARE_PAYLOAD_BYTES,
+  MAX_USER_ROUTES,
   SHARE_TTL_DAYS,
   validateSharePayloadText,
 } from "../../shared/shareLimits.js";
@@ -87,6 +88,7 @@ export default function ShareLinkDialog({ open, onClose }) {
 
   const errorMessage = (code) => {
     if (code === "payload_too_large") return t("share.errorPayloadTooLarge");
+    if (code === "too_many_routes") return t("share.errorTooManyRoutes", { limit: MAX_USER_ROUTES });
     if (code === "no_routes") return t("share.errorNoRoutes");
     if (code === "rate_limited") return t("share.errorRateLimited");
     if (code === "kv_not_configured") return t("share.errorNotConfigured");
@@ -116,6 +118,7 @@ export default function ShareLinkDialog({ open, onClose }) {
         <ul className="app-share-limits">
           <li>{t("share.limitTtl", { days: SHARE_TTL_DAYS })}</li>
           <li>{t("share.limitSize", { maxKb })}</li>
+          <li>{t("share.limitRoutes", { limit: MAX_USER_ROUTES })}</li>
           <li>{t("share.limitOptIn")}</li>
         </ul>
         {!hasRoutes && <p className="app-share-warning">{t("share.noUserRoutes")}</p>}

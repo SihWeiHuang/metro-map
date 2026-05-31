@@ -407,17 +407,29 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
-  const importErrorMessage = (code) => {
+  const importErrorMessage = (code, result) => {
+    if (code === "route_limit_reached" && result?.limit != null) {
+      return t("routeModel.routeLimitReached", { limit: result.limit, current: result.current });
+    }
     if (code === "unsupported_format") return t("app.importErrorUnsupported");
     if (code === "missing_features") return t("app.importErrorMissing");
     if (code === "invalid_json") return t("app.importErrorInvalid");
     return t("app.importErrorGeneric");
   };
 
+  const tryStartAddRoute = () => {
+    const check = Route.assertCanAddUserRoutes(1);
+    if (!check.ok) {
+      alert(t("routeModel.routeLimitReached", { limit: check.limit, current: check.current }));
+      return;
+    }
+    setMode("add-route");
+  };
+
   const applyImport = (text, mode) => {
     const result = Route.importUserStateJSON(text, { mode });
     if (!result.ok) {
-      alert(importErrorMessage(result.error));
+      alert(importErrorMessage(result.error, result));
       return;
     }
     bumpRouteList();
@@ -514,7 +526,7 @@ function App() {
     const result = Route.adoptShareToMyMap();
     setShareActionBusy(false);
     if (!result.ok) {
-      if (result.error) alert(importErrorMessage(result.error));
+      if (result.error) alert(importErrorMessage(result.error, result));
       return;
     }
     setShareBootstrap({ phase: "idle", id: null, error: "" });
@@ -659,7 +671,12 @@ function App() {
           aria-label={t("app.routeListAria")}
         >
           <div className="app-side-panel-header">
-            <h2>{t("app.routeListAria")}</h2>
+            <h2>
+              {t("app.routeListTitle", {
+                current: Route.countUserRoutes(),
+                limit: Route.getMaxUserRoutes(),
+              })}
+            </h2>
           </div>
           <div className="app-side-panel-content route-list-sidebar-scroll">
             <RouteListPanel
@@ -717,7 +734,7 @@ function App() {
                   type="button"
                   disabled={modeBtnDisabled(mode === "add-route")}
                   className={mode === "add-route" ? "active-button" : ""}
-                  onClick={() => setMode("add-route")}
+                  onClick={tryStartAddRoute}
                 >
                   {t("app.modeAddRoute")}
                 </button>

@@ -152,8 +152,8 @@ export function getPageContent(pageId, locale) {
               en: "Users may draw their own routes and stations on the map to build personal or hypothetical networks and share the results with others for teaching, presentations, discussion, or creative work.",
             }),
             L(locale, {
-              zh: "全站使用者路線（路線層級）上限為 50 條，以維持瀏覽器效能與穩定度。",
-              en: "There is a site-wide limit of 50 user-drawn lines (line level) to keep the app responsive.",
+              zh: "全站使用者路線（路線層級）上限為 100 條，以維持瀏覽器效能與穩定度。",
+              en: "There is a site-wide limit of 100 user-drawn lines (line level) to keep the app responsive.",
             }),
           ],
         },

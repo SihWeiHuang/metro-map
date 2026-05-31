@@ -3,7 +3,7 @@
 export const EXPORT_FILE_FORMAT = "metro-multiverse";
 
 /** Max user-drawn lines (unique route_id) site-wide. */
-export const MAX_USER_ROUTES = 50;
+export const MAX_USER_ROUTES = 30;
 
 /** Max JSON body size for a share link (bytes). */
 export const MAX_SHARE_PAYLOAD_BYTES = 200_000;
@@ -17,6 +17,34 @@ export const SHARE_TTL_DAYS = 30;
 export const MAX_SHARE_CREATES_PER_IP_PER_DAY = 20;
 
 export const SHARE_ID_PATTERN = /^[a-zA-Z0-9_-]{8}$/;
+
+const ROUTE_KIND_DEFAULT = "default";
+const ROUTE_KIND_USER = "user";
+
+/**
+ * @param {unknown} feature
+ */
+function routeKindOf(feature) {
+  const kind = feature?.properties?.route_kind;
+  return kind === ROUTE_KIND_DEFAULT || kind === ROUTE_KIND_USER ? kind : ROUTE_KIND_USER;
+}
+
+/**
+ * Unique user line count (route_id) in an export/share payload. Matches map import rules.
+ * @param {Record<string, unknown>} data
+ */
+export function countUserRoutesInSharePayload(data) {
+  const subroutes =
+    Array.isArray(data.userSubroutesFC?.features) ? data.userSubroutesFC.features : data.subroutesFC?.features;
+  if (!Array.isArray(subroutes)) return 0;
+  const ids = new Set();
+  for (const f of subroutes) {
+    if (routeKindOf(f) !== ROUTE_KIND_USER) continue;
+    const routeId = f?.properties?.route_id;
+    if (typeof routeId === "string") ids.add(routeId);
+  }
+  return ids.size;
+}
 
 /**
  * @param {unknown} raw
@@ -37,6 +65,13 @@ export function validateSharePayloadObject(raw) {
   }
   if (!Array.isArray(stations)) {
     return { ok: false, code: "missing_features" };
+  }
+  const userRouteCount = countUserRoutesInSharePayload(data);
+  if (userRouteCount === 0) {
+    return { ok: false, code: "no_routes" };
+  }
+  if (userRouteCount > MAX_USER_ROUTES) {
+    return { ok: false, code: "too_many_routes" };
   }
   return { ok: true };
 }

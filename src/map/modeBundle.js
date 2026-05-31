@@ -676,7 +676,13 @@ export function setMode(next) {
 }
 
 export function startAddRoute() {
+  const check = Route.assertCanAddUserRoutes(1);
+  if (!check.ok) {
+    alert(t("routeModel.routeLimitReached", { limit: check.limit, current: check.current }));
+    return { ok: false, code: check.code, limit: check.limit, current: check.current };
+  }
   setMode("add-route");
+  return { ok: true };
 }
 
 export function startEditRoute() {

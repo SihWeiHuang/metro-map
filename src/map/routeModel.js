@@ -353,6 +353,91 @@ function assertCanAddUserRoutes(additionalRoutes = 1) {
   return { ok: true };
 }
 
+function getUniqueImportRouteIds(userSubroutes) {
+  const ids = new Set();
+  for (const f of userSubroutes) {
+    const routeId = f.properties?.route_id;
+    if (typeof routeId === "string") ids.add(routeId);
+  }
+  return ids;
+}
+
+/**
+ * Project unique user route_id count after import (line level, not sub-routes).
+ * @param {typeof userSubroutes} userSubroutes
+ * @param {ImportMode} mode
+ * @param {string[]} [duplicateRouteIds]
+ * @param {Set<string>} [duplicateDisplayNames]
+ */
+function projectUserRouteCountAfterImport(
+  userSubroutes,
+  mode,
+  duplicateRouteIds = [],
+  duplicateDisplayNames = new Set()
+) {
+  const importIds = getUniqueImportRouteIds(userSubroutes);
+  if (mode === "replaceAll") return importIds.size;
+
+  const currentIds = getExistingUserRouteIdSet();
+
+  if (mode === "replaceMatching") {
+    const idSet = new Set(duplicateRouteIds);
+    const nameSet = duplicateDisplayNames instanceof Set ? duplicateDisplayNames : new Set();
+    const projected = new Set();
+    const seenCurrent = new Set();
+    for (const f of store.subroutesFC.features) {
+      if (routeKindOf(f) !== ROUTE_KIND_USER) continue;
+      const routeId = f.properties?.route_id;
+      if (typeof routeId !== "string" || seenCurrent.has(routeId)) continue;
+      seenCurrent.add(routeId);
+      const displayName = normalizeRouteNameForDuplicateFromProps(f.properties);
+      if ((displayName && nameSet.has(displayName)) || idSet.has(routeId)) continue;
+      projected.add(routeId);
+    }
+    for (const id of importIds) projected.add(id);
+    return projected.size;
+  }
+
+  const projectedIds = new Set(currentIds);
+  const existingForMerge = new Set(currentIds);
+  const importRouteIdMap = new Map();
+  for (const f of userSubroutes) {
+    const oldRouteId = f.properties?.route_id;
+    if (typeof oldRouteId !== "string" || importRouteIdMap.has(oldRouteId)) continue;
+    if (!existingForMerge.has(oldRouteId)) {
+      importRouteIdMap.set(oldRouteId, oldRouteId);
+      existingForMerge.add(oldRouteId);
+      projectedIds.add(oldRouteId);
+    } else {
+      const phantom = `__import_new_${importRouteIdMap.size}`;
+      importRouteIdMap.set(oldRouteId, phantom);
+      existingForMerge.add(phantom);
+      projectedIds.add(phantom);
+    }
+  }
+  return projectedIds.size;
+}
+
+/**
+ * @param {typeof userSubroutes} userSubroutes
+ * @param {ImportMode} mode
+ * @param {{ duplicateRouteIds?: string[], duplicateDisplayNames?: Set<string> }} [duplicateInfo]
+ */
+function assertImportWithinUserRouteLimit(userSubroutes, mode, duplicateInfo = {}) {
+  const projected = projectUserRouteCountAfterImport(
+    userSubroutes,
+    mode,
+    duplicateInfo.duplicateRouteIds ?? [],
+    duplicateInfo.duplicateDisplayNames
+  );
+  const limit = MAX_USER_ROUTES;
+  const current = countUserRoutes();
+  if (projected > limit) {
+    return { ok: false, code: "route_limit_reached", limit, current, projected };
+  }
+  return { ok: true, projected };
+}
+
 /** @type {{ restoreSnapshot: ReturnType<typeof captureUserStateSnapshot>, payloadText: string, expiresAt: string | null } | null} */
 let shareViewSession = null;
 
@@ -2100,8 +2185,8 @@ function getShareViewExpiresAt() {
 }
 
 function importUserStateJSON(jsonString, options = {}) {
-  skipImportUndoInvalidate = true;
-  const snapshotBeforeImport = captureUserStateSnapshot();
+  /** @type {ReturnType<typeof captureUserStateSnapshot> | null} */
+  let snapshotBeforeImport = null;
   try {
     const data = JSON.parse(jsonString);
     const { userSubroutes, userStations, hiddenSubrouteIds, mapView } = parseImportPayload(data);
@@ -2109,6 +2194,21 @@ function importUserStateJSON(jsonString, options = {}) {
     const duplicateMatch =
       mode === "replaceMatching" ? collectImportDuplicateMatchInfo(userSubroutes) : null;
     const duplicateRouteIds = duplicateMatch?.duplicateRouteIds ?? [];
+    const routeLimit = assertImportWithinUserRouteLimit(userSubroutes, mode, {
+      duplicateRouteIds,
+      duplicateDisplayNames: duplicateMatch?.duplicateDisplayNames,
+    });
+    if (!routeLimit.ok) {
+      return {
+        ok: false,
+        error: routeLimit.code,
+        limit: routeLimit.limit,
+        current: routeLimit.current,
+      };
+    }
+
+    skipImportUndoInvalidate = true;
+    snapshotBeforeImport = captureUserStateSnapshot();
     if (mode === "replaceAll") {
       clearUserContent();
     } else if (mode === "replaceMatching" && duplicateMatch) {
@@ -2130,10 +2230,12 @@ function importUserStateJSON(jsonString, options = {}) {
     scheduleImportMapView(mapView);
     return { ok: true, mapView, ...buildImportResultStats(userSubroutes, userStations, mode, duplicateRouteIds) };
   } catch (e) {
-    restoreUserStateSnapshot(snapshotBeforeImport);
-    lastImportUndoSnapshot = null;
-    refreshSources();
-    notifyImportUndoListeners();
+    if (snapshotBeforeImport) {
+      restoreUserStateSnapshot(snapshotBeforeImport);
+      lastImportUndoSnapshot = null;
+      refreshSources();
+      notifyImportUndoListeners();
+    }
     const code = e instanceof Error && e.message ? e.message : "import_failed";
     return { ok: false, error: code };
   } finally {
@@ -2201,6 +2303,8 @@ export const Route = {
   countUserRoutes,
   getMaxUserRoutes: () => MAX_USER_ROUTES,
   assertCanAddUserRoutes,
+  projectUserRouteCountAfterImport,
+  assertImportWithinUserRouteLimit,
   openShareView,
   exitShareView,
   adoptShareToMyMap,
