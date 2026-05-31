@@ -17,7 +17,7 @@ const POPUP_COLLISION_LAYERS = [
 const STATION_COLLISION_WEIGHT = 90;
 const ROUTE_COLLISION_WEIGHT = 45;
 /** Evenly spaced directions (8, 16, …). More directions = finer placement near corners. */
-export const POPUP_DIRECTION_COUNT = 16;
+const POPUP_DIRECTION_COUNT = 16;
 
 function buildDirectionCandidates(count) {
   return Array.from({ length: count }, (_, i) => ({
@@ -185,42 +185,6 @@ export function resolvePopupPlacement(map, point, opts = {}) {
       : buildDirectionCandidates(directionCount);
 
   const best = pickBestCandidate(map, point, candidates, estWidth, estHeight);
-  return {
-    anchor: best.anchor,
-    offset: centerOffsetForAngle(best.angle, estWidth, estHeight),
-  };
-}
-
-/**
- * Screen-space angle (radians) of a map segment; 0 = east, π/2 = south.
- * @param {import("mapbox-gl").Map} map
- * @param {[number, number]} coordA [lng, lat]
- * @param {[number, number]} coordB [lng, lat]
- */
-export function lineSegmentScreenAngle(map, coordA, coordB) {
-  const a = map.project(coordA);
-  const b = map.project(coordB);
-  return Math.atan2(b.y - a.y, b.x - a.x);
-}
-
-/**
- * Place a popup beside a route, offset perpendicular to the local line direction.
- * @param {import("mapbox-gl").Map} map
- * @param {{ x: number, y: number }} point Snapped point on the route (screen px)
- * @param {number} lineScreenAngle From lineSegmentScreenAngle
- * @param {{ estWidth?: number, estHeight?: number }} [opts]
- */
-export function resolveLineSidePopupPlacement(map, point, lineScreenAngle, opts = {}) {
-  const estWidth = opts.estWidth ?? 220;
-  const estHeight = opts.estHeight ?? 36;
-  const candidates = [
-    { anchor: "center", angle: lineScreenAngle + Math.PI / 2 },
-    { anchor: "center", angle: lineScreenAngle - Math.PI / 2 },
-  ];
-  const best = pickBestCandidate(map, point, candidates, estWidth, estHeight, {
-    featureClearRadius: 22,
-    upwardBias: true,
-  });
   return {
     anchor: best.anchor,
     offset: centerOffsetForAngle(best.angle, estWidth, estHeight),

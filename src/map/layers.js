@@ -277,8 +277,6 @@ export function applyBasemapClutterReduction(map) {
   applyStationLabelCollision(map);
 }
 
-export { applyStationLabelCollision } from "./stationLabelCollision.js";
-
 /** First basemap symbol layer with text — fallback insert anchor (classic styles). */
 function findLabelAnchorLayerId(map) {
   const layers = map.getStyle()?.layers;

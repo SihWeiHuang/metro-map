@@ -1,8 +1,5 @@
 /** @typedef {'legal' | 'about' | 'support' | 'contact'} SitePageId */
 
-/** @type {SitePageId[]} */
-export const SITE_PAGE_IDS = ["legal", "about", "support", "contact"];
-
 /**
  * @param {string} hash
  * @returns {SitePageId | null}

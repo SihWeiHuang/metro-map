@@ -8,4 +8,4 @@
  * 資料與樣式：src/map/mrtReferenceOverlay.js
  * 說明：docs/MRT_REFERENCE_OVERLAY.md
  */
-export const MRT_REFERENCE_OVERLAY_ON = 0;
+export const MRT_REFERENCE_OVERLAY_ON = 1;

@@ -1,7 +1,7 @@
 import * as turf from "@turf/turf";
 import { getMap } from "./mapInstance.js";
-import { applyStationLabelCollision, ensureMetroLayerStackOrder } from "./layers.js";
-import { applyStationLabelDragPlacement } from "./stationLabelCollision.js";
+import { ensureMetroLayerStackOrder } from "./layers.js";
+import { applyStationLabelCollision, applyStationLabelDragPlacement } from "./stationLabelCollision.js";
 import { nearestPointOnSmoothedRoute } from "./displayLineSmoothing.js";
 import { setStationHoverPairFilters } from "./mapHoverFilters.js";
 import {
@@ -669,28 +669,6 @@ export function setMode(next) {
   if (map) ensureMetroLayerStackOrder(map);
 }
 
-export function startAddRoute() {
-  const check = Route.assertCanAddUserRoutes(1);
-  if (!check.ok) {
-    alert(t("routeModel.routeLimitReached", { limit: check.limit, current: check.current }));
-    return { ok: false, code: check.code, limit: check.limit, current: check.current };
-  }
-  setMode("add-route");
-  return { ok: true };
-}
-
-export function startEditRoute() {
-  setMode("edit-route-select");
-}
-
-export function startMergeRoute() {
-  setMode("merge");
-}
-
-export function startSplitLine() {
-  setMode("split-line");
-}
-
 function cancelTempRouteEditingSession(nextMode) {
   if (tempNodePreviewRaf !== null) {
     cancelAnimationFrame(tempNodePreviewRaf);
@@ -750,17 +728,6 @@ export function exitEditRouteSelectMode() {
 
 export function cancelMerge() {
   setMode("general");
-}
-
-/** @deprecated use cancelRouteEditing */
-export function cancelAddRoute() {
-  if (M.mode !== "add-route") return { ok: false };
-  return cancelTempRouteEditingSession("general");
-}
-
-export function cancelEditRoute() {
-  if (M.mode !== "edit-route-select" && M.mode !== "edit-route-active") return { ok: false };
-  return cancelRouteEditing();
 }
 
 export function cancelRouteEditing() {
@@ -1370,15 +1337,3 @@ export function initializeEventListeners() {
   map.on("mousedown", "stations-label", (e) => cur()?.onStationLabelDown?.(e));
   updateTransferSnapVisibility();
 }
-
-export const ModeCore = {
-  M,
-  setMode,
-  setCursor,
-  setCursorForMode,
-  clearHoverAndPopups,
-  initializeEventListeners,
-  popupRoute,
-  popupStation,
-  popupStationForEditing,
-};

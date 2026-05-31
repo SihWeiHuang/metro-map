@@ -14,7 +14,6 @@
     "test:share-limits": "node scripts/test-share-limits.mjs"
   },
   "dependencies": {
-    "@mapbox/mapbox-gl-language": "^1.0.1",
     "@turf/turf": "^7.3.4",
     "@vercel/kv": "^3.0.0",
     "mapbox-gl": "^3.20.0",

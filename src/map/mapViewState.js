@@ -1,10 +1,7 @@
-import { computeBoundsFromFeatures, computeMapViewFromFeatures, normalizeImportedMapView } from "./mapGeoBounds.js";
+import { computeBoundsFromFeatures, normalizeImportedMapView } from "./mapGeoBounds.js";
 import { DEFAULT_MAP_VIEW } from "./defaultMapViewConstants.js";
 import { getMap } from "./mapInstance.js";
 import { store } from "./routeModel.js";
-
-export { computeMapViewFromFeatures, normalizeImportedMapView };
-export { DEFAULT_MAP_VIEW, TAIPEI_MAIN_STATION_CENTER, DEFAULT_MAP_ZOOM } from "./defaultMapViewConstants.js";
 
 export const MAP_VIEW_STORAGE_KEY = "metro-map-view-v1";
 
@@ -18,7 +15,6 @@ const IMPORT_ZOOM_BOOST = 1;
 
 let saveTimer = null;
 let suppressSaveUntil = 0;
-let pendingFitOnMapLoad = false;
 /** @type {import('./mapGeoBounds.js').ReturnType<normalizeImportedMapView> | null | undefined} undefined = 無待處理 */
 let pendingImportMapViewApply = undefined;
 
@@ -79,7 +75,7 @@ function scheduleSaveMapView(map) {
   }, SAVE_DEBOUNCE_MS);
 }
 
-function applyCamera(map, view, { animate = false } = {}) {
+function applyCamera(map, view) {
   if (!map || !view) return;
   markSuppressSave();
   map.jumpTo({
@@ -137,7 +133,7 @@ export function getInitialMapCamera() {
 export function applyMapCameraAfterLoad(map) {
   if (!map) return;
   if (loadSavedMapView()) return;
-  applyCamera(map, DEFAULT_MAP_VIEW, { animate: false });
+  applyCamera(map, DEFAULT_MAP_VIEW);
 }
 
 /**
@@ -283,20 +279,11 @@ export function applyImportedMapView(map, mapView, { animate = false, saveAfter 
   return true;
 }
 
-/** @deprecated 請改用 requestImportedMapView */
-export function requestMapFitToRoutes() {
-  requestImportedMapView(null);
-}
-
 export function consumePendingMapFit(map) {
   if (!map) return;
   if (pendingImportMapViewApply !== undefined) {
     flushPendingImportMapView();
-    return;
   }
-  if (!pendingFitOnMapLoad) return;
-  pendingFitOnMapLoad = false;
-  fitMapToRoutes(map, { animate: false, saveAfter: true });
 }
 
 export function bindMapViewPersistence(map) {
