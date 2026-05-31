@@ -714,6 +714,8 @@
   overflow: hidden;
   position: relative;
   background: var(--color-background-secondary);
+  box-sizing: border-box;
+  padding: 0 6px 6px 0;
 }
 
 /* Mode Hint — top-left to avoid Mapbox attribution logo at bottom-left */
