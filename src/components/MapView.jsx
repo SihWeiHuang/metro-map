@@ -14,6 +14,7 @@ import { addStationLabelFrameImage } from "../map/labelMoveFrameImage.js";
 import { applyBasemapClutterReduction, initializeLayers } from "../map/layers.js";
 import { Route, store } from "../map/routeModel.js";
 import { initializeEventListeners, registerModeChange } from "../map/modeBundle.js";
+import { configureScrollZoom } from "../map/mapScrollZoom.js";
 
 const DEFAULT_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
 
@@ -50,6 +51,7 @@ export default function MapView({ onModeChange }) {
     );
 
     setMapInstance(map);
+    const cleanupScrollZoom = configureScrollZoom(map);
 
     const onStyleReady = () => {
       applyBasemapClutterReduction(map);
@@ -66,6 +68,7 @@ export default function MapView({ onModeChange }) {
     else map.once("style.load", onStyleReady);
 
     return () => {
+      cleanupScrollZoom();
       const snap = snapshotMapView(map);
       if (snap) lastViewRef.current = snap;
       setMapInstance(null);
