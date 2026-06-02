@@ -110,6 +110,12 @@ const mergePick = [];
 const LABEL_DRAG_RADIUS_METERS = 500;
 let editStationSubmode = "station";
 
+/** Left button only — middle button is reserved for map pan on desktop. */
+function isPrimaryMouseButton(e) {
+  const btn = e?.originalEvent?.button;
+  return btn === undefined || btn === 0;
+}
+
 initMapPopups({
   getMap,
   getContext: () => ({
@@ -390,7 +396,7 @@ function applyBrowseStationHover(lngLat, stationFeature, point) {
   M.hover.passingKey = passingKey;
   Route.highlightPassingSubroutes(passingIds);
   hideRouteHoverPopup();
-  popupStation(lngLat, stationFeature, point);
+  popupStation(lngLat, stationFeature, point, passingIds);
 }
 
 function applyDraftingHover(target) {
@@ -465,7 +471,7 @@ function updateEditStationHover(e, target) {
   M.hover.transferSnapId = "";
   if (!sameRoute) Route.highlightRoute(rid);
   hideStationBrowsePopup();
-  refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, null);
+  hideTransferSnapHint();
 }
 
 function updateHoverFromPointer(e) {
@@ -540,8 +546,12 @@ function collectPassingSubrouteIdsForPopup(hoveredFeature) {
   const anchorCoord = storeStation?.geometry?.coordinates || hoveredFeature?.geometry?.coordinates;
   if (anchorCoord) {
     const coincidentRadiusMeters = 10;
+    const [lng, lat] = anchorCoord;
+    const roughDeg = 0.00012;
     for (const feature of store.stationsFC.features) {
-      const distance = turf.distance(feature.geometry.coordinates, anchorCoord, { units: "meters" });
+      const c = feature.geometry.coordinates;
+      if (Math.abs(c[0] - lng) > roughDeg || Math.abs(c[1] - lat) > roughDeg) continue;
+      const distance = turf.distance(c, anchorCoord, { units: "meters" });
       if (distance <= coincidentRadiusMeters) addFromStation(feature);
     }
   }
@@ -590,9 +600,9 @@ function buildPassingRouteLabels(passingSubrouteIds) {
   return labels;
 }
 
-export function popupStation(lngLat, st, point) {
+export function popupStation(lngLat, st, point, passingSubrouteIdsPrecomputed) {
   const p = st.properties;
-  const passingSubrouteIds = collectPassingSubrouteIdsForPopup(st);
+  const passingSubrouteIds = passingSubrouteIdsPrecomputed ?? collectPassingSubrouteIdsForPopup(st);
   const routeLabels = buildPassingRouteLabels(passingSubrouteIds);
 
   const stationNameHTML = `<div class="map-hover-popup__title">${resolveStationDisplayName(p)}</div>`;
@@ -996,6 +1006,7 @@ Modes["add-route"] = {
   },
 
   onTempNodeDown(e) {
+    if (!isPrimaryMouseButton(e)) return;
     e.preventDefault();
     e.originalEvent.stopPropagation();
     const f = e.features && e.features[0];
@@ -1032,6 +1043,7 @@ Modes["edit-route-select"] = {
   onLeave() {},
 
   onRouteDown(e) {
+    if (!isPrimaryMouseButton(e)) return;
     const props = e.features[0].properties;
     const routeId = props.route_id;
     popupRoute(e.lngLat, props.subroute_id, e.point);
@@ -1077,11 +1089,6 @@ Modes["edit-station"] = {
     }
     setZoomInteractionsEnabled(true);
     setEditStationSubmodeInternal("station");
-  },
-
-  onMapMove(e) {
-    if (isStationEditPopupOpen()) return;
-    scheduleTransferSnapHintUpdate(e.lngLat, TRANSFER_SNAP_HINT_DEPS);
   },
 
   onTransferSnapClick(e) {
@@ -1146,6 +1153,7 @@ Modes["edit-station"] = {
   },
 
   onStationDown(e) {
+    if (!isPrimaryMouseButton(e)) return;
     e.preventDefault();
     const feature = e.features?.[0];
     if (!feature) return;
@@ -1187,6 +1195,7 @@ Modes["edit-station"] = {
   },
 
   onStationLabelDown(e) {
+    if (!isPrimaryMouseButton(e)) return;
     if (editStationSubmode !== "move-label") {
       this.onStationDown(e);
       return;
@@ -1302,12 +1311,31 @@ export function pickSubRouteForSplitLine(subrouteId) {
   return res;
 }
 
+let pointerMoveRaf = null;
+let pendingPointerMoveEvent = null;
+
+function flushPointerMoveHandlers() {
+  pointerMoveRaf = null;
+  const e = pendingPointerMoveEvent;
+  pendingPointerMoveEvent = null;
+  if (!e) return;
+  setCursorForMode(e);
+  updateHoverFromPointer(e);
+}
+
+function schedulePointerMoveHandlers(e) {
+  pendingPointerMoveEvent = e;
+  if (pointerMoveRaf !== null) return;
+  pointerMoveRaf = requestAnimationFrame(flushPointerMoveHandlers);
+}
+
 export function initializeEventListeners() {
   const map = getMap();
   if (!map || map.__metroListenersBound) return;
   map.__metroListenersBound = true;
 
-  map.on("mousedown", () => {
+  map.on("mousedown", (e) => {
+    if (!isPrimaryMouseButton(e)) return;
     M.pointer.isDown = true;
   });
   map.on("mouseup", () => {
@@ -1315,9 +1343,8 @@ export function initializeEventListeners() {
   });
 
   map.on("mousemove", (e) => {
-    setCursorForMode(e);
     cur()?.onMapMove?.(e);
-    updateHoverFromPointer(e);
+    schedulePointerMoveHandlers(e);
   });
   map.on("mouseleave", () => clearHoverAndPopups());
 

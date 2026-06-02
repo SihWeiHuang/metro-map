@@ -276,6 +276,41 @@
   color: #1e3a8a;
 }
 
+.site-info-contact {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-sm) 0 0;
+}
+
+.site-info-contact-email {
+  margin: 0;
+}
+
+.site-info-copy-email-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border: 1px solid var(--site-info-border);
+  border-radius: var(--radius-md);
+  background: var(--site-info-surface);
+  color: var(--site-info-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.site-info-copy-email-btn:hover {
+  background: #e2e8f0;
+}
+
+.site-info-copy-email-error {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #b91c1c;
+}
+
 .site-info-sponsor-action {
   margin: var(--spacing-md) 0 0;
 }

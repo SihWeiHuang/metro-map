@@ -268,13 +268,19 @@ function applyMapboxStandardBasemapConfig(map) {
 }
 
 /** 盡量減少底圖雜訊（文字、POI 圖示、Standard config）。 */
-export function applyBasemapClutterReduction(map) {
+export function applyBasemapClutterReduction(map, { force = false } = {}) {
   if (!map?.getStyle) return;
+  if (!force && map.__metroBasemapClutterApplied) return;
   applyMapboxStandardBasemapConfig(map);
   applyReducedBasemapTextDensity(map);
   applyReducedBasemapIconDensity(map);
   applyBasemapCorePlaceLabelCollisionYield(map);
   applyStationLabelCollision(map);
+  map.__metroBasemapClutterApplied = true;
+}
+
+export function resetBasemapClutterAppliedFlag(map) {
+  if (map) map.__metroBasemapClutterApplied = false;
 }
 
 /** First basemap symbol layer with text — fallback insert anchor (classic styles). */
@@ -437,8 +443,6 @@ function chainLayerOrder(map, layerIds) {
  * Classic: one stack, chain routes then overlays, anchor normal layers below map labels.
  */
 export function ensureMetroLayerStackOrder(map) {
-  applyBasemapClutterReduction(map);
-
   const mapLabelBeforeId = findMetroGeometryInsertBeforeLayerId(map);
   const usesSlots = styleUsesMapboxSlots(map);
 

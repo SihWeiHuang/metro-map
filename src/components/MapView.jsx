@@ -11,10 +11,15 @@ import {
   snapshotMapView,
 } from "../map/mapViewState.js";
 import { addStationLabelFrameImage } from "../map/labelMoveFrameImage.js";
-import { applyBasemapClutterReduction, initializeLayers } from "../map/layers.js";
+import {
+  applyBasemapClutterReduction,
+  initializeLayers,
+  resetBasemapClutterAppliedFlag,
+} from "../map/layers.js";
 import { Route, store } from "../map/routeModel.js";
 import { initializeEventListeners, registerModeChange } from "../map/modeBundle.js";
 import { configureScrollZoom } from "../map/mapScrollZoom.js";
+import { configureMiddleButtonDragPan } from "../map/mapMiddleButtonPan.js";
 
 const DEFAULT_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
 
@@ -52,9 +57,11 @@ export default function MapView({ onModeChange }) {
 
     setMapInstance(map);
     const cleanupScrollZoom = configureScrollZoom(map);
+    const cleanupMiddleButtonPan = configureMiddleButtonDragPan(map);
 
     const onStyleReady = () => {
-      applyBasemapClutterReduction(map);
+      resetBasemapClutterAppliedFlag(map);
+      applyBasemapClutterReduction(map, { force: true });
       addStationLabelFrameImage(map);
       initializeLayers(map, store);
       Route.refreshSources();
@@ -69,6 +76,7 @@ export default function MapView({ onModeChange }) {
 
     return () => {
       cleanupScrollZoom();
+      cleanupMiddleButtonPan();
       const snap = snapshotMapView(map);
       if (snap) lastViewRef.current = snap;
       setMapInstance(null);

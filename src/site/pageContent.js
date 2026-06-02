@@ -281,8 +281,8 @@ export function getPageContent(pageId, locale) {
           paragraphs: emailConfigured
             ? [
                 L(locale, {
-                  zh: "點一下方的信箱，就會開啟你的郵件程式：",
-                  en: "Tap the address below to open your mail app:",
+                  zh: "下方為聯絡信箱。可點選開啟郵件程式，或使用「複製信箱」按鈕：",
+                  en: "Contact address below. Tap to open your mail app, or use Copy email:",
                 }),
               ]
             : [
