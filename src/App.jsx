@@ -608,14 +608,33 @@ function App() {
       <header className="app-site-header" ref={siteHeaderRef}>
         <div className="app-site-header-inner">
           <div className="app-site-header-brand">
-            <h1 className="app-site-title">
-              <button type="button" className="app-site-title-btn" onClick={closeSitePage}>
-                {shareViewActive || shareBootstrap.phase === "loading"
-                  ? t("share.headerTitle")
-                  : t("app.headerTitle")}
+            <div className="app-site-header-brand-inner">
+              <button
+                type="button"
+                className="app-site-logo-btn"
+                onClick={closeSitePage}
+                aria-label={t("app.headerTitle")}
+              >
+                <img
+                  src="/site-logo.png?v=3"
+                  alt=""
+                  className="app-site-header-logo"
+                  width={44}
+                  height={44}
+                  decoding="async"
+                />
               </button>
-            </h1>
-            <p className="app-site-tagline">{t("app.headerTagline")}</p>
+              <div className="app-site-header-brand-text">
+                <h1 className="app-site-title">
+                  <button type="button" className="app-site-title-btn" onClick={closeSitePage}>
+                    {shareViewActive || shareBootstrap.phase === "loading"
+                      ? t("share.headerTitle")
+                      : t("app.headerTitle")}
+                  </button>
+                </h1>
+                <p className="app-site-tagline">{t("app.headerTagline")}</p>
+              </div>
+            </div>
           </div>
           <div className="app-header-actions">
             <SiteHeaderNav

@@ -50,6 +50,44 @@
   justify-self: start;
 }
 
+.app-site-header-brand-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-width: 0;
+}
+
+.app-site-logo-btn {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+  border-radius: var(--radius-sm);
+}
+
+.app-site-logo-btn:hover {
+  opacity: 0.92;
+}
+
+.app-site-logo-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 2px;
+}
+
+.app-site-header-logo {
+  display: block;
+  width: 2.75rem;
+  height: 2.75rem;
+  object-fit: contain;
+}
+
+.app-site-header-brand-text {
+  min-width: 0;
+}
+
 .app-site-header-brand h1 {
   margin: 0;
   font-size: 1.5rem;
