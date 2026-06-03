@@ -74,7 +74,29 @@ export default function MapView({ onModeChange }) {
     if (map.isStyleLoaded()) onStyleReady();
     else map.once("style.load", onStyleReady);
 
+    const container = containerRef.current;
+    const scheduleResize = () => {
+      requestAnimationFrame(() => {
+        try {
+          map.resize();
+        } catch {
+          /* map removed */
+        }
+      });
+    };
+    scheduleResize();
+    map.once("load", scheduleResize);
+
+    let resizeObserver;
+    if (container && typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(scheduleResize);
+      resizeObserver.observe(container);
+    }
+    window.addEventListener("resize", scheduleResize);
+
     return () => {
+      window.removeEventListener("resize", scheduleResize);
+      resizeObserver?.disconnect();
       cleanupScrollZoom();
       cleanupMiddleButtonPan();
       const snap = snapshotMapView(map);

@@ -75,7 +75,7 @@ GitHub 請勿上傳 `.env`（專案已用 `.gitignore` 排除）。Mapbox **URL 
 
 | 模組 | 職責 |
 |------|------|
-| `src/map/defaultData.js` | **唯一**從 `default-data/` 載入預設路線 JSON；新增預設資料請放 `default-data/` 並在此 export。 |
+| `src/map/defaultData.js` | **唯一**從 `default-data/*.json` 載入內建預設路線（build 時自動打包該資料夾內所有 JSON）。 |
 | `src/map/defaultNames.js` | **唯一**處理預設路線／車站名稱。新增路線請用 `allocateDefaultRouteLabel()`，新增車站請用 `allocateDefaultStationLabel()`，顯示名稱請用 `resolveRouteDisplayNameFromProps()` / `resolveStationDisplayName()`。內部 `subroute_id` / `station_id` 與顯示編號（`user_default_route_label` / `user_default_label`）分離。 |
 | `src/map/mapPopups.js` | **唯一**管理地圖 hover／提示 popup，並依模式強制規則（例如 `edit-station` 不顯示路線 hover，只顯示「新增轉乘站」）。請勿在 `modeBundle.js` 直接 `new mapboxgl.Popup()`。 |
 | `src/map/modeBundle.js` | 模式切換、游標、hover 編排；popup 一律委派給 `mapPopups.js`。 |
@@ -88,11 +88,20 @@ GitHub 請勿上傳 `.env`（專案已用 `.gitignore` 排除）。Mapbox **URL 
 
 ### 預設路線資料（`default-data/`）
 
-| 檔案 | 用途 |
-|------|------|
-| `default-data/taipei-mrt-import-fitted.json` | 網站內建預設路線（`npm run fit:mrt` 產出） |
+將符合 `metro-multiverse` 匯出格式的 `.json` 放入 **`default-data/`** 即可作為內建預設路線，**不必**在程式裡指定檔名。多個檔案會依檔名排序合併（第二個檔起會為路線／車站 ID 加上檔名前綴，避免 r1、s1 重複）。
+
+`npm run fit:mrt` 仍會輸出至 `default-data/taipei-mrt-import-fitted.json`（可改名或與其他 JSON 並存）。
 
 原始匯入與參考疊圖仍分別放在 `data/`、`src/default-routes/`（見 [docs/MRT_REFERENCE_OVERLAY.md](docs/MRT_REFERENCE_OVERLAY.md)）。
+
+將網路取得的車站 GeoJSON 轉為網站匯入格式：
+
+```bash
+npm run convert:geojson
+# 或指定路徑：node scripts/geojson-to-metro-import.mjs path/in.geojson "route data/out.json"
+```
+
+預設讀取 `data/northern-taiwan.geojson`，輸出 `route data/northern-taiwan-import.json`（`metro-multiverse` 格式，可於網站「匯入」使用）。
 
 ### 暫用：官方路線灰色參考圖層（對齊 fitted 時）
 

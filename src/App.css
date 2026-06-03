@@ -12,8 +12,8 @@
 
 .app-root {
   width: 100%;
-  height: 100vh;
-  min-height: 100vh;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -494,7 +494,8 @@
    ========================================== */
 
 .app-content-wrapper {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   overflow: hidden;
   gap: 0;
@@ -776,16 +777,21 @@
    ========================================== */
 
 .app-main-column {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 .app-map-stage {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
   background: var(--color-background-secondary);
   box-sizing: border-box;
   padding: 0 6px 6px 0;
@@ -1421,6 +1427,13 @@
   max-width: 100%;
   flex: 1 1 auto;
   min-height: 0;
+  position: relative;
+}
+
+.map-canvas .mapboxgl-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
   height: 100%;
 }
 

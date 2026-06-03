@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "fit:mrt": "node scripts/fit-mrt-routes.mjs",
+    "convert:geojson": "node scripts/geojson-to-metro-import.mjs",
     "test:names": "node scripts/test-default-names.mjs",
     "test:share-limits": "node scripts/test-share-limits.mjs"
   },

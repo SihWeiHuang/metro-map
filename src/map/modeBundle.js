@@ -2,7 +2,7 @@ import * as turf from "@turf/turf";
 import { getMap } from "./mapInstance.js";
 import { ensureMetroLayerStackOrder } from "./layers.js";
 import { applyStationLabelCollision, applyStationLabelDragPlacement } from "./stationLabelCollision.js";
-import { nearestPointOnSmoothedRoute } from "./displayLineSmoothing.js";
+import { clearSmoothLineDisplayCache, nearestPointOnSmoothedRoute } from "./displayLineSmoothing.js";
 import { clearStationHoverVisuals, setStationHoverPairFilters } from "./mapHoverFilters.js";
 import {
   Route,
@@ -742,10 +742,16 @@ export function popupStationForEditing(station) {
   }, 0);
 }
 
+const EDIT_SESSION_MODES = new Set(["add-route", "edit-route-select", "edit-route-active", "edit-station"]);
+
 export function setMode(next) {
   if (M.mode === next) return;
+  const prevMode = M.mode;
   cur()?.onLeave?.();
   M.mode = next;
+  if (next === "general" && EDIT_SESSION_MODES.has(prevMode)) {
+    clearSmoothLineDisplayCache();
+  }
   cur()?.onEnter?.();
   setActiveButton();
   onModeChange(next);

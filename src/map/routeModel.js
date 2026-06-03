@@ -3,6 +3,7 @@ import { t } from "../i18n/i18n.js";
 import { getMap } from "./mapInstance.js";
 import {
   buildStationDisplayCollections,
+  clearSmoothLineDisplayCache,
   featureCollectionWithSmoothedLineStrings,
   nearestPointOnSmoothedRoute,
   smoothLineStringForDisplay,
@@ -567,6 +568,7 @@ function bumpRoutesGeometryRevision() {
   routesGeometryRevision++;
   transferSnapCacheRevision = -1;
   transferSnapCacheFC = null;
+  clearSmoothLineDisplayCache();
 }
 
 function buildTransferSnapPointsFC() {

@@ -14,7 +14,7 @@ export const SHARE_TTL_SECONDS = 30 * 24 * 60 * 60;
 export const SHARE_TTL_DAYS = 30;
 
 /** Max share links created per IP per calendar day (UTC). */
-export const MAX_SHARE_CREATES_PER_IP_PER_DAY = 20;
+export const MAX_SHARE_CREATES_PER_IP_PER_DAY = 8;
 
 export const SHARE_ID_PATTERN = /^[a-zA-Z0-9_-]{8}$/;
 

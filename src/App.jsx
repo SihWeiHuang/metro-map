@@ -300,17 +300,15 @@ function App() {
   }, [shareViewTick, shareBootstrap.phase, locale]);
 
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      resizeMap();
-    });
+    const id = requestAnimationFrame(() => resizeMap());
     return () => cancelAnimationFrame(id);
-  }, [routeListWidthPx]);
+  }, [routeListWidthPx, editToolsOpen]);
 
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      resizeMap();
-    });
-    return () => cancelAnimationFrame(id);
+    const schedule = () => requestAnimationFrame(() => resizeMap());
+    schedule();
+    window.addEventListener("resize", schedule);
+    return () => window.removeEventListener("resize", schedule);
   }, []);
 
   const showFinish =

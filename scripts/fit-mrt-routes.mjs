@@ -1,6 +1,7 @@
 /**
  * Rebuild selected MRT lines as single sub-routes via station-ordered spline fitting.
  * Reads data/taipei-mrt-import.json and writes default-data/taipei-mrt-import-fitted.json
+ * (any JSON in default-data/ is loaded by the app; this filename is only the script default output)
  * without modifying the original file.
  *
  * Usage: npm run fit:mrt

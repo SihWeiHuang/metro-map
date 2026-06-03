@@ -80,6 +80,11 @@ function stepsForSegmentMeters(lenM) {
 /** Cache keyed by coordinate signature — avoids re-smoothing the same polyline many times per frame. */
 const smoothLineCache = new Map();
 
+/** 路線幾何變更或結束編輯後清掉，避免拖曳中間形狀的快取只增不減。 */
+export function clearSmoothLineDisplayCache() {
+  smoothLineCache.clear();
+}
+
 function smoothLineSignature(coords) {
   if (!coords || coords.length === 0) return "";
   let sig = String(coords.length);
