@@ -32,6 +32,7 @@ import {
   initMapPopups,
   isBrowseHoverMode,
   isStationEditPopupOpen,
+  bindStationEditPopupHandlers,
   openStationEditPopup,
   refreshEditStationTransferHint,
   scheduleTransferSnapHintUpdate,
@@ -607,16 +608,6 @@ function stationFeatureFromMapClick(hitFeatures) {
   return hitFeatures.find((f) => isStationLayerId(f.layer?.id) && f.properties?.station_id) || null;
 }
 
-function openStationEditPopupFromClick(e) {
-  if (editStationSubmode === "move-label") return false;
-  const feature = e.features?.[0];
-  if (feature?.properties?.station_id && isStationLayerId(feature.layer?.id)) {
-    popupStationForEditing(feature);
-    return true;
-  }
-  return false;
-}
-
 function findHoveredStationFeature(hitFeatures) {
   if (!M.hover.stationId) return null;
   return hitFeatures.find((feature) => {
@@ -667,7 +658,28 @@ function escapeHtmlAttr(value) {
     .replace(/</g, "&lt;");
 }
 
+/** 同一輪點擊可能觸發多個圖層 handler，避免連開兩次編輯彈窗。 */
+let lastStationEditPopupKey = "";
+let lastStationEditPopupAt = 0;
+/** 同一次點擊可能連觸發多個圖層 handler（圓點＋站名）。 */
+const STATION_EDIT_POPUP_BURST_MS = 80;
+
 export function popupStationForEditing(station) {
+  const stationId = station.properties?.station_id ?? "";
+  const now = performance.now();
+  if (stationId && isStationEditPopupOpen() && stationId === lastStationEditPopupKey) {
+    return;
+  }
+  if (
+    stationId &&
+    stationId === lastStationEditPopupKey &&
+    now - lastStationEditPopupAt < STATION_EDIT_POPUP_BURST_MS
+  ) {
+    return;
+  }
+  lastStationEditPopupKey = stationId;
+  lastStationEditPopupAt = now;
+
   hideRouteHoverPopup();
   hideStationBrowsePopup();
   hideTransferSnapHint();
@@ -703,43 +715,26 @@ export function popupStationForEditing(station) {
   `;
   openStationEditPopup(station.geometry.coordinates, html);
 
-  setTimeout(() => {
-    const input = document.getElementById("station-name-input");
-    const saveBtn = document.getElementById("save-station-btn");
-    const deleteBtn = document.getElementById("delete-station-btn");
-    const countEl = document.getElementById("station-name-count");
-    input?.focus();
-    input?.select();
-
-    const syncNameCount = () => {
-      if (!countEl || !input) return;
-      const len = input.value.length;
-      countEl.textContent = `${len}/${STATION_NAME_MAX_LEN}`;
-      countEl.classList.toggle("station-edit-popup__count--at-limit", len >= STATION_NAME_MAX_LEN);
-    };
-    syncNameCount();
-    input?.addEventListener("input", syncNameCount);
-
-    const onSave = () => {
-      Route.setStationName(p.station_id, input?.value ?? "");
+  let deleteConfirmOpen = false;
+  bindStationEditPopupHandlers({
+    nameMaxLen: STATION_NAME_MAX_LEN,
+    onSave: (name) => {
+      Route.setStationName(p.station_id, name);
       closeStationEditPopup();
-    };
-
-    saveBtn?.addEventListener("click", onSave);
-    input?.addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter") {
-        ev.preventDefault();
-        onSave();
+    },
+    onDelete: () => {
+      if (deleteConfirmOpen) return;
+      deleteConfirmOpen = true;
+      try {
+        if (confirm(t("popup.confirmDeleteStation", { name: currentName }))) {
+          Route.removeStation(p.station_id);
+          closeStationEditPopup();
+        }
+      } finally {
+        deleteConfirmOpen = false;
       }
-    });
-
-    deleteBtn?.addEventListener("click", () => {
-      if (confirm(t("popup.confirmDeleteStation", { name: currentName }))) {
-        Route.removeStation(p.station_id);
-        closeStationEditPopup();
-      }
-    });
-  }, 0);
+    },
+  });
 }
 
 const EDIT_SESSION_MODES = new Set(["add-route", "edit-route-select", "edit-route-active", "edit-station"]);
@@ -1276,6 +1271,8 @@ Modes["edit-station"] = {
     Route.clearHover();
   },
   onLeave() {
+    lastStationEditPopupKey = "";
+    lastStationEditPopupAt = 0;
     const map = getMap();
     if (map) {
       clearLabelDragLimitCircle(map);
@@ -1297,10 +1294,6 @@ Modes["edit-station"] = {
     if (ridA && ridB) {
       Route.addTransferStationAt(feature.geometry.coordinates, ridA, ridB);
     }
-  },
-
-  onStationClick(e) {
-    openStationEditPopupFromClick(e);
   },
 
   onMapClick(e) {

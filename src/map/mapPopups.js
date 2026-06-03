@@ -260,10 +260,18 @@ export function showStationBrowsePopup(lngLat, bodyHtml, point, estHeight) {
  * @param {import("mapbox-gl").LngLatLike} lngLat
  * @param {string} html
  */
+let stationEditPopupAbort = null;
+
+function teardownStationEditPopupHandlers() {
+  stationEditPopupAbort?.abort();
+  stationEditPopupAbort = null;
+}
+
 export function openStationEditPopup(lngLat, html) {
   hideRouteHoverPopup();
   hideStationBrowsePopup();
   hideTransferSnapHint();
+  teardownStationEditPopupHandlers();
 
   if (popups.station) popups.station.remove();
 
@@ -276,7 +284,73 @@ export function openStationEditPopup(lngLat, html) {
   popups.station.setLngLat(lngLat).setHTML(html).addTo(mapInstance());
 }
 
+/**
+ * 在 popup 根節點綁定一次；重開或關閉時會 abort，避免重複 confirm。
+ * @param {{ onSave: (name: string) => void, onDelete: () => void, nameMaxLen: number }} handlers
+ */
+export function bindStationEditPopupHandlers(handlers) {
+  teardownStationEditPopupHandlers();
+
+  const popup = popups.station;
+  const root = popup?.getElement?.();
+  if (!popup || !root) return;
+
+  stationEditPopupAbort = new AbortController();
+  const { signal } = stationEditPopupAbort;
+
+  const input = root.querySelector("#station-name-input");
+  const saveBtn = root.querySelector("#save-station-btn");
+  const deleteBtn = root.querySelector("#delete-station-btn");
+  const countEl = root.querySelector("#station-name-count");
+  const maxLen = handlers.nameMaxLen;
+
+  const syncNameCount = () => {
+    if (!countEl || !input) return;
+    const len = input.value.length;
+    countEl.textContent = `${len}/${maxLen}`;
+    countEl.classList.toggle("station-edit-popup__count--at-limit", len >= maxLen);
+  };
+
+  syncNameCount();
+  input?.addEventListener("input", syncNameCount, { signal });
+
+  const onSave = () => handlers.onSave(input?.value ?? "");
+  saveBtn?.addEventListener("click", onSave, { signal, once: true });
+  input?.addEventListener(
+    "keydown",
+    (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        onSave();
+      }
+    },
+    { signal }
+  );
+
+  let deleteClickLock = false;
+  deleteBtn?.addEventListener(
+    "click",
+    () => {
+      if (deleteClickLock) return;
+      deleteClickLock = true;
+      try {
+        handlers.onDelete();
+      } finally {
+        deleteClickLock = false;
+      }
+    },
+    { signal, once: true }
+  );
+
+  requestAnimationFrame(() => {
+    if (signal.aborted) return;
+    input?.focus();
+    input?.select();
+  });
+}
+
 export function closeStationEditPopup() {
+  teardownStationEditPopupHandlers();
   if (popups.station?.options?.closeButton) {
     popups.station.remove();
     popups.station = null;
