@@ -2278,6 +2278,136 @@ html[lang="en"] .route-list-badge {
 }
 
 /* ==========================================
+   Station edit popup (edit-station mode)
+   ========================================== */
+
+.station-edit-popup.mapboxgl-popup {
+  z-index: 13;
+}
+
+.station-edit-popup .mapboxgl-popup-content {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.station-edit-popup .mapboxgl-popup-close-button {
+  width: 28px;
+  height: 28px;
+  font-size: 1.125rem;
+  line-height: 1;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.station-edit-popup .mapboxgl-popup-close-button:hover {
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+}
+
+.station-edit-popup__body {
+  min-width: 200px;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.station-edit-popup__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  padding-right: 1.25rem;
+}
+
+.station-edit-popup__title {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: var(--color-text-primary);
+}
+
+.station-edit-popup__count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.station-edit-popup__count--at-limit {
+  color: var(--color-danger);
+}
+
+.station-edit-popup__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  color: var(--color-text-primary);
+  background: var(--color-background-secondary);
+  border: 0.5px solid var(--color-border-primary);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.station-edit-popup__input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.18);
+  background: var(--color-background-primary);
+}
+
+.station-edit-popup__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+}
+
+.station-edit-popup__btn {
+  flex: 1;
+  max-width: 7.5rem;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 0.5px solid var(--color-border-primary);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.station-edit-popup__btn--danger {
+  color: #fff;
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.station-edit-popup__btn--danger:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+
+.station-edit-popup__btn--primary {
+  color: #fff;
+  background: var(--color-primary);
+  border-color: var(--color-primary-dark);
+}
+
+.station-edit-popup__btn--primary:hover {
+  background: var(--color-primary-dark);
+}
+
+/* ==========================================
    Legacy markup compatibility (logic unchanged)
    ========================================== */
 

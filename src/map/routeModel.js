@@ -11,7 +11,7 @@ import {
 import { DEFAULT_BUILTIN_MAP_DATA } from "./defaultData.js";
 import { computeMapViewFromFeatures, normalizeImportedMapView } from "./mapGeoBounds.js";
 import { scheduleImportMapView } from "./mapViewState.js";
-import { setStationLabelBaseMask } from "./mapHoverFilters.js";
+import { applyStationHoverVisuals, clearStationHoverVisuals } from "./mapHoverFilters.js";
 import { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER } from "./layers.js";
 import { MAX_USER_ROUTES } from "../../shared/shareLimits.js";
 import {
@@ -489,7 +489,9 @@ const TRANSFER_ABSORB_METERS = 10;
 /** 視為同一重疊點的車站距離（公尺）。 */
 const STATION_COINCIDENT_METERS = 2;
 
-const NAME_MAX_LEN = 15;
+/** 車站／路線顯示名稱字數上限（與編輯 popup、儲存邏輯一致） */
+export const STATION_NAME_MAX_LEN = 15;
+const NAME_MAX_LEN = STATION_NAME_MAX_LEN;
 function clampName15(v) {
   return String(v ?? "").slice(0, NAME_MAX_LEN);
 }
@@ -901,22 +903,7 @@ function applyRouteHoverHighlightFilters(visibleSubrouteIds) {
     }
   }
 
-  const transferAnyMatchExpr = ids.length
-    ? ["any", ...ids.map((rid) => ["in", rid, ["coalesce", ["get", "transfer_routes"], ["literal", []]]])]
-    : false;
-  const stationHoverFilter =
-    ids.length === 0
-      ? ["==", ["get", "station_id"], ""]
-      : ["any", ["in", ["get", "subroute_id"], ["literal", ids]], transferAnyMatchExpr];
-
-  map.getLayer("stations-circle-hover") &&
-    map.setFilter("stations-circle-hover", ["all", REGULAR_STATION_LAYER_FILTER, stationHoverFilter]);
-
-  map.getLayer("transfer-stations-circle-hover") &&
-    map.setFilter("transfer-stations-circle-hover", ["all", TRANSFER_STATION_LAYER_FILTER, stationHoverFilter]);
-
-  map.getLayer("stations-label-hover") && map.setFilter("stations-label-hover", stationHoverFilter);
-  setStationLabelBaseMask(map, ids.length === 0 ? null : stationHoverFilter);
+  applyStationHoverVisuals(map, { subrouteIds: ids });
 }
 
 function highlightRoute(subrouteId) {
@@ -940,11 +927,7 @@ function clearHover() {
   const map = getMap();
   if (!map) return;
   map.getLayer("routes-line-hover") && map.setFilter("routes-line-hover", ["==", ["get", "subroute_id"], ""]);
-  map.getLayer("stations-circle-hover") && map.setFilter("stations-circle-hover", ["==", ["get", "station_id"], ""]);
-  map.getLayer("transfer-stations-circle-hover") &&
-    map.setFilter("transfer-stations-circle-hover", ["==", ["get", "station_id"], ""]);
-  map.getLayer("stations-label-hover") && map.setFilter("stations-label-hover", ["==", ["get", "station_id"], ""]);
-  setStationLabelBaseMask(map, null);
+  clearStationHoverVisuals(map);
 }
 
 function getRouteList() {

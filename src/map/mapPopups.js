@@ -18,6 +18,7 @@ import { resolveRouteDisplayNameFromProps } from "./defaultNames.js";
 import { popupScreenPoint, resolvePopupPlacement } from "./popupPlacement.js";
 
 const MAP_HOVER_POPUP_CLASS = "map-hover-popup";
+const STATION_EDIT_POPUP_CLASS = "station-edit-popup map-hover-popup";
 const TRANSFER_SNAP_POPUP_CLASS = "transfer-snap-hint-popup";
 
 const BROWSE_MODES = new Set(["general", "edit-route-select", "merge", "split-line"]);
@@ -266,7 +267,12 @@ export function openStationEditPopup(lngLat, html) {
 
   if (popups.station) popups.station.remove();
 
-  popups.station = new mapboxgl.Popup({ closeButton: true });
+  popups.station = new mapboxgl.Popup({
+    closeButton: true,
+    closeOnClick: false,
+    className: STATION_EDIT_POPUP_CLASS,
+    maxWidth: "300px",
+  });
   popups.station.setLngLat(lngLat).setHTML(html).addTo(mapInstance());
 }
 

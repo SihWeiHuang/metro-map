@@ -3,10 +3,11 @@ import { getMap } from "./mapInstance.js";
 import { ensureMetroLayerStackOrder } from "./layers.js";
 import { applyStationLabelCollision, applyStationLabelDragPlacement } from "./stationLabelCollision.js";
 import { nearestPointOnSmoothedRoute } from "./displayLineSmoothing.js";
-import { setStationHoverPairFilters } from "./mapHoverFilters.js";
+import { clearStationHoverVisuals, setStationHoverPairFilters } from "./mapHoverFilters.js";
 import {
   Route,
   store,
+  STATION_NAME_MAX_LEN,
   findNearestTransferSnap,
   isTransferSnapOccupied,
   TRANSFER_SNAP_HOVER_METERS,
@@ -140,7 +141,6 @@ const HOVER_PICK_LAYERS = [
 ];
 
 let tempNodePreviewRaf = null;
-let stationDragPreviewRaf = null;
 
 function queryFeaturesAtPoint(map, point, layerIds, padPx = 0) {
   if (!layerIds.length) return [];
@@ -246,12 +246,7 @@ function applyEditStationSubmode() {
     if (map.getLayer("routes-line-hover")) {
       map.setFilter("routes-line-hover", ["==", ["get", "subroute_id"], ""]);
     }
-    if (map.getLayer("stations-circle-hover")) {
-      map.setFilter("stations-circle-hover", ["==", ["get", "station_id"], ""]);
-    }
-    if (map.getLayer("transfer-stations-circle-hover")) {
-      map.setFilter("transfer-stations-circle-hover", ["==", ["get", "station_id"], ""]);
-    }
+    clearStationHoverVisuals(map);
     setStationLabelMoveFrameVisibility(true);
   } else {
     setStationLabelMoveFrameVisibility(false);
@@ -308,7 +303,9 @@ export function setCursorForMode(e) {
     if (e) {
       const onRoute = map.queryRenderedFeatures(e.point, { layers: ["routes-line"] });
       const onStation = map.queryRenderedFeatures(e.point, { layers: STATION_CIRCLE_LAYERS });
-      const onStationLabel = map.queryRenderedFeatures(e.point, { layers: STATION_LABEL_LAYERS });
+      const onStationLabel = map.queryRenderedFeatures(e.point, {
+        layers: [...STATION_LABEL_LAYERS, "stations-label-hover"],
+      });
       if (editStationSubmode !== "move-label" && onRoute.length) cursor = "pointer";
       if (onStation.length) cursor = "grab";
       if (onStationLabel.length) cursor = "grab";
@@ -575,8 +572,34 @@ function isStationLayerId(layerId) {
   return (
     layerId === "stations-circle" ||
     layerId === "transfer-stations-circle" ||
-    layerId === "stations-label"
+    layerId === "stations-label" ||
+    layerId === "stations-label-hover"
   );
+}
+
+const STATION_EDIT_CLICK_LAYERS = [
+  "transfer-snaps-layer",
+  ...STATION_CIRCLE_LAYERS,
+  ...STATION_LABEL_LAYERS,
+  "stations-label-hover",
+  "routes-line",
+];
+
+function stationFeatureFromMapClick(hitFeatures) {
+  if (!hitFeatures?.length) return null;
+  const hovered = findHoveredStationFeature(hitFeatures);
+  if (hovered) return hovered;
+  return hitFeatures.find((f) => isStationLayerId(f.layer?.id) && f.properties?.station_id) || null;
+}
+
+function openStationEditPopupFromClick(e) {
+  if (editStationSubmode === "move-label") return false;
+  const feature = e.features?.[0];
+  if (feature?.properties?.station_id && isStationLayerId(feature.layer?.id)) {
+    popupStationForEditing(feature);
+    return true;
+  }
+  return false;
 }
 
 function findHoveredStationFeature(hitFeatures) {
@@ -621,6 +644,13 @@ export function popupStation(lngLat, st, point, passingSubrouteIdsPrecomputed) {
   showStationBrowsePopup(lngLat, bodyHtml, point, estHeight);
 }
 
+function escapeHtmlAttr(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;");
+}
+
 export function popupStationForEditing(station) {
   hideRouteHoverPopup();
   hideStationBrowsePopup();
@@ -628,15 +658,30 @@ export function popupStationForEditing(station) {
 
   const p = station.properties;
   const currentName = resolveStationDisplayName(p);
+  const safeName = escapeHtmlAttr(currentName);
 
   const saveLabel = t("popup.save");
   const deleteLabel = t("popup.delete");
+  const initialLen = currentName.length;
   const html = `
-    <div style="font-family: sans-serif; display: flex; flex-direction: column; gap: 8px;">
-      <input type="text" id="station-name-input" value="${currentName}" maxlength="15" style="padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
-      <div style="display: flex; justify-content: space-between;">
-        <button id="save-station-btn" style="padding: 5px 10px; border: none; background-color: #4CAF50; color: white; cursor: pointer;">${saveLabel}</button>
-        <button id="delete-station-btn" style="padding: 5px 10px; border: none; background-color: #f44336; color: white; cursor: pointer;">${deleteLabel}</button>
+    <div class="station-edit-popup__body map-hover-popup__body">
+      <div class="station-edit-popup__header">
+        <span class="station-edit-popup__title">${t("popup.editStationTitle")}</span>
+        <span id="station-name-count" class="station-edit-popup__count" aria-live="polite">${initialLen}/${STATION_NAME_MAX_LEN}</span>
+      </div>
+      <input
+        type="text"
+        id="station-name-input"
+        class="station-edit-popup__input"
+        value="${safeName}"
+        maxlength="${STATION_NAME_MAX_LEN}"
+        autocomplete="off"
+        spellcheck="false"
+        aria-label="${escapeHtmlAttr(t("popup.editStationTitle"))}"
+      />
+      <div class="station-edit-popup__actions">
+        <button type="button" id="delete-station-btn" class="station-edit-popup__btn station-edit-popup__btn--danger">${deleteLabel}</button>
+        <button type="button" id="save-station-btn" class="station-edit-popup__btn station-edit-popup__btn--primary">${saveLabel}</button>
       </div>
     </div>
   `;
@@ -644,14 +689,35 @@ export function popupStationForEditing(station) {
 
   setTimeout(() => {
     const input = document.getElementById("station-name-input");
+    const saveBtn = document.getElementById("save-station-btn");
+    const deleteBtn = document.getElementById("delete-station-btn");
+    const countEl = document.getElementById("station-name-count");
     input?.focus();
+    input?.select();
 
-    document.getElementById("save-station-btn")?.addEventListener("click", () => {
-      Route.setStationName(p.station_id, input.value);
+    const syncNameCount = () => {
+      if (!countEl || !input) return;
+      const len = input.value.length;
+      countEl.textContent = `${len}/${STATION_NAME_MAX_LEN}`;
+      countEl.classList.toggle("station-edit-popup__count--at-limit", len >= STATION_NAME_MAX_LEN);
+    };
+    syncNameCount();
+    input?.addEventListener("input", syncNameCount);
+
+    const onSave = () => {
+      Route.setStationName(p.station_id, input?.value ?? "");
       closeStationEditPopup();
+    };
+
+    saveBtn?.addEventListener("click", onSave);
+    input?.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        onSave();
+      }
     });
 
-    document.getElementById("delete-station-btn")?.addEventListener("click", () => {
+    deleteBtn?.addEventListener("click", () => {
       if (confirm(t("popup.confirmDeleteStation", { name: currentName }))) {
         Route.removeStation(p.station_id);
         closeStationEditPopup();
@@ -888,11 +954,8 @@ function finishTempNodeDrag() {
   Route.refreshSources();
 }
 
-let pendingStationDragPreview = null;
-
-function applyStationDragPreview() {
-  if (!pendingStationDragPreview) return;
-  const { map, sid, lngLat } = pendingStationDragPreview;
+/** 同步更新站點圓與站名（同一幀、不經 rAF 佇列）。 */
+function updateStationDragPreview(map, sid, lngLat) {
   const st = store.stationsFC.features.find((x) => x.properties.station_id === sid);
   const rid = st?.properties?.subroute_id;
   const route = rid ? store.subroutesFC.features.find((x) => x.properties?.subroute_id === rid) : null;
@@ -904,12 +967,84 @@ function applyStationDragPreview() {
   setStationPreviewCoord(map, sid, lngLat);
 }
 
-function scheduleStationDragPreview(map, sid, lngLat) {
-  pendingStationDragPreview = { map, sid, lngLat };
-  if (stationDragPreviewRaf !== null) return;
-  stationDragPreviewRaf = requestAnimationFrame(() => {
-    stationDragPreviewRaf = null;
-    applyStationDragPreview();
+function beginStationPositionDrag(e) {
+  if (!isPrimaryMouseButton(e)) return;
+  e.preventDefault();
+  const feature = e.features?.[0];
+  if (!feature?.properties?.station_id) return;
+  if (feature.properties?.is_transfer_fixed) return;
+
+  const sid = feature.properties.station_id;
+  M.dragging.type = "station";
+  M.dragging.stationId = sid;
+
+  const map = getMap();
+  clearStationHoverHighlight();
+  applyStationLabelDragPlacement(map);
+
+  const onDragStation = (ev) => {
+    if (M.dragging.type !== "station" || M.dragging.stationId !== sid) return;
+    updateStationDragPreview(map, sid, [ev.lngLat.lng, ev.lngLat.lat]);
+  };
+
+  map.on("mousemove", onDragStation);
+  map.once("mouseup", (ev) => {
+    map.off("mousemove", onDragStation);
+    updateStationDragPreview(map, sid, [ev.lngLat.lng, ev.lngLat.lat]);
+    const finalCoord = getDisplayedStationCenter(map, sid, feature.geometry.coordinates);
+    Route.moveStationAlongRoute(sid, finalCoord);
+    applyStationLabelCollision(map);
+    M.dragging.type = null;
+    M.dragging.stationId = null;
+    setCursorForMode();
+  });
+}
+
+function beginStationLabelOnlyDrag(e) {
+  if (!isPrimaryMouseButton(e)) return;
+  e.preventDefault();
+  e.originalEvent?.stopPropagation?.();
+  const feature = e.features?.[0];
+  if (!feature?.properties?.station_id) return;
+
+  const sid = feature.properties.station_id;
+  const st = store.stationsFC.features.find((x) => x.properties.station_id === sid);
+  if (!st) return;
+
+  const map = getMap();
+  M.dragging.type = "station-label";
+  M.dragging.stationId = sid;
+
+  setStationHoverPairFilters(map, "");
+  applyStationLabelDragPlacement(map);
+  const dragCenter = getDisplayedStationCenter(map, sid, st.geometry.coordinates);
+  drawLabelDragLimitCircle(map, dragCenter, LABEL_DRAG_RADIUS_METERS);
+
+  let currentLabelCoord = feature.geometry.coordinates;
+  const onDragLabel = (ev) => {
+    if (M.dragging.type !== "station-label" || M.dragging.stationId !== sid) return;
+    const mouseCoord = [ev.lngLat.lng, ev.lngLat.lat];
+    const d = turf.distance(turf.point(dragCenter), turf.point(mouseCoord), { units: "meters" });
+    if (d <= LABEL_DRAG_RADIUS_METERS) {
+      currentLabelCoord = mouseCoord;
+      setStationLabelPreviewCoord(map, sid, currentLabelCoord);
+      return;
+    }
+    const bearing = turf.bearing(turf.point(dragCenter), turf.point(mouseCoord));
+    const capped = turf.destination(turf.point(dragCenter), LABEL_DRAG_RADIUS_METERS, bearing, { units: "meters" });
+    currentLabelCoord = capped.geometry.coordinates;
+    setStationLabelPreviewCoord(map, sid, currentLabelCoord);
+  };
+
+  map.on("mousemove", onDragLabel);
+  map.once("mouseup", () => {
+    map.off("mousemove", onDragLabel);
+    Route.setStationLabelPosition(sid, currentLabelCoord);
+    clearLabelDragLimitCircle(map);
+    applyStationLabelCollision(map);
+    M.dragging.type = null;
+    M.dragging.stationId = null;
+    setCursorForMode();
   });
 }
 
@@ -1104,11 +1239,13 @@ Modes["edit-station"] = {
     }
   },
 
+  onStationClick(e) {
+    openStationEditPopupFromClick(e);
+  },
+
   onMapClick(e) {
     const map = getMap();
-    const hitFeatures = map.queryRenderedFeatures(e.point, {
-      layers: ["transfer-snaps-layer", ...STATION_CIRCLE_LAYERS, "stations-label", "routes-line"],
-    });
+    const hitFeatures = map.queryRenderedFeatures(e.point, { layers: STATION_EDIT_CLICK_LAYERS });
 
     if (hitFeatures.length) {
       if (hitFeatures[0].layer?.id === "transfer-snaps-layer") {
@@ -1119,22 +1256,13 @@ Modes["edit-station"] = {
       const topLayerId = topFeature.layer.id;
       const properties = topFeature.properties;
 
-      const hoveredStation = editStationSubmode !== "move-label" ? findHoveredStationFeature(hitFeatures) : null;
-      if (hoveredStation) {
-        popupStationForEditing(hoveredStation);
+      const stationForEdit = editStationSubmode !== "move-label" ? stationFeatureFromMapClick(hitFeatures) : null;
+      if (stationForEdit) {
+        popupStationForEditing(stationForEdit);
         return;
       }
 
       switch (topLayerId) {
-        case "stations-circle":
-        case "transfer-stations-circle":
-          popupStationForEditing(topFeature);
-          break;
-        case "stations-label":
-          if (editStationSubmode !== "move-label") {
-            popupStationForEditing(topFeature);
-          }
-          break;
         case "routes-line": {
           if (addNearbyTransferStationFromClick(e.lngLat, properties.subroute_id)) {
             break;
@@ -1153,96 +1281,15 @@ Modes["edit-station"] = {
   },
 
   onStationDown(e) {
-    if (!isPrimaryMouseButton(e)) return;
-    e.preventDefault();
-    const feature = e.features?.[0];
-    if (!feature) return;
-    if (feature.properties?.is_transfer_fixed) return;
-    const sid = feature.properties.station_id;
-    M.dragging.type = "station";
-    M.dragging.stationId = sid;
-
-    const map = getMap();
-    // Dragging should NOT keep station hover highlight.
-    // Clear both station circle + label hover immediately and keep it cleared during drag.
-    clearStationHoverHighlight();
-
-    const onDragStation = (ev) => {
-      if (M.dragging.type !== "station") return;
-      scheduleStationDragPreview(map, sid, [ev.lngLat.lng, ev.lngLat.lat]);
-    };
-
-    applyStationLabelDragPlacement(map);
-    map.on("mousemove", onDragStation);
-
-    map.once("mouseup", () => {
-      map.off("mousemove", onDragStation);
-      if (stationDragPreviewRaf !== null) {
-        cancelAnimationFrame(stationDragPreviewRaf);
-        stationDragPreviewRaf = null;
-      }
-      if (pendingStationDragPreview?.sid === sid) {
-        applyStationDragPreview();
-        pendingStationDragPreview = null;
-      }
-      const finalCoord = getDisplayedStationCenter(map, sid, feature.geometry.coordinates);
-      Route.moveStationAlongRoute(sid, finalCoord);
-      applyStationLabelCollision(map);
-      M.dragging.type = null;
-      M.dragging.stationId = null;
-      setCursorForMode();
-    });
+    beginStationPositionDrag(e);
   },
 
   onStationLabelDown(e) {
-    if (!isPrimaryMouseButton(e)) return;
-    if (editStationSubmode !== "move-label") {
-      this.onStationDown(e);
+    if (editStationSubmode === "move-label") {
+      beginStationLabelOnlyDrag(e);
       return;
     }
-    e.preventDefault();
-    e.originalEvent?.stopPropagation?.();
-    const feature = e.features?.[0];
-    if (!feature) return;
-    const sid = feature.properties.station_id;
-    const st = store.stationsFC.features.find((x) => x.properties.station_id === sid);
-    if (!st) return;
-
-    const map = getMap();
-    M.dragging.type = "station-label";
-    M.dragging.stationId = sid;
-
-    setStationHoverPairFilters(map, "");
-    applyStationLabelDragPlacement(map);
-    const dragCenter = getDisplayedStationCenter(map, sid, st.geometry.coordinates);
-    drawLabelDragLimitCircle(map, dragCenter, LABEL_DRAG_RADIUS_METERS);
-
-    let currentLabelCoord = feature.geometry.coordinates;
-    const onDragLabel = (ev) => {
-      if (M.dragging.type !== "station-label" || M.dragging.stationId !== sid) return;
-      const mouseCoord = [ev.lngLat.lng, ev.lngLat.lat];
-      const d = turf.distance(turf.point(dragCenter), turf.point(mouseCoord), { units: "meters" });
-      if (d <= LABEL_DRAG_RADIUS_METERS) {
-        currentLabelCoord = mouseCoord;
-        setStationLabelPreviewCoord(map, sid, currentLabelCoord);
-        return;
-      }
-      const bearing = turf.bearing(turf.point(dragCenter), turf.point(mouseCoord));
-      const capped = turf.destination(turf.point(dragCenter), LABEL_DRAG_RADIUS_METERS, bearing, { units: "meters" });
-      currentLabelCoord = capped.geometry.coordinates;
-      setStationLabelPreviewCoord(map, sid, currentLabelCoord);
-    };
-
-    map.on("mousemove", onDragLabel);
-    map.once("mouseup", () => {
-      map.off("mousemove", onDragLabel);
-      Route.setStationLabelPosition(sid, currentLabelCoord);
-      clearLabelDragLimitCircle(map);
-      applyStationLabelCollision(map);
-      M.dragging.type = null;
-      M.dragging.stationId = null;
-      setCursorForMode();
-    });
+    beginStationPositionDrag(e);
   },
 };
 
@@ -1354,6 +1401,7 @@ export function initializeEventListeners() {
   map.on("click", "stations-circle", (e) => cur()?.onStationClick?.(e));
   map.on("click", "transfer-stations-circle", (e) => cur()?.onStationClick?.(e));
   map.on("click", "stations-label", (e) => cur()?.onStationClick?.(e));
+  map.on("click", "stations-label-hover", (e) => cur()?.onStationClick?.(e));
   map.on("click", "temp-edit-line-layer", (e) => cur()?.onTempLineClick?.(e));
   map.on("click", TEMP_EDIT_LINE_HIT_LAYER, (e) => cur()?.onTempLineClick?.(e));
 
@@ -1362,5 +1410,6 @@ export function initializeEventListeners() {
   map.on("mousedown", "stations-circle", (e) => cur()?.onStationDown?.(e));
   map.on("mousedown", "transfer-stations-circle", (e) => cur()?.onStationDown?.(e));
   map.on("mousedown", "stations-label", (e) => cur()?.onStationLabelDown?.(e));
+  map.on("mousedown", "stations-label-hover", (e) => cur()?.onStationLabelDown?.(e));
   updateTransferSnapVisibility();
 }
