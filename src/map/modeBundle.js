@@ -327,6 +327,10 @@ export function clearHoverAndPopups() {
   M.hover.transferSnapId = "";
   M.hover.passingKey = "";
   Route.clearHover();
+  const map = getMap();
+  if (map && M.mode === "edit-station" && editStationSubmode === "move-label") {
+    applyStationLabelDragPlacement(map);
+  }
   hideHoverPopups();
 }
 
@@ -379,7 +383,13 @@ function primarySubrouteIdForStation(stationFeature) {
 
 function applyBrowseRouteHover(lngLat, routeFeature, point) {
   const rid = routeFeature.properties.subroute_id;
-  const sameRoute = M.hover.subrouteId === rid && M.hover.stationId === "";
+  const routeId = routeFeature.properties.route_id || "";
+  const prevRoute = M.hover.subrouteId
+    ? store.subroutesFC.features.find((f) => f.properties.subroute_id === M.hover.subrouteId)
+    : null;
+  const sameRoute =
+    M.hover.stationId === "" &&
+    ((routeId && prevRoute?.properties?.route_id === routeId) || (!routeId && M.hover.subrouteId === rid));
   M.hover.subrouteId = rid;
   M.hover.stationId = "";
   if (!sameRoute) Route.highlightRoute(rid);
@@ -614,15 +624,16 @@ function findHoveredStationFeature(hitFeatures) {
   });
 }
 
-/** 車站 popup：列出經過此站的每條子路線（轉乘站可有多條）。 */
+/** 車站 popup：列出經過此站的路線（合併後同 route_id 只顯示一次）。 */
 function buildPassingRouteLabels(passingSubrouteIds) {
   const labels = [];
-  const seenSubrouteIds = new Set();
+  const seenRouteIds = new Set();
   for (const subrouteId of passingSubrouteIds) {
-    if (seenSubrouteIds.has(subrouteId)) continue;
-    seenSubrouteIds.add(subrouteId);
     const feature = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteId);
     if (!feature) continue;
+    const routeId = feature.properties.route_id;
+    if (routeId && seenRouteIds.has(routeId)) continue;
+    if (routeId) seenRouteIds.add(routeId);
     labels.push(resolveRouteDisplayNameFromProps(feature.properties));
   }
   return labels;

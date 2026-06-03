@@ -71,8 +71,59 @@ function applyLayoutToLayers(map, layerIds, layout) {
   }
 }
 
+/** 比對 hover 路線上的站點／站名（含 transfer_routes）。 */
+function buildHoveredSubrouteMatchExpr(subrouteIds) {
+  const ids = subrouteIds.filter((id) => typeof id === "string" && id !== "");
+  if (!ids.length) return null;
+  const transferAny = [
+    "any",
+    ...ids.map((rid) => ["in", rid, ["coalesce", ["get", "transfer_routes"], ["literal", []]]]),
+  ];
+  return ["any", ["in", ["get", "subroute_id"], ["literal", ids]], transferAny];
+}
+
+function collisionLayoutWithRouteHoverOverride(baseLayout, hoveredSubrouteIds) {
+  const matchExpr = buildHoveredSubrouteMatchExpr(hoveredSubrouteIds);
+  if (!matchExpr) return baseLayout;
+
+  const layout = {};
+  for (const [key, defaultValue] of Object.entries(baseLayout)) {
+    if (key === "text-allow-overlap" || key === "text-ignore-placement") {
+      layout[key] = ["case", matchExpr, true, defaultValue];
+    } else if (key === "text-optional") {
+      layout[key] = ["case", matchExpr, false, defaultValue];
+    } else if (key === "text-padding") {
+      layout[key] = ["case", matchExpr, 0, defaultValue];
+    } else {
+      layout[key] = defaultValue;
+    }
+  }
+  return layout;
+}
+
 export function applyStationLabelCollision(map, level = STATION_LABEL_COLLISION_LEVEL) {
   applyLayoutToLayers(map, STATION_LABEL_COLLISION_LAYER_IDS, getStationLabelCollisionLayout(level));
+}
+
+/**
+ * 路線 hover 時：該路線站名強制顯示（關閉智慧閃避），其餘路線維持原碰撞設定。
+ * @param {import("mapbox-gl").Map | null | undefined} map
+ * @param {string[]} [hoveredSubrouteIds]
+ * @param {number} [level]
+ */
+export function applyStationLabelCollisionForRouteHover(map, hoveredSubrouteIds = [], level = STATION_LABEL_COLLISION_LEVEL) {
+  if (!map) return;
+  const ids = hoveredSubrouteIds.filter((id) => typeof id === "string" && id !== "");
+  const baseLayout = getStationLabelCollisionLayout(level);
+  const layout = ids.length ? collisionLayoutWithRouteHoverOverride(baseLayout, ids) : baseLayout;
+  applyLayoutToLayers(map, STATION_LABEL_COLLISION_LAYER_IDS, layout);
+  if (map.getLayer("stations-label")) {
+    try {
+      map.setPaintProperty("stations-label", "text-opacity", 1);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 export function applyStationLabelDragPlacement(map) {

@@ -11,7 +11,8 @@ import {
 import { DEFAULT_BUILTIN_MAP_DATA } from "./defaultData.js";
 import { computeMapViewFromFeatures, normalizeImportedMapView } from "./mapGeoBounds.js";
 import { scheduleImportMapView } from "./mapViewState.js";
-import { applyStationHoverVisuals, clearStationHoverVisuals } from "./mapHoverFilters.js";
+import { applyStationHoverVisuals } from "./mapHoverFilters.js";
+import { applyStationLabelCollisionForRouteHover } from "./stationLabelCollision.js";
 import { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER } from "./layers.js";
 import { MAX_USER_ROUTES } from "../../shared/shareLimits.js";
 import {
@@ -885,11 +886,29 @@ function refreshSources() {
   applyHiddenSubrouteVisibility();
 }
 
+/** 將子路線 id 擴展為同一路線（route_id）下的全部子路線，合併路線 hover 需整條高亮。 */
+function expandSubrouteIdsToRouteGroups(subrouteIds) {
+  const expanded = new Set();
+  for (const id of subrouteIds) {
+    if (typeof id !== "string" || id === "") continue;
+    const route = store.subroutesFC.features.find((f) => f.properties.subroute_id === id);
+    const routeId = route?.properties?.route_id;
+    if (routeId) {
+      for (const f of store.subroutesFC.features) {
+        if (f.properties.route_id === routeId) expanded.add(f.properties.subroute_id);
+      }
+    } else {
+      expanded.add(id);
+    }
+  }
+  return [...expanded];
+}
+
 function applyRouteHoverHighlightFilters(visibleSubrouteIds) {
   const map = getMap();
   if (!map) return;
   const hiddenIds = Array.from(store.hiddenSubrouteIds);
-  const ids = visibleSubrouteIds.filter((rid) => !store.hiddenSubrouteIds.has(rid));
+  const ids = expandSubrouteIdsToRouteGroups(visibleSubrouteIds).filter((rid) => !store.hiddenSubrouteIds.has(rid));
 
   if (map.getLayer("routes-line-hover")) {
     if (!ids.length) {
@@ -903,18 +922,13 @@ function applyRouteHoverHighlightFilters(visibleSubrouteIds) {
     }
   }
 
+  // 先關閉 hover 路線站名的智慧閃避，再放大字級，避免放大後被擠掉而閃爍。
+  applyStationLabelCollisionForRouteHover(map, ids);
   applyStationHoverVisuals(map, { subrouteIds: ids });
 }
 
 function highlightRoute(subrouteId) {
-  const route = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteId);
-  const routeId = route ? route.properties.route_id : "";
-  const subrouteIdsInRoute = routeId
-    ? store.subroutesFC.features.filter((f) => f.properties.route_id === routeId).map((f) => f.properties.subroute_id)
-    : subrouteId
-      ? [subrouteId]
-      : [];
-  applyRouteHoverHighlightFilters(subrouteIdsInRoute);
+  applyRouteHoverHighlightFilters(typeof subrouteId === "string" && subrouteId !== "" ? [subrouteId] : []);
 }
 
 /** Highlight every sub-route that serves a station (e.g. fixed transfer). */
@@ -924,10 +938,7 @@ function highlightPassingSubroutes(subrouteIds) {
 }
 
 function clearHover() {
-  const map = getMap();
-  if (!map) return;
-  map.getLayer("routes-line-hover") && map.setFilter("routes-line-hover", ["==", ["get", "subroute_id"], ""]);
-  clearStationHoverVisuals(map);
+  applyRouteHoverHighlightFilters([]);
 }
 
 function getRouteList() {
