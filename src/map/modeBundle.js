@@ -15,9 +15,10 @@ import {
 } from "./routeModel.js";
 import {
   clearLabelDragLimitCircle,
+  createStationLabelDragPreviewUpdater,
   drawLabelDragLimitCircle,
   getDisplayedStationCenter,
-  setStationLabelPreviewCoord,
+  getStationLabelVisualCoord,
   setStationPreviewCoord,
 } from "./stationPreview.js";
 import { t } from "../i18n/i18n.js";
@@ -141,6 +142,9 @@ const HOVER_PICK_LAYERS = [
 ];
 
 let tempNodePreviewRaf = null;
+let labelDragPreviewRaf = null;
+/** @type {{ update: (coord: number[]) => void, coord: number[] } | null} */
+let pendingLabelDragPreview = null;
 
 function queryFeaturesAtPoint(map, point, layerIds, padPx = 0) {
   if (!layerIds.length) return [];
@@ -248,10 +252,11 @@ function applyEditStationSubmode() {
     }
     clearStationHoverVisuals(map);
     setStationLabelMoveFrameVisibility(true);
+    applyStationLabelDragPlacement(map);
   } else {
     setStationLabelMoveFrameVisibility(false);
+    applyStationLabelCollision(map);
   }
-  applyStationLabelCollision(map);
 }
 
 function updateTransferSnapVisibility() {
@@ -945,6 +950,27 @@ function scheduleTempNodePreviewRefresh() {
   });
 }
 
+function scheduleLabelDragPreview(update, coord) {
+  pendingLabelDragPreview = { update, coord };
+  if (labelDragPreviewRaf !== null) return;
+  labelDragPreviewRaf = requestAnimationFrame(() => {
+    labelDragPreviewRaf = null;
+    const pending = pendingLabelDragPreview;
+    pendingLabelDragPreview = null;
+    if (pending) pending.update(pending.coord);
+  });
+}
+
+function flushLabelDragPreview() {
+  if (labelDragPreviewRaf !== null) {
+    cancelAnimationFrame(labelDragPreviewRaf);
+    labelDragPreviewRaf = null;
+  }
+  const pending = pendingLabelDragPreview;
+  pendingLabelDragPreview = null;
+  if (pending) pending.update(pending.coord);
+}
+
 function finishTempNodeDrag() {
   if (tempNodePreviewRaf !== null) {
     cancelAnimationFrame(tempNodePreviewRaf);
@@ -1000,6 +1026,14 @@ function beginStationPositionDrag(e) {
   });
 }
 
+function clampLabelCoordToDragRadius(dragCenter, targetCoord) {
+  const d = turf.distance(turf.point(dragCenter), turf.point(targetCoord), { units: "meters" });
+  if (d <= LABEL_DRAG_RADIUS_METERS) return targetCoord;
+  const bearing = turf.bearing(turf.point(dragCenter), turf.point(targetCoord));
+  const capped = turf.destination(turf.point(dragCenter), LABEL_DRAG_RADIUS_METERS, bearing, { units: "meters" });
+  return capped.geometry.coordinates;
+}
+
 function beginStationLabelOnlyDrag(e) {
   if (!isPrimaryMouseButton(e)) return;
   e.preventDefault();
@@ -1015,33 +1049,42 @@ function beginStationLabelOnlyDrag(e) {
   M.dragging.type = "station-label";
   M.dragging.stationId = sid;
 
-  setStationHoverPairFilters(map, "");
   applyStationLabelDragPlacement(map);
   const dragCenter = getDisplayedStationCenter(map, sid, st.geometry.coordinates);
   drawLabelDragLimitCircle(map, dragCenter, LABEL_DRAG_RADIUS_METERS);
+  // icon-text-fit 外框會在每次 setData 時重算全部站名，拖曳中先關閉以保持流暢。
+  setStationLabelMoveFrameVisibility(false);
 
-  let currentLabelCoord = feature.geometry.coordinates;
+  const updatePreview = createStationLabelDragPreviewUpdater(map, sid, dragCenter);
+  const centerPx = map.project(dragCenter);
+  const offset = feature.properties?.label_offset_xy;
+  const visualPx = Array.isArray(offset)
+    ? { x: centerPx.x + offset[0] * 12, y: centerPx.y + offset[1] * 12 }
+    : { x: e.point.x, y: e.point.y };
+  const grabOffsetPx = { x: visualPx.x - e.point.x, y: visualPx.y - e.point.y };
+  let currentLabelCoord = getStationLabelVisualCoord(map, sid, dragCenter);
+
   const onDragLabel = (ev) => {
     if (M.dragging.type !== "station-label" || M.dragging.stationId !== sid) return;
-    const mouseCoord = [ev.lngLat.lng, ev.lngLat.lat];
-    const d = turf.distance(turf.point(dragCenter), turf.point(mouseCoord), { units: "meters" });
-    if (d <= LABEL_DRAG_RADIUS_METERS) {
-      currentLabelCoord = mouseCoord;
-      setStationLabelPreviewCoord(map, sid, currentLabelCoord);
-      return;
-    }
-    const bearing = turf.bearing(turf.point(dragCenter), turf.point(mouseCoord));
-    const capped = turf.destination(turf.point(dragCenter), LABEL_DRAG_RADIUS_METERS, bearing, { units: "meters" });
-    currentLabelCoord = capped.geometry.coordinates;
-    setStationLabelPreviewCoord(map, sid, currentLabelCoord);
+    const targetPx = { x: ev.point.x + grabOffsetPx.x, y: ev.point.y + grabOffsetPx.y };
+    const targetLngLat = map.unproject([targetPx.x, targetPx.y]);
+    const targetCoord = [targetLngLat.lng, targetLngLat.lat];
+    currentLabelCoord = clampLabelCoordToDragRadius(dragCenter, targetCoord);
+    scheduleLabelDragPreview(updatePreview, currentLabelCoord);
   };
 
   map.on("mousemove", onDragLabel);
   map.once("mouseup", () => {
     map.off("mousemove", onDragLabel);
+    flushLabelDragPreview();
     Route.setStationLabelPosition(sid, currentLabelCoord);
     clearLabelDragLimitCircle(map);
-    applyStationLabelCollision(map);
+    if (editStationSubmode === "move-label") {
+      setStationLabelMoveFrameVisibility(true);
+      applyStationLabelDragPlacement(map);
+    } else {
+      applyStationLabelCollision(map);
+    }
     M.dragging.type = null;
     M.dragging.stationId = null;
     setCursorForMode();

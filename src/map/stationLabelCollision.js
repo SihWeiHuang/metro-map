@@ -7,11 +7,19 @@ export const STATION_LABEL_COLLISION_LEVEL = 55;
 
 export const STATION_LABEL_COLLISION_LAYER_IDS = ["stations-label", "stations-label-hover"];
 
+/** 移動站名子模式／拖曳站名時：含外框圖層，一律允許重疊顯示。 */
+export const STATION_LABEL_DRAG_LAYER_IDS = [
+  "stations-label",
+  "stations-label-hover",
+  "stations-label-move-frame",
+];
+
 /** 拖曳站點／站名時暫時關閉閃避，避免標籤被藏起來。 */
 export const STATION_LABEL_DRAG_LAYOUT = {
   "text-allow-overlap": true,
   "text-ignore-placement": true,
   "text-optional": false,
+  "text-padding": 0,
 };
 
 /**
@@ -68,5 +76,12 @@ export function applyStationLabelCollision(map, level = STATION_LABEL_COLLISION_
 }
 
 export function applyStationLabelDragPlacement(map) {
-  applyLayoutToLayers(map, ["stations-label"], STATION_LABEL_DRAG_LAYOUT);
+  applyLayoutToLayers(map, STATION_LABEL_DRAG_LAYER_IDS, STATION_LABEL_DRAG_LAYOUT);
+  if (map.getLayer("stations-label")) {
+    try {
+      map.setPaintProperty("stations-label", "text-opacity", 1);
+    } catch {
+      /* ignore */
+    }
+  }
 }
