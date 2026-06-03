@@ -1,3 +1,4 @@
+import { MAPBOX_BASEMAP_LIGHT_PRESET } from "./basemapAppearanceConfig.js";
 import {
   buildStationDisplayCollections,
   featureCollectionWithSmoothedLineStrings,
@@ -265,6 +266,32 @@ function applyMapboxStandardBasemapConfig(map) {
       /* 非 Standard 或 import 尚未就緒 */
     }
   }
+
+  if (typeof MAPBOX_BASEMAP_LIGHT_PRESET === "string" && MAPBOX_BASEMAP_LIGHT_PRESET) {
+    try {
+      map.setConfigProperty(importId, "lightPreset", MAPBOX_BASEMAP_LIGHT_PRESET);
+    } catch {
+      /* 自訂 Classic 樣式可能不支援 */
+    }
+  }
+}
+
+/** Classic 樣式（無 Standard import）時略調背景色，避免整圖過白。 */
+function applyClassicBasemapBackgroundTone(map) {
+  const imports = map.getStyle()?.imports;
+  if (Array.isArray(imports) && imports.length > 0) return;
+
+  const layers = map.getStyle()?.layers;
+  if (!Array.isArray(layers)) return;
+
+  for (const layer of layers) {
+    if (layer.type !== "background" || isMetroLayer(layer)) continue;
+    try {
+      map.setPaintProperty(layer.id, "background-color", "#e9edf1");
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 /** 盡量減少底圖雜訊（文字、POI 圖示、Standard config）。 */
@@ -272,6 +299,7 @@ export function applyBasemapClutterReduction(map, { force = false } = {}) {
   if (!map?.getStyle) return;
   if (!force && map.__metroBasemapClutterApplied) return;
   applyMapboxStandardBasemapConfig(map);
+  applyClassicBasemapBackgroundTone(map);
   applyReducedBasemapTextDensity(map);
   applyReducedBasemapIconDensity(map);
   applyBasemapCorePlaceLabelCollisionYield(map);
@@ -634,7 +662,7 @@ export function initializeLayers(map, store) {
   const stationLabelLayoutBase = {
     "text-field": ["coalesce", ["get", "name"], ["get", "station_id"]],
     "text-font": ["Open Sans Bold", "Arial Unicode MS Regular"],
-    "text-size": 12,
+    "text-size": 14,
     "text-anchor": [
       "case",
       ["has", "label_offset_xy"],
@@ -709,7 +737,7 @@ export function initializeLayers(map, store) {
       layout: {
         "text-field": ["coalesce", ["get", "name"], ["get", "station_id"]],
         "text-font": ["Open Sans Bold", "Arial Unicode MS Regular"],
-        "text-size": 13,
+        "text-size": 15,
         "text-anchor": [
           "case",
           ["has", "label_offset_xy"],

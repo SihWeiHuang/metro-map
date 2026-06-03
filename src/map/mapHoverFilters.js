@@ -5,10 +5,10 @@ export const STATION_CIRCLE_RADIUS_DEFAULT = 7;
 export const STATION_CIRCLE_RADIUS_HOVER = 9.5;
 export const TRANSFER_CIRCLE_RADIUS_DEFAULT = 7.2;
 export const TRANSFER_CIRCLE_RADIUS_HOVER = 9.25;
-export const STATION_LABEL_SIZE_DEFAULT = 12;
-export const STATION_LABEL_SIZE_HOVER = 13;
-export const STATION_LABEL_HALO_DEFAULT = 1.1;
-export const STATION_LABEL_HALO_HOVER = 2.2;
+export const STATION_LABEL_SIZE_DEFAULT = 14;
+export const STATION_LABEL_SIZE_HOVER = 15;
+export const STATION_LABEL_HALO_DEFAULT = 0.8;
+export const STATION_LABEL_HALO_HOVER = 1.8;
 
 const EMPTY_STATION_FILTER = ["==", ["get", "station_id"], ""];
 
