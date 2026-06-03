@@ -1,6 +1,6 @@
 /**
  * 車站站名 symbol 碰撞／閃避（Mapbox layout）。
- * 0 = 不閃避（強制顯示）；100 = 最嚴格。預設 55：站名優先於底圖（含主要地名）、站間適度排開。
+ * 0 = 不閃避（強制顯示）；100 = 最嚴格。預設 55：站名優先於底圖文字、站間適度排開；站名不會被擠掉（text-optional: false）。
  */
 
 export const STATION_LABEL_COLLISION_LEVEL = 55;
@@ -45,17 +45,21 @@ export function getStationLabelCollisionLayout(level = STATION_LABEL_COLLISION_L
   return {
     "text-allow-overlap": n < 20,
     "text-ignore-placement": n < 10,
-    "text-optional": n >= 35,
+    "text-optional": false,
     "text-padding": padding,
     "symbol-sort-key": sortKey,
   };
 }
 
-/** 底圖縣市／行政區等主要地名：碰撞時可讓位給站名（由 layers.js 套用）。 */
-export const CORE_PLACE_BASEMAP_COLLISION_YIELD = {
+/** 底圖主要地名（不含路名）：碰撞時可讓位給捷運圖層（由 layers.js 套用）。 */
+export const BASEMAP_PLACE_TEXT_COLLISION_YIELD = {
   "text-optional": true,
   "symbol-sort-key": 1,
 };
+
+/** @deprecated 使用 BASEMAP_PLACE_TEXT_COLLISION_YIELD */
+export const BASEMAP_TEXT_COLLISION_YIELD = BASEMAP_PLACE_TEXT_COLLISION_YIELD;
+export const CORE_PLACE_BASEMAP_COLLISION_YIELD = BASEMAP_PLACE_TEXT_COLLISION_YIELD;
 
 function applyLayoutToLayers(map, layerIds, layout) {
   if (!map) return;

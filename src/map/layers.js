@@ -6,7 +6,7 @@ import {
 import { STATION_LABEL_FRAME_IMAGE_ID } from "./labelMoveFrameImage.js";
 import {
   applyStationLabelCollision,
-  CORE_PLACE_BASEMAP_COLLISION_YIELD,
+  BASEMAP_PLACE_TEXT_COLLISION_YIELD,
   getStationLabelCollisionLayout,
   STATION_LABEL_COLLISION_LEVEL,
 } from "./stationLabelCollision.js";
@@ -30,8 +30,8 @@ function metroRouteLayerIds() {
   ];
 }
 
-/** Above routes, still below basemap labels (bottom → top). */
-function metroOverlayLayerIds() {
+/** Above routes, below basemap labels (bottom → top). */
+function metroGeometryOverlayLayerIds() {
   return [
     ...(isMrtReferenceOverlayActive() ? [MRT_REFERENCE_STATIONS_LAYER_ID] : []),
     "stations-circle",
@@ -40,18 +40,22 @@ function metroOverlayLayerIds() {
     "temp-edit-line-hit-layer",
     "temp-edit-nodes-layer",
     "label-drag-limit-layer",
-    "stations-label-move-frame",
-    "stations-label",
   ];
 }
 
-/** Transient hover/edit overlays — kept above basemap labels and station hover circles. */
+/** 站名 symbol：不綁 slot，堆疊順序由 ensureMetroLayerStackOrder 拉到所有底圖文字之上。 */
+const METRO_STATION_LABEL_LAYER_IDS = [
+  "stations-label-move-frame",
+  "stations-label",
+  "stations-label-hover",
+];
+
+/** Transient hover/edit overlays — above basemap labels; label-hover 最後再拉到最上。 */
 const METRO_HOVER_OVERLAY_LAYER_IDS = [
   "stations-circle-hover",
   "transfer-snaps-layer",
   "transfer-stations-circle",
   "transfer-stations-circle-hover",
-  "stations-label-hover",
 ];
 
 /** Recreated on each initializeLayers (hot reload). */
@@ -221,22 +225,64 @@ function applyReducedBasemapIconDensity(map) {
 
 function isCorePlaceBasemapTextLayer(layer) {
   if (!isTextLabelBasemapLayer(layer) || isMetroLayer(layer)) return false;
+  if (shouldHideBasemapTextLayer(layer)) return false;
   return CORE_PLACE_LABEL_RE.test(layerLabelKey(layer));
 }
 
-/** 主要行政地名參與碰撞且優先級低於站名，重疊時可被擠掉。 */
-function applyBasemapCorePlaceLabelCollisionYield(map, level = STATION_LABEL_COLLISION_LEVEL) {
+/** 僅主要地名：碰撞優先級低於捷運站名／路線／站點；路名圖層不變。 */
+function applyBasemapPlaceLabelCollisionYield(map, level = STATION_LABEL_COLLISION_LEVEL) {
   if (!map || level <= 0) return;
   const layers = map.getStyle()?.layers;
   if (!Array.isArray(layers)) return;
   for (const layer of layers) {
     if (!isCorePlaceBasemapTextLayer(layer)) continue;
-    for (const [key, value] of Object.entries(CORE_PLACE_BASEMAP_COLLISION_YIELD)) {
+    for (const [key, value] of Object.entries(BASEMAP_PLACE_TEXT_COLLISION_YIELD)) {
       try {
         map.setLayoutProperty(layer.id, key, value);
       } catch {
         /* Standard import 圖層可能拒絕 runtime 修改 */
       }
+    }
+  }
+}
+
+function basemapLayerIndexAfterBuildings(index, topBuildingIndex) {
+  return topBuildingIndex < 0 || index > topBuildingIndex;
+}
+
+/** 第一個仍顯示的路名圖層：捷運幾何插在其下 → 畫在地名上、路名下。 */
+function findMetroGeometryInsertBeforeRoadLabelLayerId(map) {
+  const layers = map.getStyle()?.layers;
+  if (!Array.isArray(layers) || layers.length === 0) return undefined;
+
+  let topBuildingIndex = -1;
+  for (let i = 0; i < layers.length; i++) {
+    if (isBuildingBasemapLayer(layers[i])) topBuildingIndex = i;
+  }
+
+  for (let i = 0; i < layers.length; i++) {
+    const layer = layers[i];
+    if (!basemapLayerIndexAfterBuildings(i, topBuildingIndex)) continue;
+    if (!isTextLabelBasemapLayer(layer) || isLowPriorityMapLabelLayer(layer)) continue;
+    if (shouldHideBasemapTextLayer(layer)) continue;
+    if (!ROAD_NAME_LABEL_RE.test(layerLabelKey(layer))) continue;
+    return layer.id;
+  }
+
+  return undefined;
+}
+
+/** 無法插到路名下時，把主要地名移到捷運幾何之下（繪製順序讓位）。 */
+function moveCorePlaceLabelsBelowMetroGeometry(map, topGeometryId) {
+  if (!topGeometryId || !map.getLayer(topGeometryId)) return;
+  const layers = map.getStyle()?.layers;
+  if (!Array.isArray(layers)) return;
+  for (const layer of layers) {
+    if (!isCorePlaceBasemapTextLayer(layer)) continue;
+    try {
+      map.moveLayer(layer.id, topGeometryId);
+    } catch {
+      /* import / slot 可能拒絕 */
     }
   }
 }
@@ -302,7 +348,7 @@ export function applyBasemapClutterReduction(map, { force = false } = {}) {
   applyClassicBasemapBackgroundTone(map);
   applyReducedBasemapTextDensity(map);
   applyReducedBasemapIconDensity(map);
-  applyBasemapCorePlaceLabelCollisionYield(map);
+  applyBasemapPlaceLabelCollisionYield(map);
   applyStationLabelCollision(map);
   map.__metroBasemapClutterApplied = true;
 }
@@ -334,10 +380,12 @@ function findLabelAnchorLayerId(map) {
 }
 
 /**
- * Layer id to pass as `beforeId`: metro geometry renders below it, and above building layers.
- * Fixes routes hidden under building fill / 3D extrusions at high zoom.
+ * Layer id for `beforeId`: metro geometry below road labels, above place names & buildings.
  */
 function findMetroGeometryInsertBeforeLayerId(map) {
+  const roadAnchor = findMetroGeometryInsertBeforeRoadLabelLayerId(map);
+  if (roadAnchor) return roadAnchor;
+
   const layers = map.getStyle()?.layers;
   if (!Array.isArray(layers) || layers.length === 0) return findLabelAnchorLayerId(map);
 
@@ -346,23 +394,22 @@ function findMetroGeometryInsertBeforeLayerId(map) {
     if (isBuildingBasemapLayer(layers[i])) topBuildingIndex = i;
   }
 
-  const afterBuildings = (index) => topBuildingIndex < 0 || index > topBuildingIndex;
-
   for (let i = 0; i < layers.length; i++) {
     const layer = layers[i];
-    if (!afterBuildings(i) || !isPreferredMapLabelLayer(layer)) continue;
+    if (!basemapLayerIndexAfterBuildings(i, topBuildingIndex) || !isPreferredMapLabelLayer(layer)) continue;
     return layer.id;
   }
 
   for (let i = 0; i < layers.length; i++) {
     const layer = layers[i];
-    if (!afterBuildings(i) || !isTextLabelBasemapLayer(layer) || isLowPriorityMapLabelLayer(layer)) continue;
+    if (!basemapLayerIndexAfterBuildings(i, topBuildingIndex) || !isTextLabelBasemapLayer(layer)) continue;
+    if (isLowPriorityMapLabelLayer(layer)) continue;
     return layer.id;
   }
 
   for (let i = 0; i < layers.length; i++) {
     const layer = layers[i];
-    if (!afterBuildings(i) || !isTextLabelBasemapLayer(layer)) continue;
+    if (!basemapLayerIndexAfterBuildings(i, topBuildingIndex) || !isTextLabelBasemapLayer(layer)) continue;
     return layer.id;
   }
 
@@ -452,6 +499,36 @@ function addMetroOverlayLayer(map, layerDef) {
   map.addLayer(slottedDef);
 }
 
+/** 站名不綁 Mapbox slot，以便疊在所有底圖 symbol 文字之上。 */
+function addMetroStationLabelLayer(map, layerDef) {
+  const def = withMetroVisibilityPaint(layerDef);
+  if (map.getLayer(def.id)) return;
+  try {
+    map.addLayer(def);
+  } catch {
+    addMetroOverlayLayer(map, layerDef);
+  }
+}
+
+function moveLayerToStackTop(map, layerId) {
+  if (!map.getLayer(layerId)) return;
+  try {
+    map.moveLayer(layerId);
+    return;
+  } catch {
+    /* slot 限制時改插到最後一層之上 */
+  }
+  const layers = map.getStyle()?.layers;
+  if (!Array.isArray(layers) || layers.length === 0) return;
+  const topId = layers[layers.length - 1]?.id;
+  if (!topId || topId === layerId) return;
+  try {
+    map.moveLayer(layerId, topId);
+  } catch {
+    /* ignore */
+  }
+}
+
 function chainLayerOrder(map, layerIds) {
   for (let i = layerIds.length - 1; i > 0; i--) {
     const belowId = layerIds[i - 1];
@@ -466,43 +543,57 @@ function chainLayerOrder(map, layerIds) {
 }
 
 /**
- * Keep normal metro layers below basemap labels; hover labels above them.
- * Standard: routes (`middle`) and overlays (`top`) are separate slots — chain within each.
- * Classic: one stack, chain routes then overlays, anchor normal layers below map labels.
+ * Stack: place names < routes/circles/transfer < road names < station labels < hover.
+ * Standard: routes (`middle`), geometry (`top`); labels omit slot. Place collision yield in applyBasemap*.
  */
 export function ensureMetroLayerStackOrder(map) {
-  const mapLabelBeforeId = findMetroGeometryInsertBeforeLayerId(map);
+  const roadLabelBeforeId = findMetroGeometryInsertBeforeRoadLabelLayerId(map);
+  const mapLabelBeforeId = roadLabelBeforeId ?? findMetroGeometryInsertBeforeLayerId(map);
   const usesSlots = styleUsesMapboxSlots(map);
+
+  const metroGeometryLayerIds = [...metroRouteLayerIds(), ...metroGeometryOverlayLayerIds()];
 
   if (usesSlots) {
     chainLayerOrder(map, metroRouteLayerIds());
-    chainLayerOrder(map, metroOverlayLayerIds());
+    chainLayerOrder(map, metroGeometryOverlayLayerIds());
     chainLayerOrder(map, METRO_HOVER_OVERLAY_LAYER_IDS);
   } else {
-    chainLayerOrder(map, [...metroRouteLayerIds(), ...metroOverlayLayerIds()]);
+    chainLayerOrder(map, metroGeometryLayerIds);
     chainLayerOrder(map, METRO_HOVER_OVERLAY_LAYER_IDS);
   }
 
-  const topAnchoredMetroId = usesSlots
-    ? [...metroOverlayLayerIds()].reverse().find((id) => map.getLayer(id))
-    : [...metroRouteLayerIds(), ...metroOverlayLayerIds()].reverse().find((id) => map.getLayer(id));
+  const topGeometryId = [...metroGeometryLayerIds].reverse().find((id) => map.getLayer(id));
 
-  if (topAnchoredMetroId && mapLabelBeforeId) {
-    try {
-      map.moveLayer(topAnchoredMetroId, mapLabelBeforeId);
-    } catch {
-      // ignore
+  if (topGeometryId && mapLabelBeforeId) {
+    let anchored = false;
+    for (const layerId of metroGeometryLayerIds) {
+      if (!map.getLayer(layerId)) continue;
+      try {
+        map.moveLayer(layerId, mapLabelBeforeId);
+        anchored = true;
+      } catch {
+        /* slot / import */
+      }
     }
+    if (!anchored) {
+      try {
+        map.moveLayer(topGeometryId, mapLabelBeforeId);
+      } catch {
+        /* ignore */
+      }
+    }
+    moveCorePlaceLabelsBelowMetroGeometry(map, topGeometryId);
+  }
+
+  for (const layerId of METRO_STATION_LABEL_LAYER_IDS) {
+    moveLayerToStackTop(map, layerId);
   }
 
   for (const layerId of METRO_HOVER_OVERLAY_LAYER_IDS) {
-    if (!map.getLayer(layerId)) continue;
-    try {
-      map.moveLayer(layerId);
-    } catch {
-      // Style may not allow moving between slots; intra-slot order was already chained above.
-    }
+    moveLayerToStackTop(map, layerId);
   }
+
+  moveLayerToStackTop(map, "stations-label-hover");
 }
 
 function removeMetroRecreatedLayers(map) {
@@ -684,7 +775,7 @@ export function initializeLayers(map, store) {
   };
 
   if (!map.getLayer("stations-label-move-frame")) {
-    addMetroOverlayLayer(map, {
+    addMetroStationLabelLayer(map, {
       id: "stations-label-move-frame",
       type: "symbol",
       source: "station-labels",
@@ -706,7 +797,7 @@ export function initializeLayers(map, store) {
   }
 
   if (!map.getLayer("stations-label")) {
-    addMetroOverlayLayer(map, {
+    addMetroStationLabelLayer(map, {
       id: "stations-label",
       type: "symbol",
       source: "station-labels",
@@ -730,7 +821,7 @@ export function initializeLayers(map, store) {
   }
 
   if (!map.getLayer("stations-label-hover")) {
-    addMetroOverlayLayer(map, {
+    addMetroStationLabelLayer(map, {
       id: "stations-label-hover",
       type: "symbol",
       source: "station-labels",
