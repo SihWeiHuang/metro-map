@@ -15,16 +15,33 @@ export function setStationPreviewCoord(map, stationId, coord) {
   if (!stationsData?.features) return false;
   const stF = stationsData.features.find((x) => x.properties?.station_id === stationId);
   if (!stF?.geometry) return false;
-  stF.geometry.coordinates = coord;
-  stationsSrc.setData(stationsData);
 
   const labelsSrc = map.getSource("station-labels");
   const labelsData = labelsSrc?._data;
-  if (!labelsData?.features) return true;
-  const lbF = labelsData.features.find((x) => x.properties?.station_id === stationId);
-  if (!lbF?.geometry) return true;
-  lbF.geometry.coordinates = coord;
-  labelsSrc.setData(labelsData);
+  const lbF = labelsData?.features?.find((x) => x.properties?.station_id === stationId);
+
+  const prev = stF.geometry.coordinates;
+  const unchanged =
+    Array.isArray(prev) &&
+    prev.length >= 2 &&
+    prev[0] === coord[0] &&
+    prev[1] === coord[1] &&
+    (!lbF?.geometry ||
+      (lbF.geometry.coordinates[0] === coord[0] && lbF.geometry.coordinates[1] === coord[1]));
+
+  if (unchanged) return true;
+
+  stF.geometry.coordinates = coord;
+  let labelsDirty = false;
+  if (lbF?.geometry) {
+    lbF.geometry.coordinates = coord;
+    labelsDirty = true;
+  }
+
+  stationsSrc.setData(stationsData);
+  if (labelsDirty && labelsSrc && labelsData) {
+    labelsSrc.setData(labelsData);
+  }
   return true;
 }
 

@@ -647,11 +647,17 @@
 
 .submode-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
 }
 
 .submode-buttons button {
   flex: 1;
+}
+
+.submode-buttons--station button {
+  flex: 1 1 calc(50% - var(--spacing-sm) / 2);
+  min-width: 7rem;
 }
 
 /* ==========================================

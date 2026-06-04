@@ -111,7 +111,22 @@ const TRANSFER_SNAP_HINT_DEPS = {
 export const Modes = {};
 const mergePick = [];
 const LABEL_DRAG_RADIUS_METERS = 500;
-let editStationSubmode = "station";
+
+/** @typedef {"crud" | "move-station" | "move-label" | "add-transfer"} EditStationSubmode */
+
+export const EDIT_STATION_SUBMODES = ["crud", "move-station", "move-label", "add-transfer"];
+export const DEFAULT_EDIT_STATION_SUBMODE = "crud";
+
+let editStationSubmode = DEFAULT_EDIT_STATION_SUBMODE;
+
+function normalizeEditStationSubmode(next) {
+  if (next === "station") return "crud";
+  return next;
+}
+
+function isEditStationSubmode(next) {
+  return EDIT_STATION_SUBMODES.includes(normalizeEditStationSubmode(next));
+}
 
 /** Left button only — middle button is reserved for map pan on desktop. */
 function isPrimaryMouseButton(e) {
@@ -181,9 +196,16 @@ function getModeHintText() {
     case "edit-route-select":
       return t("modeHint.editRouteSelect");
     case "edit-station":
-      return editStationSubmode === "move-label"
-        ? t("modeHint.editStationMoveLabel")
-        : t("modeHint.editStationStation");
+      switch (editStationSubmode) {
+        case "move-label":
+          return t("modeHint.editStationMoveLabel");
+        case "move-station":
+          return t("modeHint.editStationMoveStation");
+        case "add-transfer":
+          return t("modeHint.editStationAddTransfer");
+        default:
+          return t("modeHint.editStationCrud");
+      }
     case "merge":
       return mergePick.length === 0 ? t("modeHint.mergeFirst") : t("modeHint.mergeSecond");
     case "split-line":
@@ -263,13 +285,17 @@ function applyEditStationSubmode() {
 function updateTransferSnapVisibility() {
   const map = getMap();
   if (!map || !map.getLayer("transfer-snaps-layer")) return;
-  map.setLayoutProperty("transfer-snaps-layer", "visibility", M.mode === "edit-station" ? "visible" : "none");
+  const showSnaps = M.mode === "edit-station" && editStationSubmode === "add-transfer";
+  map.setLayoutProperty("transfer-snaps-layer", "visibility", showSnaps ? "visible" : "none");
 }
 
 export function setEditStationSubmode(next) {
-  if (next !== "station" && next !== "move-label") return;
-  setEditStationSubmodeInternal(next);
+  const normalized = normalizeEditStationSubmode(next);
+  if (!isEditStationSubmode(normalized)) return;
+  setEditStationSubmodeInternal(normalized);
   applyEditStationSubmode();
+  updateTransferSnapVisibility();
+  clearHoverAndPopups();
 }
 
 export function setCursorForMode(e) {
@@ -305,16 +331,31 @@ export function setCursorForMode(e) {
       }
     }
   } else if (M.mode === "edit-station") {
-    cursor = "grab";
+    cursor = "";
     if (e) {
       const onRoute = map.queryRenderedFeatures(e.point, { layers: ["routes-line"] });
       const onStation = map.queryRenderedFeatures(e.point, { layers: STATION_CIRCLE_LAYERS });
       const onStationLabel = map.queryRenderedFeatures(e.point, {
         layers: [...STATION_LABEL_LAYERS, "stations-label-hover"],
       });
-      if (editStationSubmode !== "move-label" && onRoute.length) cursor = "pointer";
-      if (onStation.length) cursor = "grab";
-      if (onStationLabel.length) cursor = "grab";
+      const onSnap = map.queryRenderedFeatures(e.point, { layers: ["transfer-snaps-layer"] });
+      switch (editStationSubmode) {
+        case "crud":
+          if (onRoute.length) cursor = "pointer";
+          if (onStation.length || onStationLabel.length) cursor = "pointer";
+          break;
+        case "move-station":
+          if (onStation.length || onStationLabel.length) cursor = "grab";
+          break;
+        case "move-label":
+          if (onStationLabel.length) cursor = "grab";
+          break;
+        case "add-transfer":
+          if (onSnap.length || onRoute.length) cursor = "pointer";
+          break;
+        default:
+          break;
+      }
     }
   } else {
     cursor = "";
@@ -435,6 +476,23 @@ function updateEditStationHover(e, target) {
   const snapActive = snapNear && !isTransferSnapOccupied(snapNear.feature);
 
   if (target.type === "station") {
+    if (editStationSubmode === "add-transfer") {
+      const map = getMap();
+      Route.clearHover();
+      clearStationHoverVisuals(map);
+      M.hover.stationId = "";
+      M.hover.subrouteId = "";
+      M.hover.transferSnapId = "";
+      hideStationBrowsePopup();
+      if (snapActive) {
+        M.hover.transferSnapId = snapNear.feature.properties?.snap_id || "";
+        refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, snapNear);
+      } else {
+        hideTransferSnapHint();
+      }
+      return;
+    }
+
     const st = target.feature;
     const sid = st.properties.station_id;
     const rid = primarySubrouteIdForStation(st);
@@ -593,13 +651,21 @@ function isStationLayerId(layerId) {
   );
 }
 
-const STATION_EDIT_CLICK_LAYERS = [
-  "transfer-snaps-layer",
-  ...STATION_CIRCLE_LAYERS,
-  ...STATION_LABEL_LAYERS,
-  "stations-label-hover",
-  "routes-line",
-];
+function stationEditClickLayers() {
+  switch (editStationSubmode) {
+    case "crud":
+      return [
+        ...STATION_CIRCLE_LAYERS,
+        ...STATION_LABEL_LAYERS,
+        "stations-label-hover",
+        "routes-line",
+      ];
+    case "add-transfer":
+      return ["transfer-snaps-layer", "routes-line"];
+    default:
+      return [];
+  }
+}
 
 function stationFeatureFromMapClick(hitFeatures) {
   if (!hitFeatures?.length) return null;
@@ -753,7 +819,7 @@ export function setMode(next) {
   setCursorForMode();
   clearHoverAndPopups();
   if (M.mode !== "edit-station") {
-    setEditStationSubmodeInternal("station");
+    setEditStationSubmodeInternal(DEFAULT_EDIT_STATION_SUBMODE);
     setZoomInteractionsEnabled(true);
   }
   updateTransferSnapVisibility();
@@ -1005,14 +1071,38 @@ function updateStationDragPreview(map, sid, lngLat) {
   setStationPreviewCoord(map, sid, lngLat);
 }
 
-function beginStationPositionDrag(e) {
+function resolveStationDragLngLat(map, ev, grabOffsetPx) {
+  if (!grabOffsetPx) return [ev.lngLat.lng, ev.lngLat.lat];
+  const targetPx = { x: ev.point.x + grabOffsetPx.x, y: ev.point.y + grabOffsetPx.y };
+  const ll = map.unproject([targetPx.x, targetPx.y]);
+  return [ll.lng, ll.lat];
+}
+
+function labelGrabOffsetPx(map, e, feature, stationCenter) {
+  const centerPx = map.project(stationCenter);
+  const offset = feature.properties?.label_offset_xy;
+  const visualPx = Array.isArray(offset)
+    ? { x: centerPx.x + offset[0] * 12, y: centerPx.y + offset[1] * 12 }
+    : { x: e.point.x, y: e.point.y };
+  return { x: visualPx.x - e.point.x, y: visualPx.y - e.point.y };
+}
+
+/**
+ * @param {mapboxgl.MapMouseEvent} e
+ * @param {{ grabFromLabel?: boolean }} [opts]
+ */
+function beginStationPositionDrag(e, opts = {}) {
   if (!isPrimaryMouseButton(e)) return;
   e.preventDefault();
+  e.originalEvent?.stopPropagation?.();
   const feature = e.features?.[0];
   if (!feature?.properties?.station_id) return;
   if (feature.properties?.is_transfer_fixed) return;
 
   const sid = feature.properties.station_id;
+  const st = store.stationsFC.features.find((x) => x.properties.station_id === sid);
+  if (!st) return;
+
   M.dragging.type = "station";
   M.dragging.stationId = sid;
 
@@ -1020,16 +1110,19 @@ function beginStationPositionDrag(e) {
   clearStationHoverHighlight();
   applyStationLabelDragPlacement(map);
 
+  const dragCenter = getDisplayedStationCenter(map, sid, st.geometry.coordinates);
+  const grabOffsetPx = opts.grabFromLabel ? labelGrabOffsetPx(map, e, feature, dragCenter) : null;
+
   const onDragStation = (ev) => {
     if (M.dragging.type !== "station" || M.dragging.stationId !== sid) return;
-    updateStationDragPreview(map, sid, [ev.lngLat.lng, ev.lngLat.lat]);
+    updateStationDragPreview(map, sid, resolveStationDragLngLat(map, ev, grabOffsetPx));
   };
 
   map.on("mousemove", onDragStation);
   map.once("mouseup", (ev) => {
     map.off("mousemove", onDragStation);
-    updateStationDragPreview(map, sid, [ev.lngLat.lng, ev.lngLat.lat]);
-    const finalCoord = getDisplayedStationCenter(map, sid, feature.geometry.coordinates);
+    updateStationDragPreview(map, sid, resolveStationDragLngLat(map, ev, grabOffsetPx));
+    const finalCoord = getDisplayedStationCenter(map, sid, st.geometry.coordinates);
     Route.moveStationAlongRoute(sid, finalCoord);
     applyStationLabelCollision(map);
     M.dragging.type = null;
@@ -1280,10 +1373,11 @@ Modes["edit-station"] = {
       applyStationLabelCollision(map);
     }
     setZoomInteractionsEnabled(true);
-    setEditStationSubmodeInternal("station");
+    setEditStationSubmodeInternal(DEFAULT_EDIT_STATION_SUBMODE);
   },
 
   onTransferSnapClick(e) {
+    if (editStationSubmode !== "add-transfer") return;
     e.preventDefault();
     const feature = e.features?.[0];
     if (!feature || feature.layer?.id !== "transfer-snaps-layer") return;
@@ -1297,8 +1391,11 @@ Modes["edit-station"] = {
   },
 
   onMapClick(e) {
+    const clickLayers = stationEditClickLayers();
+    if (!clickLayers.length) return;
+
     const map = getMap();
-    const hitFeatures = map.queryRenderedFeatures(e.point, { layers: STATION_EDIT_CLICK_LAYERS });
+    const hitFeatures = map.queryRenderedFeatures(e.point, { layers: clickLayers });
 
     if (hitFeatures.length) {
       if (hitFeatures[0].layer?.id === "transfer-snaps-layer") {
@@ -1309,24 +1406,29 @@ Modes["edit-station"] = {
       const topLayerId = topFeature.layer.id;
       const properties = topFeature.properties;
 
-      const stationForEdit = editStationSubmode !== "move-label" ? stationFeatureFromMapClick(hitFeatures) : null;
-      if (stationForEdit) {
-        popupStationForEditing(stationForEdit);
-        return;
+      if (editStationSubmode === "crud") {
+        const stationForEdit = stationFeatureFromMapClick(hitFeatures);
+        if (stationForEdit) {
+          popupStationForEditing(stationForEdit);
+          return;
+        }
       }
 
       switch (topLayerId) {
         case "routes-line": {
-          if (addNearbyTransferStationFromClick(e.lngLat, properties.subroute_id)) {
+          if (editStationSubmode === "add-transfer") {
+            addNearbyTransferStationFromClick(e.lngLat, properties.subroute_id);
             break;
           }
-          const snapped = turf.nearestPointOnLine(getRouteFeature(properties.subroute_id), [e.lngLat.lng, e.lngLat.lat], {
-            units: "meters",
-          });
-          const routeFeature = getRouteFeature(properties.subroute_id);
-          const routeColor = routeFeature ? routeFeature.properties.color : null;
-          Route.addStationAt(properties.subroute_id, snapped.geometry.coordinates, null, routeColor);
-          Route.highlightRoute(properties.subroute_id);
+          if (editStationSubmode === "crud") {
+            const snapped = turf.nearestPointOnLine(getRouteFeature(properties.subroute_id), [e.lngLat.lng, e.lngLat.lat], {
+              units: "meters",
+            });
+            const routeFeature = getRouteFeature(properties.subroute_id);
+            const routeColor = routeFeature ? routeFeature.properties.color : null;
+            Route.addStationAt(properties.subroute_id, snapped.geometry.coordinates, null, routeColor);
+            Route.highlightRoute(properties.subroute_id);
+          }
           break;
         }
       }
@@ -1334,15 +1436,17 @@ Modes["edit-station"] = {
   },
 
   onStationDown(e) {
-    beginStationPositionDrag(e);
+    if (editStationSubmode === "move-station") {
+      beginStationPositionDrag(e);
+    }
   },
 
   onStationLabelDown(e) {
     if (editStationSubmode === "move-label") {
       beginStationLabelOnlyDrag(e);
-      return;
+    } else if (editStationSubmode === "move-station") {
+      beginStationPositionDrag(e, { grabFromLabel: true });
     }
-    beginStationPositionDrag(e);
   },
 };
 

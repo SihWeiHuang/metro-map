@@ -64,7 +64,7 @@ const DEFAULT_DOCUMENT_TITLE = "Metro Multiverse";
 function App() {
   const { t, locale, setLocale } = useI18n();
   const [mode, setModeState] = useState("general");
-  const [editStationSubmode, setEditStationSubmodeState] = useState("station");
+  const [editStationSubmode, setEditStationSubmodeState] = useState("crud");
   const [modeHint, setModeHint] = useState(() => t("modeHint.general"));
   const [listTick, setListTick] = useState(0);
   const [routeListWidthPx, setRouteListWidthPx] = useState(readStoredRouteListWidth);
@@ -206,7 +206,7 @@ function App() {
   const onModeChange = useCallback((next) => {
     setModeState(next);
     if (next !== "edit-station") {
-      setEditStationSubmodeState("station");
+      setEditStationSubmodeState("crud");
     }
   }, []);
 
@@ -824,14 +824,22 @@ function App() {
                 </button>
               )}
               {showEditStationSubmodeButtons && (
-                <div className="submode-buttons">
+                <div className="submode-buttons submode-buttons--station">
                   <button
                     type="button"
                     disabled={toolsDisabled}
-                    className={editStationSubmode === "station" ? "active-button" : ""}
-                    onClick={() => setEditStationSubmode("station")}
+                    className={editStationSubmode === "crud" ? "active-button" : ""}
+                    onClick={() => setEditStationSubmode("crud")}
                   >
-                    {t("app.submodeStation")}
+                    {t("app.submodeCrud")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={toolsDisabled}
+                    className={editStationSubmode === "move-station" ? "active-button" : ""}
+                    onClick={() => setEditStationSubmode("move-station")}
+                  >
+                    {t("app.submodeMoveStation")}
                   </button>
                   <button
                     type="button"
@@ -840,6 +848,14 @@ function App() {
                     onClick={() => setEditStationSubmode("move-label")}
                   >
                     {t("app.submodeMoveLabel")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={toolsDisabled}
+                    className={editStationSubmode === "add-transfer" ? "active-button" : ""}
+                    onClick={() => setEditStationSubmode("add-transfer")}
+                  >
+                    {t("app.submodeAddTransfer")}
                   </button>
                 </div>
               )}
