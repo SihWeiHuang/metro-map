@@ -698,12 +698,56 @@ export function isTransferSnapOccupied(snapFeature) {
 let routesGeometryRevision = 0;
 let transferSnapCacheRevision = -1;
 let transferSnapCacheFC = null;
+/** @type {number | null} */
+let transferSnapIdleHandle = null;
+let onRoutesGeometryRevisionBump = () => {};
+
+export function registerOnRoutesGeometryRevisionBump(fn) {
+  onRoutesGeometryRevisionBump = typeof fn === "function" ? fn : () => {};
+}
+
+export function isTransferSnapCacheFresh() {
+  return Boolean(transferSnapCacheFC && transferSnapCacheRevision === routesGeometryRevision);
+}
+
+export function cancelScheduledTransferSnapRefresh() {
+  if (transferSnapIdleHandle == null) return;
+  if (typeof cancelIdleCallback === "function") {
+    cancelIdleCallback(transferSnapIdleHandle);
+  } else {
+    cancelAnimationFrame(transferSnapIdleHandle);
+  }
+  transferSnapIdleHandle = null;
+}
+
+/** 空閒時重建轉乘吸附點，避免進入編輯車站模式時阻塞主執行緒。 */
+export function scheduleRefreshTransferSnapSource() {
+  cancelScheduledTransferSnapRefresh();
+  const run = () => {
+    transferSnapIdleHandle = null;
+    refreshTransferSnapSource();
+  };
+  if (typeof requestIdleCallback === "function") {
+    transferSnapIdleHandle = requestIdleCallback(run, { timeout: 3000 });
+  } else {
+    transferSnapIdleHandle = requestAnimationFrame(() => {
+      transferSnapIdleHandle = requestAnimationFrame(run);
+    });
+  }
+}
+
+/** 立即寫入 transfer-snaps（進「新增轉乘站」等需要黃點已就緒時）。 */
+export function ensureTransferSnapSourceReady() {
+  cancelScheduledTransferSnapRefresh();
+  refreshTransferSnapSource();
+}
 
 function bumpRoutesGeometryRevision() {
   routesGeometryRevision++;
   transferSnapCacheRevision = -1;
   transferSnapCacheFC = null;
   clearSmoothLineDisplayCache();
+  onRoutesGeometryRevisionBump();
 }
 
 function buildTransferSnapPointsFC() {
@@ -2520,6 +2564,11 @@ export const Route = {
   refreshSources,
   refreshTempEditSources,
   refreshTransferSnapSource,
+  scheduleRefreshTransferSnapSource,
+  ensureTransferSnapSourceReady,
+  cancelScheduledTransferSnapRefresh,
+  isTransferSnapCacheFresh,
+  registerOnRoutesGeometryRevisionBump,
   hasUserContent,
   analyzeImportJSON,
   exportUserStateJSON,

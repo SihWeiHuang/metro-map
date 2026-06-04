@@ -18,6 +18,7 @@ import {
 } from "../map/layers.js";
 import { Route, store } from "../map/routeModel.js";
 import { initializeEventListeners, registerModeChange } from "../map/modeBundle.js";
+import { hideTransferSnapHint } from "../map/mapPopups.js";
 import { configureScrollZoom } from "../map/mapScrollZoom.js";
 import { configureMiddleButtonDragPan } from "../map/mapMiddleButtonPan.js";
 
@@ -101,6 +102,7 @@ export default function MapView({ onModeChange }) {
       cleanupMiddleButtonPan();
       const snap = snapshotMapView(map);
       if (snap) lastViewRef.current = snap;
+      hideTransferSnapHint();
       setMapInstance(null);
       map.remove();
     };

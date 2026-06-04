@@ -7,7 +7,7 @@
  * |--------------------|----------------------------------------------------|
  * | Route hover        | general, edit-route-select, merge, split-line      |
  * | Station browse     | general, edit-route-select, merge, split-line      |
- * | Transfer snap hint | edit-station (not move-label submode, not while dragging) |
+ * | Transfer snap hint | edit-station add-transfer; canvas overlay (not Mapbox Popup) |
  * | Station edit       | edit-station (explicit click)                      |
  *
  * edit-station never shows route hover popups (prevents covering transfer snap hints).
@@ -19,7 +19,14 @@ import { popupScreenPoint, resolvePopupPlacement } from "./popupPlacement.js";
 
 const MAP_HOVER_POPUP_CLASS = "map-hover-popup";
 const STATION_EDIT_POPUP_CLASS = "station-edit-popup map-hover-popup";
-const TRANSFER_SNAP_POPUP_CLASS = "transfer-snap-hint-popup";
+
+/** Caret length toward the snap point (px). */
+const TRANSFER_HINT_CARET_PX = 5;
+/** Extra space between snap/caret and label (px). */
+const TRANSFER_HINT_LABEL_GAP = 6;
+const TRANSFER_HINT_EDGE_PAD = 4;
+/** Keep label clear of the pointer hotspot. */
+const TRANSFER_HINT_CURSOR_RADIUS = 16;
 
 const BROWSE_MODES = new Set(["general", "edit-route-select", "merge", "split-line"]);
 
@@ -32,15 +39,24 @@ let getContext = () => ({ mode: "general", editStationSubmode: "crud", draggingT
 const popups = {
   route: null,
   station: null,
-  transferSnap: null,
 };
+
+/** @type {HTMLDivElement | null} */
+let transferSnapHintEl = null;
+/** @type {import("mapbox-gl").Map | null} */
+let transferSnapHintMap = null;
 
 let lastTransferSnapHintId = "";
 /** @type {[number, number] | null} */
 let lastTransferSnapHintLngLat = null;
+/** @type {{ x: number, y: number } | null} */
+let lastTransferSnapHintPoint = null;
 let transferSnapHoverRaf = null;
 /** @type {import("mapbox-gl").LngLat | null} */
 let pendingTransferSnapLngLat = null;
+/** @type {{ x: number, y: number } | null} */
+let pendingTransferSnapPoint = null;
+
 /** @type {WeakSet<import("mapbox-gl").Map>} */
 const mapsWithTransferSnapHintHooks = new WeakSet();
 
@@ -63,7 +79,7 @@ function canShowStationBrowsePopup() {
 
 function canShowTransferSnapHint() {
   const ctx = getContext();
-  if (ctx.mode !== "edit-station" || ctx.editStationSubmode === "move-label") return false;
+  if (ctx.mode !== "edit-station" || ctx.editStationSubmode !== "add-transfer") return false;
   if (ctx.draggingType) return false;
   return true;
 }
@@ -91,12 +107,23 @@ export function hideTransferSnapHint() {
     transferSnapHoverRaf = null;
   }
   pendingTransferSnapLngLat = null;
-  if (popups.transferSnap) {
-    popups.transferSnap.remove();
-    popups.transferSnap = null;
-  }
+  disposeTransferSnapHintEl();
   lastTransferSnapHintId = "";
   lastTransferSnapHintLngLat = null;
+  lastTransferSnapHintPoint = null;
+  pendingTransferSnapPoint = null;
+}
+
+function disposeTransferSnapHintEl() {
+  if (transferSnapHintEl) {
+    transferSnapHintEl.remove();
+    transferSnapHintEl = null;
+  }
+  transferSnapHintMap = null;
+}
+
+function transferSnapHintVisible() {
+  return Boolean(transferSnapHintEl && !transferSnapHintEl.hidden);
 }
 
 /** Route browse + station browse + transfer snap (keeps station edit popup). */
@@ -110,16 +137,147 @@ export function isStationEditPopupOpen() {
   return Boolean(popups.station?.isOpen?.() && popups.station.options.closeButton);
 }
 
-function ensureTransferSnapPopup() {
-  if (popups.transferSnap) return popups.transferSnap;
-  popups.transferSnap = new mapboxgl.Popup({
-    closeButton: false,
-    closeOnClick: false,
-    offset: 14,
-    anchor: "left",
-    className: TRANSFER_SNAP_POPUP_CLASS,
-  });
-  return popups.transferSnap;
+/**
+ * 提示框放在游標的對側（遠離指標），箭頭仍指向黃色吸附點。
+ * @param {import("mapbox-gl").Map} map
+ * @param {[number, number]} lngLat
+ * @param {{ x: number, y: number } | undefined} point
+ * @returns {"top" | "bottom" | "left" | "right"}
+ */
+function transferSnapHintAnchor(map, lngLat, point) {
+  const snapPx = map.project(lngLat);
+  const cursorPx = popupScreenPoint(map, lngLat, point);
+  const dx = cursorPx.x - snapPx.x;
+  const dy = cursorPx.y - snapPx.y;
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0 ? "right" : "left";
+  }
+  return dy >= 0 ? "bottom" : "top";
+}
+
+/**
+ * @param {number} left
+ * @param {number} top
+ * @param {number} w
+ * @param {number} h
+ * @param {{ x: number, y: number }} cursorPx
+ */
+function nudgeHintAwayFromCursor(left, top, w, h, cursorPx) {
+  const closestX = Math.max(left, Math.min(cursorPx.x, left + w));
+  const closestY = Math.max(top, Math.min(cursorPx.y, top + h));
+  const dx = cursorPx.x - closestX;
+  const dy = cursorPx.y - closestY;
+  const distSq = dx * dx + dy * dy;
+  const r = TRANSFER_HINT_CURSOR_RADIUS;
+  if (distSq >= r * r) return { left, top };
+
+  const dist = Math.sqrt(distSq);
+  const push = r - dist + 2;
+  const boxCx = left + w / 2;
+  const boxCy = top + h / 2;
+  let awayX = boxCx - cursorPx.x;
+  let awayY = boxCy - cursorPx.y;
+  const awayLen = Math.hypot(awayX, awayY);
+  if (awayLen < 1) {
+    awayX = 0;
+    awayY = -1;
+  } else {
+    awayX /= awayLen;
+    awayY /= awayLen;
+  }
+  return { left: left + awayX * push, top: top + awayY * push };
+}
+
+/** @param {import("mapbox-gl").Map} map */
+function ensureTransferSnapHintEl(map) {
+  if (transferSnapHintEl && transferSnapHintMap === map && transferSnapHintEl.isConnected) {
+    return transferSnapHintEl;
+  }
+  disposeTransferSnapHintEl();
+  const root = document.createElement("div");
+  root.className = "transfer-snap-hint";
+  root.setAttribute("role", "tooltip");
+  root.hidden = true;
+  const label = document.createElement("span");
+  label.className = "transfer-snap-hint__label";
+  root.appendChild(label);
+  map.getCanvasContainer().appendChild(root);
+  transferSnapHintEl = root;
+  transferSnapHintMap = map;
+  return root;
+}
+
+/** @param {import("mapbox-gl").PointLike} p */
+function isReasonableScreenPoint(p, map) {
+  if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
+  const w = map.getCanvas().clientWidth;
+  const h = map.getCanvas().clientHeight;
+  if (w <= 0 || h <= 0) return false;
+  return p.x >= -64 && p.x <= w + 64 && p.y >= -64 && p.y <= h + 64;
+}
+
+/**
+ * @param {import("mapbox-gl").Map} map
+ * @param {[number, number]} lngLat
+ * @param {{ x: number, y: number } | undefined} point
+ */
+function layoutTransferSnapHint(map, lngLat, point) {
+  const snapPx = map.project(lngLat);
+  if (!isReasonableScreenPoint(snapPx, map)) return false;
+
+  const cursorPx = popupScreenPoint(map, lngLat, point);
+  const el = ensureTransferSnapHintEl(map);
+  const anchor = transferSnapHintAnchor(map, lngLat, point);
+  const label = el.querySelector(".transfer-snap-hint__label");
+  if (!label) return false;
+
+  el.className = `transfer-snap-hint transfer-snap-hint--${anchor}`;
+  label.textContent = t("popup.transferAdd");
+
+  el.hidden = false;
+  el.style.visibility = "hidden";
+  el.style.left = "0px";
+  el.style.top = "0px";
+
+  const w = el.offsetWidth;
+  const h = el.offsetHeight;
+  const snapOffset = TRANSFER_HINT_CARET_PX + TRANSFER_HINT_LABEL_GAP;
+  let left;
+  let top;
+
+  switch (anchor) {
+    case "left":
+      left = snapPx.x + snapOffset;
+      top = snapPx.y - h / 2;
+      break;
+    case "right":
+      left = snapPx.x - snapOffset - w;
+      top = snapPx.y - h / 2;
+      break;
+    case "top":
+      left = snapPx.x - w / 2;
+      top = snapPx.y + snapOffset;
+      break;
+    default:
+      left = snapPx.x - w / 2;
+      top = snapPx.y - snapOffset - h;
+      break;
+  }
+
+  ({ left, top } = nudgeHintAwayFromCursor(left, top, w, h, cursorPx));
+
+  const maxW = map.getCanvas().clientWidth;
+  const maxH = map.getCanvas().clientHeight;
+  const pad = TRANSFER_HINT_EDGE_PAD;
+  left = Math.max(pad, Math.min(left, maxW - w - pad));
+  top = Math.max(pad, Math.min(top, maxH - h - pad));
+
+  ({ left, top } = nudgeHintAwayFromCursor(left, top, w, h, cursorPx));
+
+  el.style.left = `${left}px`;
+  el.style.top = `${top}px`;
+  el.style.visibility = "visible";
+  return true;
 }
 
 /** @param {import("mapbox-gl").LngLatLike | null | undefined} coordinates */
@@ -140,6 +298,7 @@ function normalizeSnapHintLngLat(coordinates) {
 }
 
 function mapReadyForSnapHint(map) {
+  if (!map.loaded()) return false;
   const canvas = map.getCanvas();
   return Boolean(canvas?.clientWidth > 0 && canvas.clientHeight > 0);
 }
@@ -147,18 +306,23 @@ function mapReadyForSnapHint(map) {
 /** @param {import("mapbox-gl").Map} map */
 function snapHintProjectsOnMap(map, lngLat) {
   const p = map.project(lngLat);
-  return Number.isFinite(p.x) && Number.isFinite(p.y);
+  return isReasonableScreenPoint(p, map);
 }
 
 function syncOpenTransferSnapHintPosition() {
-  if (!popups.transferSnap?.isOpen() || !lastTransferSnapHintLngLat) return;
+  if (!transferSnapHintVisible() || !lastTransferSnapHintLngLat) return;
   if (!canShowTransferSnapHint()) {
     hideTransferSnapHint();
     return;
   }
   const map = mapInstance();
-  if (!map || !mapReadyForSnapHint(map) || !snapHintProjectsOnMap(map, lastTransferSnapHintLngLat)) return;
-  popups.transferSnap.setLngLat(lastTransferSnapHintLngLat);
+  if (!map || map !== transferSnapHintMap || !mapReadyForSnapHint(map)) {
+    hideTransferSnapHint();
+    return;
+  }
+  if (!layoutTransferSnapHint(map, lastTransferSnapHintLngLat, lastTransferSnapHintPoint ?? undefined)) {
+    hideTransferSnapHint();
+  }
 }
 
 /** @param {import("mapbox-gl").Map} map */
@@ -168,13 +332,17 @@ function bindTransferSnapHintMapHooks(map) {
   map.on("resize", syncOpenTransferSnapHintPosition);
   map.on("move", syncOpenTransferSnapHintPosition);
   map.on("zoom", syncOpenTransferSnapHintPosition);
+  map.once("remove", () => {
+    if (transferSnapHintMap === map) hideTransferSnapHint();
+  });
 }
 
 /**
  * @param {[number, number]} coordinates [lng, lat]
  * @param {string} snapId
+ * @param {{ x: number, y: number } | undefined} point 游標螢幕座標（用於提示框貼在游標旁）
  */
-export function showTransferSnapHint(coordinates, snapId) {
+export function showTransferSnapHint(coordinates, snapId, point) {
   if (!canShowTransferSnapHint()) {
     hideTransferSnapHint();
     return;
@@ -190,17 +358,14 @@ export function showTransferSnapHint(coordinates, snapId) {
 
   lastTransferSnapHintId = snapId || "";
   lastTransferSnapHintLngLat = lngLat;
+  lastTransferSnapHintPoint =
+    point && Number.isFinite(point.x) && Number.isFinite(point.y) ? point : null;
 
   hideRouteHoverPopup();
-
   bindTransferSnapHintMapHooks(map);
 
-  const html = `<div class="transfer-snap-hint-popup__body">${t("popup.transferAdd")}</div>`;
-  const popup = ensureTransferSnapPopup();
-  popup.setLngLat(lngLat).setHTML(html);
-  // 已開啟時勿重複 addTo，否則 Mapbox 常把 popup 錯位到畫布左上角。
-  if (!popup.isOpen()) {
-    popup.addTo(map);
+  if (!layoutTransferSnapHint(map, lngLat, point)) {
+    hideTransferSnapHint();
   }
 }
 
@@ -208,18 +373,19 @@ export function showTransferSnapHint(coordinates, snapId) {
  * @param {import("mapbox-gl").LngLat} lngLat
  * @param {{ findNearest: Function, isOccupied: Function, maxMeters: number }} deps
  */
-export function scheduleTransferSnapHintUpdate(lngLat, deps) {
+export function scheduleTransferSnapHintUpdate(lngLat, deps, point) {
   if (!canShowTransferSnapHint()) {
     hideTransferSnapHint();
     return;
   }
 
   pendingTransferSnapLngLat = lngLat;
+  pendingTransferSnapPoint = point ?? null;
   if (transferSnapHoverRaf !== null) return;
   transferSnapHoverRaf = requestAnimationFrame(() => {
     transferSnapHoverRaf = null;
     if (!pendingTransferSnapLngLat) return;
-    applyTransferSnapHintUpdate(pendingTransferSnapLngLat, deps);
+    applyTransferSnapHintUpdate(pendingTransferSnapLngLat, deps, pendingTransferSnapPoint ?? undefined);
   });
 }
 
@@ -227,7 +393,7 @@ export function scheduleTransferSnapHintUpdate(lngLat, deps) {
  * @param {import("mapbox-gl").LngLat} lngLat
  * @param {{ findNearest: Function, isOccupied: Function, maxMeters: number }} deps
  */
-export function applyTransferSnapHintUpdate(lngLat, deps) {
+export function applyTransferSnapHintUpdate(lngLat, deps, point) {
   if (!canShowTransferSnapHint()) {
     hideTransferSnapHint();
     return;
@@ -240,7 +406,7 @@ export function applyTransferSnapHintUpdate(lngLat, deps) {
   }
 
   const snapId = found.feature.properties?.snap_id || "";
-  showTransferSnapHint(found.feature.geometry.coordinates, snapId);
+  showTransferSnapHint(found.feature.geometry.coordinates, snapId, point);
 }
 
 /**
@@ -422,7 +588,7 @@ export function closeStationEditPopup() {
 }
 
 /** edit-station hover: only transfer snap hint, never route browse popup. */
-export function refreshEditStationTransferHint(lngLat, deps, snapNear) {
+export function refreshEditStationTransferHint(lngLat, deps, snapNear, point) {
   if (isStationEditPopupOpen()) return;
   if (!canShowTransferSnapHint()) {
     hideTransferSnapHint();
@@ -434,9 +600,9 @@ export function refreshEditStationTransferHint(lngLat, deps, snapNear) {
 
   if (snapNear && !deps.isOccupied(snapNear.feature)) {
     const snapId = snapNear.feature.properties?.snap_id || "";
-    showTransferSnapHint(snapNear.feature.geometry.coordinates, snapId);
+    showTransferSnapHint(snapNear.feature.geometry.coordinates, snapId, point);
     return;
   }
 
-  scheduleTransferSnapHintUpdate(lngLat, deps);
+  scheduleTransferSnapHintUpdate(lngLat, deps, point);
 }

@@ -284,6 +284,11 @@ function App() {
   }, [locale]);
 
   useEffect(() => {
+    cancelRouteEditing();
+    setMode("general");
+  }, [locale]);
+
+  useEffect(() => {
     if (shareBootstrap.phase === "loading") {
       document.title = t("share.documentTitleLoading");
       return () => {

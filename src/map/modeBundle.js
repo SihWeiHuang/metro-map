@@ -294,6 +294,9 @@ export function setEditStationSubmode(next) {
   if (!isEditStationSubmode(normalized)) return;
   setEditStationSubmodeInternal(normalized);
   applyEditStationSubmode();
+  if (normalized === "add-transfer") {
+    Route.ensureTransferSnapSourceReady();
+  }
   updateTransferSnapVisibility();
   clearHoverAndPopups();
 }
@@ -486,7 +489,7 @@ function updateEditStationHover(e, target) {
       hideStationBrowsePopup();
       if (snapActive) {
         M.hover.transferSnapId = snapNear.feature.properties?.snap_id || "";
-        refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, snapNear);
+        refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, snapNear, e.point);
       } else {
         hideTransferSnapHint();
       }
@@ -515,7 +518,7 @@ function updateEditStationHover(e, target) {
       M.hover.stationId = "";
       M.hover.transferSnapId = target.feature.properties?.snap_id || "";
       hideStationBrowsePopup();
-      refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, { feature: target.feature });
+      refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, { feature: target.feature }, e.point);
     } else {
       M.hover.transferSnapId = "";
       hideTransferSnapHint();
@@ -532,7 +535,7 @@ function updateEditStationHover(e, target) {
     M.hover.stationId = "";
     M.hover.transferSnapId = snapNear.feature.properties?.snap_id || "";
     hideStationBrowsePopup();
-    refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, snapNear);
+    refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, snapNear, e.point);
     return;
   }
 
@@ -1358,12 +1361,13 @@ Modes["edit-route-active"] = {
 Modes["edit-station"] = {
   name: "edit-station",
   onEnter() {
-    Route.refreshTransferSnapSource();
+    Route.scheduleRefreshTransferSnapSource();
     onEditStationSubmodeChange(editStationSubmode);
     applyEditStationSubmode();
     Route.clearHover();
   },
   onLeave() {
+    Route.cancelScheduledTransferSnapRefresh();
     lastStationEditPopupKey = "";
     lastStationEditPopupAt = 0;
     const map = getMap();
@@ -1569,4 +1573,10 @@ export function initializeEventListeners() {
   map.on("mousedown", "stations-label", (e) => cur()?.onStationLabelDown?.(e));
   map.on("mousedown", "stations-label-hover", (e) => cur()?.onStationLabelDown?.(e));
   updateTransferSnapVisibility();
+
+  Route.registerOnRoutesGeometryRevisionBump(() => {
+    if (M.mode === "edit-station") {
+      Route.scheduleRefreshTransferSnapSource();
+    }
+  });
 }

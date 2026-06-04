@@ -2214,31 +2214,132 @@ html[lang="en"] .route-list-badge {
 }
 
 /* ==========================================
-   Transfer snap hint popup
+   Transfer snap hint (custom overlay, no Mapbox Popup)
    ========================================== */
 
-.transfer-snap-hint-popup.mapboxgl-popup {
+.transfer-snap-hint {
+  position: absolute;
   z-index: 13;
-}
-
-.transfer-snap-hint-popup.mapboxgl-popup,
-.transfer-snap-hint-popup .mapboxgl-popup-content {
+  margin: 0;
   padding: 0;
-  background: transparent;
-  box-shadow: none;
-  color: #000 !important;
+  border: none;
+  background: none;
+  pointer-events: none;
+  animation: none !important;
+  transition: none !important;
+  opacity: 1;
 }
 
-.transfer-snap-hint-popup__body {
-  font-size: 12px;
-  padding: 4px 8px;
+.transfer-snap-hint[hidden] {
+  display: none !important;
+}
+
+.transfer-snap-hint__label {
+  position: relative;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  padding: 2px 6px;
   background: #fffce7;
-  color: #000 !important;
-  -webkit-text-fill-color: #000;
+  color: #111;
   border: 1px solid #333;
-  border-radius: 4px;
+  border-radius: 2px;
   white-space: nowrap;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
+}
+
+/* Caret outline + fill pointing at the snap point */
+.transfer-snap-hint--left .transfer-snap-hint__label::before,
+.transfer-snap-hint--left .transfer-snap-hint__label::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border: solid transparent;
+}
+
+.transfer-snap-hint--left .transfer-snap-hint__label::before {
+  border-width: 4px 5px 4px 0;
+  border-right-color: #333;
+}
+
+.transfer-snap-hint--left .transfer-snap-hint__label::after {
+  margin-right: 1px;
+  border-width: 3px 4px 3px 0;
+  border-right-color: #fffce7;
+}
+
+.transfer-snap-hint--right .transfer-snap-hint__label::before,
+.transfer-snap-hint--right .transfer-snap-hint__label::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border: solid transparent;
+}
+
+.transfer-snap-hint--right .transfer-snap-hint__label::before {
+  border-width: 4px 0 4px 5px;
+  border-left-color: #333;
+}
+
+.transfer-snap-hint--right .transfer-snap-hint__label::after {
+  margin-left: 1px;
+  border-width: 3px 0 3px 4px;
+  border-left-color: #fffce7;
+}
+
+.transfer-snap-hint--top .transfer-snap-hint__label::before,
+.transfer-snap-hint--top .transfer-snap-hint__label::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border: solid transparent;
+}
+
+.transfer-snap-hint--top .transfer-snap-hint__label::before {
+  border-width: 0 4px 5px;
+  border-bottom-color: #333;
+}
+
+.transfer-snap-hint--top .transfer-snap-hint__label::after {
+  margin-bottom: 1px;
+  border-width: 0 3px 4px;
+  border-bottom-color: #fffce7;
+}
+
+.transfer-snap-hint--bottom .transfer-snap-hint__label::before,
+.transfer-snap-hint--bottom .transfer-snap-hint__label::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border: solid transparent;
+}
+
+.transfer-snap-hint--bottom .transfer-snap-hint__label::before {
+  border-width: 5px 4px 0;
+  border-top-color: #333;
+}
+
+.transfer-snap-hint--bottom .transfer-snap-hint__label::after {
+  margin-top: 1px;
+  border-width: 4px 3px 0;
+  border-top-color: #fffce7;
 }
 
 /* ==========================================
