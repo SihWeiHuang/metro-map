@@ -51,6 +51,10 @@ export const store = {
     editHiddenSubrouteIds: new Set(),
   },
   hiddenSubrouteIds: new Set(),
+  /** 使用者刪除的內建預設路線 route_id；重新整理時不再從 default-data 還原。 */
+  removedDefaultRouteIds: new Set(),
+  /** 已清空內建預設路線：重新整理時略過 default-data 整包載入。 */
+  builtinDefaultsSuppressed: false,
   counters: { subroute: 1, route: 1, station: 1 },
   settings: {
     stationMinPerRoute: 0,
@@ -162,13 +166,123 @@ function normalizeBuiltinRoutesAsDefault() {
   }
 }
 
+function getBundledDefaultRouteIds() {
+  const ids = new Set();
+  for (const f of DEFAULT_BUILTIN_MAP_DATA?.subroutesFC?.features ?? []) {
+    const routeId = f.properties?.route_id;
+    if (typeof routeId === "string" && routeId !== "") ids.add(routeId);
+  }
+  return ids;
+}
+
+function inferBuiltinDefaultsSuppressionFromRemovedIds() {
+  if (store.builtinDefaultsSuppressed) return;
+  const bundledIds = getBundledDefaultRouteIds();
+  if (bundledIds.size === 0) return;
+  if ([...bundledIds].every((id) => store.removedDefaultRouteIds.has(id))) {
+    store.builtinDefaultsSuppressed = true;
+  }
+}
+
 function loadBuiltinDefaultState() {
+  if (store.builtinDefaultsSuppressed) {
+    store.subroutesFC = { type: "FeatureCollection", features: [] };
+    store.stationsFC = { type: "FeatureCollection", features: [] };
+    syncCountersFromLoadedFeatures();
+    return;
+  }
+
   const subroutesFC = deepCloneFC(DEFAULT_BUILTIN_MAP_DATA?.subroutesFC);
   const stationsFC = deepCloneFC(DEFAULT_BUILTIN_MAP_DATA?.stationsFC);
   store.subroutesFC = subroutesFC;
   store.stationsFC = stationsFC;
   normalizeBuiltinRoutesAsDefault();
   syncCountersFromLoadedFeatures();
+}
+
+function applyRemovedDefaultRoutes() {
+  if (!store.removedDefaultRouteIds?.size) return;
+
+  const removed = store.removedDefaultRouteIds;
+  /** @type {string[]} */
+  const subrouteIdsToRemove = [];
+
+  store.subroutesFC.features = store.subroutesFC.features.filter((f) => {
+    const routeId = f.properties?.route_id;
+    if (routeKindOf(f) !== ROUTE_KIND_DEFAULT || typeof routeId !== "string" || !removed.has(routeId)) {
+      return true;
+    }
+    const subrouteId = f.properties?.subroute_id;
+    if (typeof subrouteId === "string") subrouteIdsToRemove.push(subrouteId);
+    return false;
+  });
+
+  if (!subrouteIdsToRemove.length) return;
+
+  const removeSet = new Set(subrouteIdsToRemove);
+  store.stationsFC.features = store.stationsFC.features.filter((f) => !removeSet.has(f.properties?.subroute_id));
+  for (const rid of subrouteIdsToRemove) {
+    store.hiddenSubrouteIds.delete(rid);
+  }
+  syncCountersFromLoadedFeatures();
+}
+
+function trackRemovedDefaultRoutes(routeIds) {
+  const ids = Array.isArray(routeIds) ? routeIds : [routeIds];
+  for (const routeId of ids) {
+    if (typeof routeId !== "string" || routeId === "") continue;
+    const isDefault = store.subroutesFC.features.some(
+      (f) => f.properties?.route_id === routeId && routeKindOf(f) === ROUTE_KIND_DEFAULT
+    );
+    if (isDefault) store.removedDefaultRouteIds.add(routeId);
+  }
+}
+
+function updateBuiltinDefaultsSuppression() {
+  if (store.builtinDefaultsSuppressed) return;
+  const hasDefaultLeft = store.subroutesFC.features.some((f) => routeKindOf(f) === ROUTE_KIND_DEFAULT);
+  if (!hasDefaultLeft && store.removedDefaultRouteIds.size > 0) {
+    store.builtinDefaultsSuppressed = true;
+  }
+}
+
+function readPersistedStorageRaw() {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    const rawV2 = localStorage.getItem(PERSIST_STORAGE_KEY);
+    const rawV1 = localStorage.getItem("metro-map-data-v1");
+    const raw = rawV2 ?? rawV1;
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    return data && typeof data === "object" ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+function loadPersistenceMetadata(data = readPersistedStorageRaw()) {
+  if (!data) return;
+
+  if (Array.isArray(data.removedDefaultRouteIds)) {
+    store.removedDefaultRouteIds = new Set(
+      data.removedDefaultRouteIds.filter((id) => typeof id === "string" && id !== "")
+    );
+  }
+  if (data.builtinDefaultsSuppressed === true) {
+    store.builtinDefaultsSuppressed = true;
+  }
+  inferBuiltinDefaultsSuppressionFromRemovedIds();
+
+  if (Array.isArray(data.hiddenSubrouteIds)) {
+    store.hiddenSubrouteIds = new Set(data.hiddenSubrouteIds);
+  }
+  if (data.counters && typeof data.counters === "object") {
+    store.counters = { ...store.counters, ...data.counters };
+  }
+  if (data.settings && typeof data.settings === "object") {
+    store.settings = { ...store.settings, ...data.settings };
+  }
+  store.settings.stationMinPerRoute = 0;
 }
 
 function routeKindOf(feature) {
@@ -294,13 +408,11 @@ function mergeUserStateIntoStore(userSubroutes, userStations) {
 }
 
 function loadPersistedUserState() {
-  if (typeof localStorage === "undefined") return;
-  try {
-    const rawV2 = localStorage.getItem(PERSIST_STORAGE_KEY);
-    const rawV1 = localStorage.getItem("metro-map-data-v1");
-    const data = rawV2 ? JSON.parse(rawV2) : rawV1 ? JSON.parse(rawV1) : null;
-    if (!data || typeof data !== "object") return;
+  const data = readPersistedStorageRaw();
+  loadPersistenceMetadata(data);
+  if (!data) return;
 
+  try {
     const allSubroutes = Array.isArray(data.userSubroutesFC?.features)
       ? data.userSubroutesFC.features
       : Array.isArray(data.subroutesFC?.features)
@@ -315,11 +427,6 @@ function loadPersistedUserState() {
     const userSubrouteIds = new Set(userSubroutes.map((f) => f?.properties?.subroute_id).filter((id) => typeof id === "string"));
     const userStations = extractUserStationsByRoutes(allStations, userSubrouteIds);
     mergeUserStateIntoStore(userSubroutes, userStations);
-
-    if (Array.isArray(data.hiddenSubrouteIds)) {
-      store.hiddenSubrouteIds = new Set(data.hiddenSubrouteIds);
-    }
-    store.settings.stationMinPerRoute = 0;
     syncCountersFromLoadedFeatures();
     normalizeAllSubroutesMetadata();
     normalizeUserDefaultNames();
@@ -328,8 +435,16 @@ function loadPersistedUserState() {
   }
 }
 
+function finishInitialRouteLoad() {
+  if (!store.builtinDefaultsSuppressed) {
+    applyRemovedDefaultRoutes();
+  }
+}
+
+loadPersistenceMetadata();
 loadBuiltinDefaultState();
 loadPersistedUserState();
+finishInitialRouteLoad();
 
 let persistTimer = null;
 function countUserRoutes() {
@@ -443,29 +558,49 @@ function assertImportWithinUserRouteLimit(userSubroutes, mode, duplicateInfo = {
 /** @type {{ restoreSnapshot: ReturnType<typeof captureUserStateSnapshot>, payloadText: string, expiresAt: string | null } | null} */
 let shareViewSession = null;
 
+function writePersistPayloadToStorage() {
+  if (store.shareViewActive) return;
+  if (typeof localStorage === "undefined") return;
+  try {
+    const userSubroutes = store.subroutesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
+    const userSubrouteIds = new Set(userSubroutes.map((f) => f.properties?.subroute_id));
+    const userStations = extractUserStationsByRoutes(store.stationsFC.features, userSubrouteIds);
+    const payload = {
+      v: PERSIST_VERSION,
+      userSubroutesFC: { type: "FeatureCollection", features: userSubroutes },
+      userStationsFC: { type: "FeatureCollection", features: userStations },
+      hiddenSubrouteIds: Array.from(store.hiddenSubrouteIds),
+      removedDefaultRouteIds: Array.from(store.removedDefaultRouteIds),
+      builtinDefaultsSuppressed: store.builtinDefaultsSuppressed,
+      counters: { ...store.counters },
+      settings: { ...store.settings },
+    };
+    localStorage.setItem(PERSIST_STORAGE_KEY, JSON.stringify(payload));
+  } catch (e) {
+    console.warn("metro-multiverse: could not save map data", e);
+  }
+}
+
+export function flushPersistToStorage() {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  writePersistPayloadToStorage();
+}
+
 function schedulePersistToStorage() {
   if (store.shareViewActive) return;
   if (typeof localStorage === "undefined") return;
   if (persistTimer) clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     persistTimer = null;
-    try {
-      const userSubroutes = store.subroutesFC.features.filter((f) => routeKindOf(f) === ROUTE_KIND_USER);
-      const userSubrouteIds = new Set(userSubroutes.map((f) => f.properties?.subroute_id));
-      const userStations = extractUserStationsByRoutes(store.stationsFC.features, userSubrouteIds);
-      const payload = {
-        v: PERSIST_VERSION,
-        userSubroutesFC: { type: "FeatureCollection", features: userSubroutes },
-        userStationsFC: { type: "FeatureCollection", features: userStations },
-        hiddenSubrouteIds: Array.from(store.hiddenSubrouteIds),
-        counters: { ...store.counters },
-        settings: { ...store.settings },
-      };
-      localStorage.setItem(PERSIST_STORAGE_KEY, JSON.stringify(payload));
-    } catch (e) {
-      console.warn("metro-multiverse: could not save map data", e);
-    }
+    writePersistPayloadToStorage();
   }, 200);
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", () => flushPersistToStorage());
 }
 
 const nextSubrouteId = () => {
@@ -760,6 +895,8 @@ function captureUserStateSnapshot() {
     userSubroutes: JSON.parse(JSON.stringify(userSubroutes)),
     userStations: JSON.parse(JSON.stringify(userStations)),
     hiddenSubrouteIds: Array.from(store.hiddenSubrouteIds).filter((id) => userSubrouteIds.has(id)),
+    removedDefaultRouteIds: Array.from(store.removedDefaultRouteIds),
+    builtinDefaultsSuppressed: store.builtinDefaultsSuppressed,
     counters: { ...store.counters },
     settings: { ...store.settings },
   };
@@ -771,6 +908,15 @@ function restoreUserStateSnapshot(snapshot) {
     mergeUserStateIntoStore(snapshot.userSubroutes, snapshot.userStations);
   }
   store.hiddenSubrouteIds = new Set(snapshot.hiddenSubrouteIds);
+  store.removedDefaultRouteIds = new Set(
+    Array.isArray(snapshot.removedDefaultRouteIds)
+      ? snapshot.removedDefaultRouteIds.filter((id) => typeof id === "string" && id !== "")
+      : []
+  );
+  store.builtinDefaultsSuppressed = snapshot.builtinDefaultsSuppressed === true;
+  if (!store.builtinDefaultsSuppressed) {
+    applyRemovedDefaultRoutes();
+  }
   store.counters = { ...snapshot.counters };
   store.settings = { ...snapshot.settings };
   syncCountersFromLoadedFeatures();
@@ -943,6 +1089,44 @@ function clearHover() {
   applyRouteHoverHighlightFilters([]);
 }
 
+/** 內建預設路線在清單中的相對順序（與 default-data 一致）。 */
+function getBundledDefaultRouteOrder() {
+  /** @type {Map<string, number>} */
+  const order = new Map();
+  let idx = 0;
+  for (const f of DEFAULT_BUILTIN_MAP_DATA?.subroutesFC?.features ?? []) {
+    const routeId = f.properties?.route_id;
+    if (typeof routeId !== "string" || routeId === "" || order.has(routeId)) continue;
+    order.set(routeId, idx++);
+  }
+  return order;
+}
+
+function userRouteListSortKey(routeId) {
+  const feature = store.subroutesFC.features.find((f) => f.properties?.route_id === routeId);
+  const label = feature?.properties?.user_default_route_label;
+  if (typeof label === "number" && Number.isFinite(label)) return label;
+  const m = String(routeId).match(/^g(\d+)$/);
+  return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER;
+}
+
+/** 使用者路線在上（依建立標號）；預設路線在下（依 default-data 順序）。 */
+function compareRouteListEntries(a, b) {
+  const aIsUser = a.route_kind === ROUTE_KIND_USER;
+  const bIsUser = b.route_kind === ROUTE_KIND_USER;
+  if (aIsUser !== bIsUser) return aIsUser ? -1 : 1;
+
+  if (aIsUser) {
+    return userRouteListSortKey(a.route_id) - userRouteListSortKey(b.route_id);
+  }
+
+  const defaultOrder = getBundledDefaultRouteOrder();
+  const aIdx = defaultOrder.get(a.route_id) ?? Number.MAX_SAFE_INTEGER;
+  const bIdx = defaultOrder.get(b.route_id) ?? Number.MAX_SAFE_INTEGER;
+  if (aIdx !== bIdx) return aIdx - bIdx;
+  return String(a.route_id).localeCompare(String(b.route_id));
+}
+
 function getRouteList() {
   const routes = {};
   store.subroutesFC.features.forEach((f) => {
@@ -963,7 +1147,7 @@ function getRouteList() {
       status,
     });
   });
-  return Object.entries(routes).map(([route_id, subroutes]) => {
+  const list = Object.entries(routes).map(([route_id, subroutes]) => {
     const head = subroutes[0];
     return {
       route_id,
@@ -974,6 +1158,8 @@ function getRouteList() {
       status: head?.status ?? ROUTE_STATUS_CUSTOM,
     };
   });
+  list.sort(compareRouteListEntries);
+  return list;
 }
 
 function getActiveEditRouteId() {
@@ -1000,12 +1186,16 @@ function deleteRoute(routeId) {
 
   if (subrouteIdsInRoute.length === 0) return;
 
+  trackRemovedDefaultRoutes(routeId);
+
   store.subroutesFC.features = store.subroutesFC.features.filter((f) => f.properties.route_id !== routeId);
   store.stationsFC.features = store.stationsFC.features.filter((f) => !subrouteIdsInRoute.includes(f.properties.subroute_id));
   subrouteIdsInRoute.forEach((rid) => store.hiddenSubrouteIds.delete(rid));
   syncCountersFromLoadedFeatures();
+  updateBuiltinDefaultsSuppression();
   bumpRoutesGeometryRevision();
   refreshSources();
+  flushPersistToStorage();
 }
 
 function deleteRoutes(routeIds) {
@@ -1016,12 +1206,16 @@ function deleteRoutes(routeIds) {
     .map((f) => f.properties.subroute_id);
   if (!subrouteIdsToDelete.length) return;
 
+  trackRemovedDefaultRoutes(routeIds);
+
   store.subroutesFC.features = store.subroutesFC.features.filter((f) => !idSet.has(f.properties.route_id));
   store.stationsFC.features = store.stationsFC.features.filter((f) => !subrouteIdsToDelete.includes(f.properties.subroute_id));
   subrouteIdsToDelete.forEach((rid) => store.hiddenSubrouteIds.delete(rid));
   syncCountersFromLoadedFeatures();
+  updateBuiltinDefaultsSuppression();
   bumpRoutesGeometryRevision();
   refreshSources();
+  flushPersistToStorage();
 }
 
 function setRoutesHidden(routeIds, hidden) {
@@ -1875,6 +2069,8 @@ function resetToDefaultState() {
 
   loadBuiltinDefaultState();
   store.hiddenSubrouteIds.clear();
+  store.removedDefaultRouteIds.clear();
+  store.builtinDefaultsSuppressed = false;
   store.settings.stationMinPerRoute = 0;
   bumpRoutesGeometryRevision();
   refreshSources();
@@ -2339,6 +2535,7 @@ export const Route = {
   projectUserRouteCountAfterImport,
   assertImportWithinUserRouteLimit,
   resetToDefaultState,
+  flushPersistToStorage,
   openShareView,
   exitShareView,
   adoptShareToMyMap,

@@ -10,6 +10,7 @@
  *
  * - subroutesFC.features[*].properties.route_kind is normalized to "default" on load
  * - users' local route edits are stored separately in localStorage
+ * - deleted built-in routes: removedDefaultRouteIds + builtinDefaultsSuppressed in localStorage
  */
 
 /** @type {Record<string, import('./routeModel.js').unknown>} */
