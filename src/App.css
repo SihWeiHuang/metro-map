@@ -645,19 +645,58 @@
   cursor: not-allowed;
 }
 
-.submode-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-sm);
+/* 編輯車站：子功能區（巢狀於主模式按鈕之下，視覺層級較輕） */
+.edit-station-submode-panel {
+  margin-top: 2px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--color-primary-light) 50%, var(--color-border-primary));
+  background: color-mix(in srgb, var(--color-primary) 6%, var(--color-background-secondary));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary-light) 35%, transparent);
 }
 
-.submode-buttons button {
-  flex: 1;
+.edit-station-submode-panel__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
-.submode-buttons--station button {
-  flex: 1 1 calc(50% - var(--spacing-sm) / 2);
-  min-width: 7rem;
+.edit-station-submode-btn {
+  padding: 9px 10px;
+  min-height: 2.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.3;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-sm);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  width: 100%;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.edit-station-submode-btn:hover:not(:disabled) {
+  background: var(--color-gray-200);
+  border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border-secondary));
+  color: var(--color-text-primary);
+}
+
+.edit-station-submode-btn.is-active:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 16%, var(--color-background-primary));
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+  font-weight: 600;
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--color-primary) 40%, transparent);
+}
+
+.edit-station-submode-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* ==========================================
@@ -2598,8 +2637,7 @@ html[lang="en"] .route-list-badge {
 }
 
 .mode-buttons button,
-.submode-buttons button,
-.app-controls-toolbar button:not(.app-edit-mode-toggle) {
+.app-controls-toolbar button:not(.app-edit-mode-toggle):not(.edit-station-submode-btn) {
   padding: 10px var(--spacing-md);
   font-size: 0.875rem;
   font-weight: 500;
@@ -2616,15 +2654,13 @@ html[lang="en"] .route-list-badge {
 }
 
 .mode-buttons button:hover:not(:disabled),
-.submode-buttons button:hover:not(:disabled),
-.app-controls-toolbar button:not(.app-edit-mode-toggle):hover:not(:disabled) {
+.app-controls-toolbar button:not(.app-edit-mode-toggle):not(.edit-station-submode-btn):hover:not(:disabled) {
   background: var(--color-gray-200);
   border-color: var(--color-border-secondary);
 }
 
 .mode-buttons button.active-button:not(:disabled),
-.submode-buttons button.active-button:not(:disabled),
-.app-controls-toolbar button.active-button:not(:disabled) {
+.app-controls-toolbar button.active-button:not(.edit-station-submode-btn):not(:disabled) {
   background: var(--color-primary-light);
   border-color: var(--color-primary-light);
   color: white;
@@ -2632,8 +2668,7 @@ html[lang="en"] .route-list-badge {
 }
 
 .mode-buttons button:disabled,
-.submode-buttons button:disabled,
-.app-controls-toolbar button:disabled {
+.app-controls-toolbar button:disabled:not(.edit-station-submode-btn) {
   opacity: 0.4;
   cursor: not-allowed;
 }

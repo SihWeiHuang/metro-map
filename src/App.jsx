@@ -824,39 +824,45 @@ function App() {
                 </button>
               )}
               {showEditStationSubmodeButtons && (
-                <div className="submode-buttons submode-buttons--station">
-                  <button
-                    type="button"
-                    disabled={toolsDisabled}
-                    className={editStationSubmode === "crud" ? "active-button" : ""}
-                    onClick={() => setEditStationSubmode("crud")}
-                  >
-                    {t("app.submodeCrud")}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={toolsDisabled}
-                    className={editStationSubmode === "move-station" ? "active-button" : ""}
-                    onClick={() => setEditStationSubmode("move-station")}
-                  >
-                    {t("app.submodeMoveStation")}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={toolsDisabled}
-                    className={editStationSubmode === "move-label" ? "active-button" : ""}
-                    onClick={() => setEditStationSubmode("move-label")}
-                  >
-                    {t("app.submodeMoveLabel")}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={toolsDisabled}
-                    className={editStationSubmode === "add-transfer" ? "active-button" : ""}
-                    onClick={() => setEditStationSubmode("add-transfer")}
-                  >
-                    {t("app.submodeAddTransfer")}
-                  </button>
+                <div
+                  className="edit-station-submode-panel"
+                  role="group"
+                  aria-label={t("app.modeEditStation")}
+                >
+                  <div className="edit-station-submode-panel__grid">
+                    <button
+                      type="button"
+                      disabled={toolsDisabled}
+                      className={`edit-station-submode-btn${editStationSubmode === "crud" ? " is-active" : ""}`}
+                      onClick={() => setEditStationSubmode("crud")}
+                    >
+                      {t("app.submodeCrud")}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={toolsDisabled}
+                      className={`edit-station-submode-btn${editStationSubmode === "move-station" ? " is-active" : ""}`}
+                      onClick={() => setEditStationSubmode("move-station")}
+                    >
+                      {t("app.submodeMoveStation")}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={toolsDisabled}
+                      className={`edit-station-submode-btn${editStationSubmode === "move-label" ? " is-active" : ""}`}
+                      onClick={() => setEditStationSubmode("move-label")}
+                    >
+                      {t("app.submodeMoveLabel")}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={toolsDisabled}
+                      className={`edit-station-submode-btn${editStationSubmode === "add-transfer" ? " is-active" : ""}`}
+                      onClick={() => setEditStationSubmode("add-transfer")}
+                    >
+                      {t("app.submodeAddTransfer")}
+                    </button>
+                  </div>
                 </div>
               )}
               </div>
