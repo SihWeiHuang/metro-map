@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n/I18nProvider.jsx";
+import { getAboutContent } from "../site/aboutContent.js";
 import { getPageContent } from "../site/pageContent.js";
+import { getSupportContent } from "../site/supportContent.js";
+import SiteAboutPage from "./SiteAboutPage.jsx";
+import SiteSupportPage from "./SiteSupportPage.jsx";
 
 /**
  * @param {{ pageId: import('../site/siteRoutes.js').SitePageId, onClose: () => void }} props
  */
 export default function SiteInfoPage({ pageId, onClose }) {
   const { t, locale } = useI18n();
-  const content = getPageContent(pageId, locale);
+  const aboutContent = pageId === "about" ? getAboutContent(locale) : null;
+  const supportContent = pageId === "support" ? getSupportContent(locale) : null;
+  const content =
+    pageId === "about" ? aboutContent : pageId === "support" ? supportContent : getPageContent(pageId, locale);
   const [emailCopyState, setEmailCopyState] = useState("idle");
   const emailCopyResetTimer = useRef(null);
 
@@ -43,7 +50,11 @@ export default function SiteInfoPage({ pageId, onClose }) {
 
   return (
     <div className="site-info-overlay" role="dialog" aria-modal="true" aria-labelledby="site-info-title">
-      <div className="site-info-panel">
+      <div
+        className={`site-info-panel${
+          pageId === "about" ? " site-info-panel--about" : pageId === "support" ? " site-info-panel--support" : ""
+        }`}
+      >
         <header className="site-info-header">
           <h2 id="site-info-title" className="site-info-title">
             {content.title}
@@ -53,6 +64,12 @@ export default function SiteInfoPage({ pageId, onClose }) {
           </button>
         </header>
         <div className="site-info-body">
+          {pageId === "about" ? (
+            <SiteAboutPage locale={locale} />
+          ) : pageId === "support" ? (
+            <SiteSupportPage locale={locale} />
+          ) : (
+            <>
           {content.intro && <p className="site-info-intro">{content.intro}</p>}
           {content.sections.map((section) => (
             <section key={section.id} className="site-info-section" aria-labelledby={`site-section-${section.id}`}>
@@ -107,6 +124,8 @@ export default function SiteInfoPage({ pageId, onClose }) {
             </section>
           ))}
           {content.footerNote && <p className="site-info-footer-note">{content.footerNote}</p>}
+            </>
+          )}
         </div>
       </div>
     </div>
