@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n/I18nProvider.jsx";
 import { getAboutContent } from "../site/aboutContent.js";
+import { getContactContent } from "../site/contactContent.js";
 import { getPageContent } from "../site/pageContent.js";
 import { getSupportContent } from "../site/supportContent.js";
 import SiteAboutPage from "./SiteAboutPage.jsx";
+import SiteContactPage from "./SiteContactPage.jsx";
 import SiteSupportPage from "./SiteSupportPage.jsx";
 
 /**
@@ -13,38 +14,15 @@ export default function SiteInfoPage({ pageId, onClose }) {
   const { t, locale } = useI18n();
   const aboutContent = pageId === "about" ? getAboutContent(locale) : null;
   const supportContent = pageId === "support" ? getSupportContent(locale) : null;
+  const contactContent = pageId === "contact" ? getContactContent(locale) : null;
   const content =
-    pageId === "about" ? aboutContent : pageId === "support" ? supportContent : getPageContent(pageId, locale);
-  const [emailCopyState, setEmailCopyState] = useState("idle");
-  const emailCopyResetTimer = useRef(null);
-
-  useEffect(() => {
-    setEmailCopyState("idle");
-    if (emailCopyResetTimer.current) {
-      clearTimeout(emailCopyResetTimer.current);
-      emailCopyResetTimer.current = null;
-    }
-  }, [pageId]);
-
-  useEffect(() => {
-    return () => {
-      if (emailCopyResetTimer.current) clearTimeout(emailCopyResetTimer.current);
-    };
-  }, []);
-
-  const handleCopyContactEmail = async (email) => {
-    try {
-      await navigator.clipboard.writeText(email);
-      setEmailCopyState("copied");
-      if (emailCopyResetTimer.current) clearTimeout(emailCopyResetTimer.current);
-      emailCopyResetTimer.current = setTimeout(() => {
-        setEmailCopyState("idle");
-        emailCopyResetTimer.current = null;
-      }, 2000);
-    } catch {
-      setEmailCopyState("error");
-    }
-  };
+    pageId === "about"
+      ? aboutContent
+      : pageId === "support"
+        ? supportContent
+        : pageId === "contact"
+          ? contactContent
+          : getPageContent(pageId, locale);
 
   if (!content) return null;
 
@@ -52,7 +30,13 @@ export default function SiteInfoPage({ pageId, onClose }) {
     <div className="site-info-overlay" role="dialog" aria-modal="true" aria-labelledby="site-info-title">
       <div
         className={`site-info-panel${
-          pageId === "about" ? " site-info-panel--about" : pageId === "support" ? " site-info-panel--support" : ""
+          pageId === "about"
+            ? " site-info-panel--about"
+            : pageId === "support"
+              ? " site-info-panel--support"
+              : pageId === "contact"
+                ? " site-info-panel--contact"
+                : ""
         }`}
       >
         <header className="site-info-header">
@@ -68,6 +52,8 @@ export default function SiteInfoPage({ pageId, onClose }) {
             <SiteAboutPage locale={locale} />
           ) : pageId === "support" ? (
             <SiteSupportPage locale={locale} />
+          ) : pageId === "contact" ? (
+            <SiteContactPage locale={locale} />
           ) : (
             <>
           {content.intro && <p className="site-info-intro">{content.intro}</p>}
@@ -81,27 +67,6 @@ export default function SiteInfoPage({ pageId, onClose }) {
                   {para}
                 </p>
               ))}
-              {section.contactEmail && (
-                <div className="site-info-contact">
-                  <p className="site-info-paragraph site-info-contact-email">
-                    <a href={`mailto:${section.contactEmail}`} className="site-info-mail-link">
-                      {section.contactEmail}
-                    </a>
-                  </p>
-                  <button
-                    type="button"
-                    className="site-info-copy-email-btn"
-                    onClick={() => handleCopyContactEmail(section.contactEmail)}
-                  >
-                    {emailCopyState === "copied" ? t("site.emailCopied") : t("site.copyEmail")}
-                  </button>
-                  {emailCopyState === "error" ? (
-                    <p className="site-info-copy-email-error" role="alert">
-                      {t("site.emailCopyFailed")}
-                    </p>
-                  ) : null}
-                </div>
-              )}
               {section.list?.length > 0 && (
                 <ul className="site-info-list">
                   {section.list.map((item, i) => (

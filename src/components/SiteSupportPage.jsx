@@ -17,6 +17,27 @@ export default function SiteSupportPage({ locale }) {
         <p className="site-support-lead">{content.intro.text}</p>
       </header>
 
+      <section className="site-support-cta" aria-labelledby="site-support-cta">
+        <h3 id="site-support-cta" className="site-support-heading">
+          {content.cta.heading}
+        </h3>
+        <p className="site-support-text">{content.cta.text}</p>
+        {content.sponsorUrl ? (
+          <p className="site-support-action">
+            <a
+              href={content.sponsorUrl}
+              className="site-info-sponsor-btn"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {t("site.openSponsor")}
+            </a>
+          </p>
+        ) : (
+          <p className="site-support-text site-support-text--muted">{content.cta.notConfigured}</p>
+        )}
+      </section>
+
       <section className="site-support-block" aria-labelledby="site-support-why">
         <h3 id="site-support-why" className="site-support-heading">
           {content.whySupport.heading}
@@ -39,27 +60,6 @@ export default function SiteSupportPage({ locale }) {
             <li key={item}>{item}</li>
           ))}
         </ul>
-      </section>
-
-      <section className="site-support-cta" aria-labelledby="site-support-cta">
-        <h3 id="site-support-cta" className="site-support-heading">
-          {content.cta.heading}
-        </h3>
-        <p className="site-support-text">{content.cta.text}</p>
-        {content.sponsorUrl ? (
-          <p className="site-support-action">
-            <a
-              href={content.sponsorUrl}
-              className="site-info-sponsor-btn"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {t("site.openSponsor")}
-            </a>
-          </p>
-        ) : (
-          <p className="site-support-text site-support-text--muted">{content.cta.notConfigured}</p>
-        )}
       </section>
 
       <section className="site-support-legal" aria-labelledby="site-support-legal">
