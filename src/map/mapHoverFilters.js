@@ -50,14 +50,14 @@ function caseWhenHighlighted(matchExpr, highlightedValue, defaultValue) {
   return ["case", matchExpr, highlightedValue, defaultValue];
 }
 
-function hideStationHoverOverlayLayers(map) {
+function hideStationHoverOverlayLayers(map, { preserveRouteHoverLabels = false } = {}) {
   if (map.getLayer("stations-circle-hover")) {
     map.setFilter("stations-circle-hover", ["all", REGULAR_STATION_LAYER_FILTER, EMPTY_STATION_FILTER]);
   }
   if (map.getLayer("transfer-stations-circle-hover")) {
     map.setFilter("transfer-stations-circle-hover", ["all", TRANSFER_STATION_LAYER_FILTER, EMPTY_STATION_FILTER]);
   }
-  if (map.getLayer("stations-label-hover")) {
+  if (!preserveRouteHoverLabels && map.getLayer("stations-label-hover")) {
     map.setFilter("stations-label-hover", EMPTY_STATION_FILTER);
   }
 }
@@ -103,7 +103,7 @@ export function applyStationHoverVisuals(map, { subrouteIds = [], stationId = ""
     map.setPaintProperty("stations-label", "text-opacity", 1);
   }
 
-  hideStationHoverOverlayLayers(map);
+  hideStationHoverOverlayLayers(map, { preserveRouteHoverLabels: ids.length > 0 });
 }
 
 export function clearStationHoverVisuals(map) {

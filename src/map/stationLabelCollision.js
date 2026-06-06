@@ -22,6 +22,13 @@ export const STATION_LABEL_DRAG_LAYOUT = {
   "text-padding": 0,
 };
 
+const EMPTY_STATION_FILTER = ["==", ["get", "station_id"], ""];
+
+/** @type {string[]} */
+let activeRouteHoverSubrouteIds = [];
+/** @type {unknown[] | null} */
+let stationLabelVisibilityFilter = null;
+
 /**
  * @param {number} [level] 0–100
  * @returns {Record<string, boolean | number>}
@@ -86,31 +93,67 @@ function buildHoveredSubrouteMatchExpr(subrouteIds) {
   return ["any", ["in", ["get", "subroute_id"], ["literal", ids]], transferAny];
 }
 
-function collisionLayoutWithRouteHoverOverride(baseLayout, hoveredSubrouteIds) {
-  const matchExpr = buildHoveredSubrouteMatchExpr(hoveredSubrouteIds);
-  if (!matchExpr) return baseLayout;
-
-  const layout = {};
-  for (const [key, defaultValue] of Object.entries(baseLayout)) {
-    if (key === "text-allow-overlap" || key === "text-ignore-placement") {
-      layout[key] = ["case", matchExpr, true, defaultValue];
-    } else if (key === "text-optional") {
-      layout[key] = ["case", matchExpr, false, defaultValue];
-    } else if (key === "text-padding") {
-      layout[key] = ["case", matchExpr, 0, defaultValue];
-    } else {
-      layout[key] = defaultValue;
-    }
+function hideRouteHoverLabelLayer(map) {
+  if (map.getLayer("stations-label-hover")) {
+    map.setFilter("stations-label-hover", EMPTY_STATION_FILTER);
   }
-  return layout;
+}
+
+function applyRouteHoverLabelFilters(map, hoveredSubrouteIds, level = STATION_LABEL_COLLISION_LEVEL) {
+  const matchExpr = buildHoveredSubrouteMatchExpr(hoveredSubrouteIds);
+  if (!matchExpr) return;
+
+  const base = stationLabelVisibilityFilter ?? true;
+
+  applyLayoutToLayers(map, ["stations-label"], getStationLabelCollisionLayout(level));
+  applyLayoutToLayers(map, ["stations-label-hover"], STATION_LABEL_DRAG_LAYOUT);
+
+  if (map.getLayer("stations-label")) {
+    map.setFilter("stations-label", ["all", base, ["!", matchExpr]]);
+  }
+  if (map.getLayer("stations-label-hover")) {
+    map.setFilter("stations-label-hover", ["all", base, matchExpr]);
+  }
+}
+
+function clearRouteHoverLabelFilters(map, level = STATION_LABEL_COLLISION_LEVEL) {
+  activeRouteHoverSubrouteIds = [];
+  const base = stationLabelVisibilityFilter;
+  stationLabelVisibilityFilter = null;
+
+  applyLayoutToLayers(map, STATION_LABEL_COLLISION_LAYER_IDS, getStationLabelCollisionLayout(level));
+  hideRouteHoverLabelLayer(map);
+
+  if (base && map.getLayer("stations-label")) {
+    map.setFilter("stations-label", base);
+  }
+}
+
+/**
+ * 路線可見性 filter 更新後，重新套用 hover 分流（避免被 applyHiddenSubrouteVisibility 覆蓋）。
+ * @param {import("mapbox-gl").Map | null | undefined} map
+ * @param {unknown[] | null | undefined} [visibilityFilter]
+ */
+export function syncStationLabelRouteHoverFilters(map, visibilityFilter) {
+  if (!map || !activeRouteHoverSubrouteIds.length) return;
+  if (visibilityFilter) {
+    stationLabelVisibilityFilter = visibilityFilter;
+  }
+  applyRouteHoverLabelFilters(map, activeRouteHoverSubrouteIds);
 }
 
 export function applyStationLabelCollision(map, level = STATION_LABEL_COLLISION_LEVEL) {
+  if (activeRouteHoverSubrouteIds.length) {
+    applyLayoutToLayers(map, STATION_LABEL_COLLISION_LAYER_IDS, getStationLabelCollisionLayout(level));
+    applyRouteHoverLabelFilters(map, activeRouteHoverSubrouteIds, level);
+    return;
+  }
   applyLayoutToLayers(map, STATION_LABEL_COLLISION_LAYER_IDS, getStationLabelCollisionLayout(level));
 }
 
 /**
  * 路線 hover 時：該路線站名強制顯示（關閉智慧閃避），其餘路線維持原碰撞設定。
+ * Mapbox layout 不支援 data expression，改以 stations-label-hover 圖層分流。
  * @param {import("mapbox-gl").Map | null | undefined} map
  * @param {string[]} [hoveredSubrouteIds]
  * @param {number} [level]
@@ -118,9 +161,17 @@ export function applyStationLabelCollision(map, level = STATION_LABEL_COLLISION_
 export function applyStationLabelCollisionForRouteHover(map, hoveredSubrouteIds = [], level = STATION_LABEL_COLLISION_LEVEL) {
   if (!map) return;
   const ids = hoveredSubrouteIds.filter((id) => typeof id === "string" && id !== "");
-  const baseLayout = getStationLabelCollisionLayout(level);
-  const layout = ids.length ? collisionLayoutWithRouteHoverOverride(baseLayout, ids) : baseLayout;
-  applyLayoutToLayers(map, STATION_LABEL_COLLISION_LAYER_IDS, layout);
+
+  if (!ids.length) {
+    clearRouteHoverLabelFilters(map, level);
+  } else {
+    if (!activeRouteHoverSubrouteIds.length && map.getLayer("stations-label")) {
+      stationLabelVisibilityFilter = map.getFilter("stations-label");
+    }
+    activeRouteHoverSubrouteIds = ids;
+    applyRouteHoverLabelFilters(map, ids, level);
+  }
+
   if (map.getLayer("stations-label")) {
     try {
       map.setPaintProperty("stations-label", "text-opacity", 1);
@@ -128,10 +179,20 @@ export function applyStationLabelCollisionForRouteHover(map, hoveredSubrouteIds 
       /* ignore */
     }
   }
+  if (map.getLayer("stations-label-hover")) {
+    try {
+      map.setPaintProperty("stations-label-hover", "text-opacity", 1);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 export function applyStationLabelDragPlacement(map) {
+  activeRouteHoverSubrouteIds = [];
+  stationLabelVisibilityFilter = null;
   applyLayoutToLayers(map, STATION_LABEL_DRAG_LAYER_IDS, STATION_LABEL_DRAG_LAYOUT);
+  hideRouteHoverLabelLayer(map);
   if (map.getLayer("stations-label")) {
     try {
       map.setPaintProperty("stations-label", "text-opacity", 1);

@@ -49,16 +49,22 @@ export default function RouteListPanel({
   );
   const gridStyle = useMemo(() => ({ gridTemplateColumns }), [gridTemplateColumns]);
 
-  useEffect(() => {
-    const valid = new Set(routeList.map((g) => g.route_id));
-    setSelectedRouteIds((prev) => {
-      const next = new Set(Array.from(prev).filter((id) => valid.has(id)));
-      return next;
-    });
-  }, [routeList]);
+  // getRouteList() 每次 render 回傳新陣列，不可直接當 useEffect 依賴，否則會無限 setState。
+  const routeIdsKey = routeList.map((g) => g.route_id).join("\0");
 
   useEffect(() => {
-    if (!showRouteActions) setSelectedRouteIds(new Set());
+    const valid = new Set(routeIdsKey ? routeIdsKey.split("\0") : []);
+    setSelectedRouteIds((prev) => {
+      const next = new Set(Array.from(prev).filter((id) => valid.has(id)));
+      if (next.size === prev.size && [...next].every((id) => prev.has(id))) return prev;
+      return next;
+    });
+  }, [routeIdsKey]);
+
+  useEffect(() => {
+    if (!showRouteActions) {
+      setSelectedRouteIds((prev) => (prev.size === 0 ? prev : new Set()));
+    }
   }, [showRouteActions]);
 
   useEffect(() => {

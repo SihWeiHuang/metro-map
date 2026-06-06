@@ -13,7 +13,10 @@ import { DEFAULT_BUILTIN_MAP_DATA } from "./defaultData.js";
 import { computeMapViewFromFeatures, normalizeImportedMapView } from "./mapGeoBounds.js";
 import { scheduleImportMapView } from "./mapViewState.js";
 import { applyStationHoverVisuals } from "./mapHoverFilters.js";
-import { applyStationLabelCollisionForRouteHover } from "./stationLabelCollision.js";
+import {
+  applyStationLabelCollisionForRouteHover,
+  syncStationLabelRouteHoverFilters,
+} from "./stationLabelCollision.js";
 import { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER } from "./layers.js";
 import { MAX_USER_ROUTES } from "../../shared/shareLimits.js";
 import {
@@ -1051,6 +1054,7 @@ function applyHiddenSubrouteVisibility() {
   if (map.getLayer("stations-label-move-frame")) {
     map.setFilter("stations-label-move-frame", stationVisibleFilter);
   }
+  syncStationLabelRouteHoverFilters(map, stationVisibleFilter);
   if (map.getLayer("routes-line")) {
     map.setFilter("routes-line", ["!", ["in", ["get", "subroute_id"], ["literal", hiddenIds]]]);
   }
