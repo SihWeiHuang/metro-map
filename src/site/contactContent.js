@@ -24,8 +24,8 @@ export function getContactContent(locale) {
         en: "Your feedback helps this project grow",
       }),
       text: L(locale, {
-        zh: "Metro Multiverse 為非官方之個人專案，與全球任何軌道營運機構或政府機關均無隸屬關係。無論是建議、問題回報或任何想法，都歡迎來信分享——每一則回饋都有機會讓網站變得更好。",
-        en: "Metro Multiverse is a non-official personal project with no affiliation to any rail operator or government body worldwide. Whether you have suggestions, bug reports, or ideas to share—you're welcome to reach out. Every message can help make the site better.",
+        zh: "Metro Multiverse 目前由個人開發與維護。無論是建議、問題回報、鼓勵或任何想法，都歡迎來信分享——每一則回饋都有機會讓網站變得更好。",
+        en: "Metro Multiverse is independently developed and maintained. Whether you have suggestions, bug reports, words of encouragement, or ideas to share—you're welcome to reach out. Every message can help make the site better.",
       }),
     },
     email: {
