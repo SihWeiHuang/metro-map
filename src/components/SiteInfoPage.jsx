@@ -74,6 +74,17 @@ export default function SiteInfoPage({ pageId, onClose }) {
                   ))}
                 </ul>
               )}
+              {section.links?.length > 0 && (
+                <ul className="site-info-list site-info-link-list">
+                  {section.links.map((link) => (
+                    <li key={link.href}>
+                      <a href={link.href} target="_blank" rel="noopener noreferrer">
+                        {link.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {section.sponsorUrl && (
                 <p className="site-info-sponsor-action">
                   <a

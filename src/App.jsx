@@ -21,13 +21,18 @@ import SiteHeaderNav from "./components/SiteHeaderNav.jsx";
 import SiteInfoPage from "./components/SiteInfoPage.jsx";
 import ShareLinkDialog from "./components/ShareLinkDialog.jsx";
 import ShareViewBanner from "./components/ShareViewBanner.jsx";
+import AdSidebar from "./components/AdSidebar.jsx";
+import AdSenseLoader from "./components/AdSenseLoader.jsx";
 import { parseSitePageFromHash, sitePageHash } from "./site/siteRoutes.js";
+import { isAdSidebarEnabled } from "./site/adSidebarConfig.js";
+import { isAdsenseConfigured } from "./site/adsenseConfig.js";
 import { parseShareIdFromPathname } from "./share/parseSharePath.js";
 import { fetchShareById } from "./share/shareApi.js";
 
 const ROUTE_LIST_WIDTH_STORAGE_KEY = "metro-route-list-width";
 const AUTO_SHOW_NEW_ROUTE_STATUS_KEY = "metro-auto-show-new-route-status";
 const ROUTE_LIST_MIN_PX = 200;
+const adSidebarEnabled = isAdSidebarEnabled();
 
 function routeListMaxPx() {
   return Math.min(720, Math.floor(window.innerWidth * 0.55));
@@ -307,7 +312,7 @@ function App() {
   useEffect(() => {
     const id = requestAnimationFrame(() => resizeMap());
     return () => cancelAnimationFrame(id);
-  }, [routeListWidthPx, editToolsOpen]);
+  }, [routeListWidthPx, editToolsOpen, adSidebarEnabled]);
 
   useEffect(() => {
     const schedule = () => requestAnimationFrame(() => resizeMap());
@@ -608,6 +613,7 @@ function App() {
 
   return (
     <div className={`app-root${shareViewActive ? " app-root--share-view" : ""}`}>
+      {isAdsenseConfigured() ? <AdSenseLoader /> : null}
       <header className="app-site-header" ref={siteHeaderRef}>
         <div className="app-site-header-inner">
           <div className="app-site-header-brand">
@@ -897,7 +903,7 @@ function App() {
             <span />
           </div>
         </div>
-        <div className="app-main-column">
+        <div className={`app-main-column${adSidebarEnabled ? " app-main-column--with-ad" : ""}`}>
           <div className="app-map-stage">
             <MapView onModeChange={onModeChange} />
             {shareViewActive ? (
@@ -977,6 +983,7 @@ function App() {
               </div>
             )}
           </div>
+          {adSidebarEnabled ? <AdSidebar /> : null}
         </div>
       </div>
       <input

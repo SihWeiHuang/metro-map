@@ -302,6 +302,17 @@
   margin-bottom: var(--spacing-xs);
 }
 
+.site-info-link-list a {
+  color: #1d4ed8;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.site-info-link-list a:hover {
+  color: #1e3a8a;
+}
+
 .site-info-mail-link {
   color: #1d4ed8;
   font-weight: 600;
@@ -1225,6 +1236,7 @@
 .app-map-stage {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
   position: relative;
   display: flex;
@@ -1232,6 +1244,92 @@
   background: var(--color-background-secondary);
   box-sizing: border-box;
   padding: 0 6px 6px 0;
+}
+
+.app-main-column--with-ad {
+  flex-direction: row;
+}
+
+.app-main-column--with-ad .app-map-stage {
+  padding-right: 0;
+  padding-bottom: 6px;
+}
+
+/* Ad sidebar — 160×600 Wide Skyscraper; hidden below 768px */
+.ad-sidebar {
+  flex-shrink: 0;
+  width: 160px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-left: 0.5px solid var(--color-border-primary);
+  background: var(--color-background-primary);
+  box-sizing: border-box;
+}
+
+.ad-sidebar-inner {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--spacing-xs);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.ad-sidebar-label {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 var(--spacing-xs);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.ad-sidebar-slot {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 600px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.ad-sidebar-slot .adsbygoogle {
+  flex: 1 1 auto;
+}
+
+.ad-sidebar-review-placeholder {
+  flex: 1 1 auto;
+  min-height: 600px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--color-border-secondary);
+  background: var(--color-background-secondary);
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.ad-sidebar-review-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.ad-sidebar-review-text {
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: var(--color-text-tertiary);
 }
 
 /* Mode Hint — top-left to avoid Mapbox attribution logo at bottom-left */
@@ -1830,6 +1928,18 @@
   .route-list-resize-handle:hover .route-list-resize-grip span:nth-child(3),
   .route-list-resize-handle:active .route-list-resize-grip span:nth-child(3) {
     transform: translateX(1px);
+  }
+
+  .ad-sidebar {
+    display: none;
+  }
+
+  .app-main-column--with-ad {
+    flex-direction: column;
+  }
+
+  .app-main-column--with-ad .app-map-stage {
+    padding: 0 6px 6px 0;
   }
 }
 

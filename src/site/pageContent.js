@@ -72,9 +72,44 @@ export function getPageContent(pageId, locale) {
               en: "Vercel: hosting may log IP, access time, etc. for operations and security.",
             }),
             L(locale, {
-              zh: "若日後新增分析、贊助或付費功能，將修訂本政策並公告。",
-              en: "If analytics, sponsorship, or paid features are added, this policy will be revised and announced.",
+              zh: "Ko-fi 等贊助連結：僅在您主動點擊前往贊助頁時，才會離開本站至第三方網站。",
+              en: "Ko-fi and similar sponsor links: you only leave the Service when you choose to open a third-party sponsor page.",
             }),
+          ],
+        },
+        {
+          id: "advertising",
+          title: L(locale, { zh: "廣告與 Cookie", en: "Advertising & cookies" }),
+          paragraphs: [
+            L(locale, {
+              zh: "本站地圖右側可能顯示由 Google AdSense 提供之第三方商業廣告。Google 作為廣告供應商，可能使用 Cookie 或類似技術，依您的瀏覽紀錄、裝置或大致位置，投放個人化或非個人化廣告，並衡量廣告成效。",
+              en: "A third-party commercial ad may appear in the map’s right sidebar via Google AdSense. Google, as an ad vendor, may use cookies or similar technologies to serve personalized or non-personalized ads based on browsing history, device, or approximate location, and to measure ad performance.",
+            }),
+            L(locale, {
+              zh: "此類資料之蒐集、使用及保存由 Google 依其政策處理；Metro Multiverse 營運者不販售您的個人資料。您可透過下方連結了解 Google 如何處理資料，或管理個人化廣告偏好。",
+              en: "Google collects, uses, and retains such data under its policies; the Metro Multiverse operator does not sell your personal data. Use the links below to learn how Google handles data or manage ad personalization.",
+            }),
+            L(locale, {
+              zh: "若您使用廣告阻擋器，廣告可能無法顯示；不影響地圖編輯等核心功能。",
+              en: "Ad blockers may prevent ads from showing; core map editing features are unaffected.",
+            }),
+          ],
+          links: [
+            {
+              href: "https://policies.google.com/privacy",
+              label: L(locale, { zh: "Google 隱私權政策", en: "Google Privacy Policy" }),
+            },
+            {
+              href: "https://policies.google.com/technologies/ads",
+              label: L(locale, {
+                zh: "Google 如何運用 Cookie 提供廣告",
+                en: "How Google uses cookies in advertising",
+              }),
+            },
+            {
+              href: "https://adssettings.google.com",
+              label: L(locale, { zh: "Google 廣告設定（管理個人化廣告）", en: "Google Ads Settings (manage personalization)" }),
+            },
           ],
         },
         {
