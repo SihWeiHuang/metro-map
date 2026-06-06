@@ -12,6 +12,13 @@ export default function AdSenseLoader() {
     script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(ADSENSE_CLIENT)}`;
     script.crossOrigin = "anonymous";
     script.dataset.adsenseClient = ADSENSE_CLIENT;
+    script.addEventListener(
+      "load",
+      () => {
+        script.dataset.loaded = "1";
+      },
+      { once: true }
+    );
     document.head.appendChild(script);
   }, []);
 

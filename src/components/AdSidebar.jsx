@@ -1,9 +1,5 @@
 import { useEffect, useRef } from "react";
 import { useI18n } from "../i18n/I18nProvider.jsx";
-import {
-  AD_SIDEBAR_SLOT_MIN_HEIGHT_PX,
-  AD_SIDEBAR_WIDTH_PX,
-} from "../site/adSidebarConfig.js";
 import { ADSENSE_CLIENT, ADSENSE_SLOT, isAdsenseConfigured } from "../site/adsenseConfig.js";
 
 function pushAdSenseUnit() {
@@ -12,6 +8,28 @@ function pushAdSenseUnit() {
   } catch {
     /* script not ready */
   }
+}
+
+function waitForAdSenseScript(clientId, onReady) {
+  const existing = document.querySelector(`script[data-adsense-client="${clientId}"]`);
+  if (existing?.dataset.loaded === "1") {
+    onReady();
+    return undefined;
+  }
+
+  if (existing) {
+    existing.addEventListener("load", onReady, { once: true });
+    return undefined;
+  }
+
+  const interval = window.setInterval(() => {
+    if (document.querySelector(`script[data-adsense-client="${clientId}"][data-loaded="1"]`)) {
+      window.clearInterval(interval);
+      onReady();
+    }
+  }, 200);
+
+  return interval;
 }
 
 export default function AdSidebar() {
@@ -29,40 +47,11 @@ export default function AdSidebar() {
       pushedRef.current = true;
     };
 
-    const existing = document.querySelector(`script[data-adsense-client="${ADSENSE_CLIENT}"]`);
-    if (existing) {
-      if (existing.dataset.loaded === "1") run();
-      else existing.addEventListener("load", run, { once: true });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.async = true;
-    script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(ADSENSE_CLIENT)}`;
-    script.crossOrigin = "anonymous";
-    script.dataset.adsenseClient = ADSENSE_CLIENT;
-    script.addEventListener(
-      "load",
-      () => {
-        script.dataset.loaded = "1";
-        run();
-      },
-      { once: true }
-    );
-    document.head.appendChild(script);
+    const interval = waitForAdSenseScript(ADSENSE_CLIENT, run);
+    return () => {
+      if (interval) window.clearInterval(interval);
+    };
   }, [configured]);
-
-  const slotStyle = ADSENSE_SLOT
-    ? {
-        display: "inline-block",
-        width: `${AD_SIDEBAR_WIDTH_PX}px`,
-        height: `${AD_SIDEBAR_SLOT_MIN_HEIGHT_PX}px`,
-      }
-    : {
-        display: "block",
-        width: `${AD_SIDEBAR_WIDTH_PX}px`,
-        minHeight: `${AD_SIDEBAR_SLOT_MIN_HEIGHT_PX}px`,
-      };
 
   return (
     <aside className="ad-sidebar" role="complementary" aria-label={t("adSidebar.ariaLabel")}>
@@ -73,9 +62,8 @@ export default function AdSidebar() {
             <ins
               ref={slotRef}
               className="adsbygoogle"
-              style={slotStyle}
               data-ad-client={ADSENSE_CLIENT}
-              {...(ADSENSE_SLOT ? { "data-ad-slot": ADSENSE_SLOT } : { "data-ad-format": "auto" })}
+              {...(ADSENSE_SLOT ? { "data-ad-slot": ADSENSE_SLOT } : { "data-ad-format": "vertical" })}
             />
           ) : (
             <div className="ad-sidebar-review-placeholder">
