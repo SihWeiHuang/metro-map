@@ -333,6 +333,8 @@ function RouteColorPicker({ routeId, color, disabled, onRefresh }) {
   const nativeColorInputRef = useRef(null);
   const openRef = useRef(false);
   const suppressOutsideCloseRef = useRef(false);
+  const previewRafRef = useRef(null);
+  const pendingPreviewColorRef = useRef(null);
   const [placement, setPlacement] = useState("below");
   const [popoverStyle, setPopoverStyle] = useState(null);
   const [nativeAnchorStyle, setNativeAnchorStyle] = useState(null);
@@ -350,6 +352,12 @@ function RouteColorPicker({ routeId, color, disabled, onRefresh }) {
   }, [open]);
 
   useEffect(() => {
+    return () => {
+      if (previewRafRef.current) cancelAnimationFrame(previewRafRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!open) {
       setDraft(color);
       setHexText(color);
@@ -359,27 +367,42 @@ function RouteColorPicker({ routeId, color, disabled, onRefresh }) {
     }
   }, [color, open]);
 
-  const previewOnMap = (nextColor) => {
-    setDraft(nextColor);
-    setHexText(nextColor);
-    Route.setRouteColor(routeId, nextColor);
-  };
+  const cancelPendingMapPreview = useCallback(() => {
+    if (previewRafRef.current) {
+      cancelAnimationFrame(previewRafRef.current);
+      previewRafRef.current = null;
+    }
+    pendingPreviewColorRef.current = null;
+  }, []);
 
-  const revertPreview = () => {
+  const flushMapColorPreview = useCallback(() => {
+    previewRafRef.current = null;
+    const next = pendingPreviewColorRef.current;
+    if (next != null) Route.setRouteColor(routeId, next, { preview: true });
+  }, [routeId]);
+
+  const previewOnMap = useCallback(
+    (nextColor) => {
+      setDraft(nextColor);
+      setHexText(nextColor);
+      pendingPreviewColorRef.current = nextColor;
+      if (previewRafRef.current == null) {
+        previewRafRef.current = requestAnimationFrame(flushMapColorPreview);
+      }
+    },
+    [flushMapColorPreview],
+  );
+
+  const revertPreview = useCallback(() => {
+    cancelPendingMapPreview();
     Route.setRouteColor(routeId, originalColorRef.current);
-  };
+  }, [cancelPendingMapPreview, routeId]);
 
-  const revertAndClose = () => {
+  const revertAndClose = useCallback(() => {
     revertPreview();
     onRefresh();
     setOpen(false);
-  };
-
-  const confirmAndClose = () => {
-    Route.setRouteColor(routeId, draft);
-    onRefresh();
-    setOpen(false);
-  };
+  }, [onRefresh, revertPreview]);
 
   useEffect(() => {
     if (!open) return;
@@ -410,7 +433,7 @@ function RouteColorPicker({ routeId, color, disabled, onRefresh }) {
       window.removeEventListener("resize", onReposition);
       scrollEl?.removeEventListener("scroll", onReposition);
     };
-  }, [open, syncPickerLayout, draft, hexText]);
+  }, [open, syncPickerLayout]);
 
   useEffect(() => {
     if (!open) return;
@@ -422,7 +445,7 @@ function RouteColorPicker({ routeId, color, disabled, onRefresh }) {
     };
     document.addEventListener("pointerdown", onPointerDown, true);
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
-  }, [open, routeId, onRefresh]);
+  }, [open, revertAndClose]);
 
   const togglePicker = (e) => {
     e.stopPropagation();
@@ -457,10 +480,11 @@ function RouteColorPicker({ routeId, color, disabled, onRefresh }) {
   const confirm = (e) => {
     e.stopPropagation();
     e.preventDefault();
-    const next = normalizeRouteHexColor(hexText);
-    if (next) Route.setRouteColor(routeId, next);
-    else Route.setRouteColor(routeId, draft);
-    confirmAndClose();
+    cancelPendingMapPreview();
+    const next = normalizeRouteHexColor(hexText) ?? draft;
+    Route.setRouteColor(routeId, next);
+    onRefresh();
+    setOpen(false);
   };
 
   const cancel = (e) => {
@@ -525,6 +549,7 @@ function RouteColorPicker({ routeId, color, disabled, onRefresh }) {
               value={draft}
               tabIndex={-1}
               aria-hidden
+              onInput={(e) => previewOnMap(e.target.value)}
               onChange={(e) => previewOnMap(e.target.value)}
             />
           </div>,

@@ -1056,18 +1056,82 @@ function applyHiddenSubrouteVisibility() {
   }
 }
 
-function refreshSources() {
-  if (!skipImportUndoInvalidate && lastImportUndoSnapshot) {
-    lastImportUndoSnapshot = null;
-    notifyImportUndoListeners();
+/** Cached smoothed display layers for live color preview (avoids re-smoothing on every slider tick). */
+let colorPreviewDisplayCache = null;
+
+function syncColorPreviewCacheFromStore() {
+  if (!colorPreviewDisplayCache) return;
+  const subrouteColor = new Map(
+    store.subroutesFC.features.map((f) => [f.properties.subroute_id, f.properties.color]),
+  );
+  const stationColor = new Map(
+    store.stationsFC.features.map((f) => [f.properties.station_id, f.properties.color]),
+  );
+  for (const f of colorPreviewDisplayCache.smoothedRoutes.features) {
+    const id = f.properties?.subroute_id;
+    if (id != null && subrouteColor.has(id)) f.properties.color = subrouteColor.get(id);
   }
-  schedulePersistToStorage();
+  for (const f of colorPreviewDisplayCache.stationsDisplayFC.features) {
+    const id = f.properties?.station_id;
+    if (id != null && stationColor.has(id)) f.properties.color = stationColor.get(id);
+  }
+  for (const f of colorPreviewDisplayCache.stationLabelsFC.features) {
+    const id = f.properties?.station_id;
+    if (id != null && stationColor.has(id)) f.properties.color = stationColor.get(id);
+  }
+}
+
+function refreshSources(options = {}) {
+  const preview = options.preview === true;
+
+  if (!preview) {
+    colorPreviewDisplayCache = null;
+    if (!skipImportUndoInvalidate && lastImportUndoSnapshot) {
+      lastImportUndoSnapshot = null;
+      notifyImportUndoListeners();
+    }
+    schedulePersistToStorage();
+  }
 
   const map = getMap();
   if (!map) return;
-  const { stationsDisplayFC, stationLabelsFC } = buildStationDisplayCollections(store.stationsFC, store.subroutesFC);
+
+  let routesData;
+  let stationsDisplayFC;
+  let stationLabelsFC;
+
+  if (preview) {
+    if (
+      colorPreviewDisplayCache &&
+      colorPreviewDisplayCache.subroutesFC === store.subroutesFC &&
+      colorPreviewDisplayCache.stationsFC === store.stationsFC
+    ) {
+      syncColorPreviewCacheFromStore();
+      routesData = colorPreviewDisplayCache.smoothedRoutes;
+      stationsDisplayFC = colorPreviewDisplayCache.stationsDisplayFC;
+      stationLabelsFC = colorPreviewDisplayCache.stationLabelsFC;
+    } else {
+      routesData = featureCollectionWithSmoothedLineStrings(store.subroutesFC);
+      const built = buildStationDisplayCollections(store.stationsFC, store.subroutesFC);
+      stationsDisplayFC = built.stationsDisplayFC;
+      stationLabelsFC = built.stationLabelsFC;
+      colorPreviewDisplayCache = {
+        subroutesFC: store.subroutesFC,
+        stationsFC: store.stationsFC,
+        smoothedRoutes: routesData,
+        stationsDisplayFC,
+        stationLabelsFC,
+      };
+    }
+  } else {
+    routesData = featureCollectionWithSmoothedLineStrings(store.subroutesFC);
+    const built = buildStationDisplayCollections(store.stationsFC, store.subroutesFC);
+    stationsDisplayFC = built.stationsDisplayFC;
+    stationLabelsFC = built.stationLabelsFC;
+  }
+
   map.getSource("routes") &&
-    map.getSource("routes").setData(featureCollectionWithSmoothedLineStrings(store.subroutesFC));
+    map.getSource("routes").setData(routesData);
   map.getSource("stations") && map.getSource("stations").setData(stationsDisplayFC);
   map.getSource("station-labels") && map.getSource("station-labels").setData(stationLabelsFC);
 
@@ -1986,7 +2050,7 @@ function setSubrouteColor(subrouteId, color) {
   }
 }
 
-function setRouteColor(routeId, color) {
+function setRouteColor(routeId, color, options = {}) {
   const subroutesInRoute = store.subroutesFC.features.filter((f) => f.properties.route_id === routeId);
   if (!subroutesInRoute.length) return;
   const subrouteIdsInRoute = subroutesInRoute.map((f) => f.properties.subroute_id);
@@ -1998,7 +2062,7 @@ function setRouteColor(routeId, color) {
       station.properties.color = color;
     }
   });
-  refreshSources();
+  refreshSources(options);
 }
 
 function setRouteName(routeId, newName) {
