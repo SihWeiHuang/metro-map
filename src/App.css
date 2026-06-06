@@ -268,6 +268,8 @@
   min-height: 0;
   overflow-y: auto;
   padding-top: var(--spacing-md);
+  padding-right: var(--spacing-xl);
+  scrollbar-gutter: stable;
   color: var(--site-info-text);
   font-size: 0.875rem;
   line-height: 1.6;
@@ -394,18 +396,8 @@
   max-width: 52rem;
 }
 
-.site-info-panel--about .site-info-body {
-  padding-right: var(--spacing-xl);
-  scrollbar-gutter: stable;
-}
-
 .site-info-panel--support {
   max-width: 44rem;
-}
-
-.site-info-panel--support .site-info-body {
-  padding-right: var(--spacing-xl);
-  scrollbar-gutter: stable;
 }
 
 .site-support {
@@ -513,11 +505,6 @@
 
 .site-info-panel--contact {
   max-width: 44rem;
-}
-
-.site-info-panel--contact .site-info-body {
-  padding-right: var(--spacing-xl);
-  scrollbar-gutter: stable;
 }
 
 .site-contact {
@@ -1595,6 +1582,14 @@
   background: rgba(183, 28, 28, 0.08);
   border-color: #b71c1c;
   color: #b71c1c;
+}
+
+.app-share-alert-backdrop {
+  z-index: 1001;
+}
+
+.app-share-alert-dialog {
+  max-width: 420px;
 }
 
 .app-share-dialog {

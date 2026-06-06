@@ -23,8 +23,8 @@ export function getPageContent(pageId, locale) {
     return {
       title: L(locale, { zh: "條款與隱私", en: "Legal & privacy" }),
       intro: L(locale, {
-        zh: "本頁載列 Metro Multiverse（「本服務」）之使用條款、免責、隱私及資料來源。以下僅供參考，不構成法律意見；爭議以適用法令及主管、司法機關認定為準。",
-        en: "Terms, disclaimer, privacy, and data sources for Metro Multiverse (“the Service”). For general reference only, not legal advice; disputes are governed by applicable law and competent authorities or courts.",
+        zh: "本頁載列 Metro Multiverse（「本服務」）之使用條款、免責、隱私及資料來源。本服務為非官方平台，所載各國／各地區路線僅供參考。以下僅供參考，不構成法律意見；爭議以適用法令及主管、司法機關認定為準。",
+        en: "Terms, disclaimer, privacy, and data sources for Metro Multiverse (“the Service”). The Service is non-official; routes for any country or region are for reference only. For general reference only, not legal advice; disputes are governed by applicable law and competent authorities or courts.",
       }),
       sections: [
         {
@@ -32,12 +32,12 @@ export function getPageContent(pageId, locale) {
           title: L(locale, { zh: "非官方聲明與免責", en: "Non-official disclaimer" }),
           paragraphs: [
             L(locale, {
-              zh: "本服務由獨立開發者營運，與臺北大眾捷運公司、臺北市政府及交通主管機關無隸屬或合作關係，亦不提供官方路線、時刻或即時營運資訊。",
-              en: "The Service is operated independently and is not affiliated with Taipei Rapid Transit Corporation, the Taipei City Government, or any transit authority, and does not provide official routes, schedules, or real-time operations.",
+              zh: "本服務由獨立開發者營運，與全球任何捷運、地鐵、輕軌、通勤鐵路等軌道營運機構，以及任何政府或主管機關，均無隸屬、授權或合作關係。本服務不提供任何官方路線、時刻、票價或即時營運資訊。",
+              en: "The Service is operated independently and has no affiliation, authorization, or partnership with any rail or metro operator worldwide, or with any government or regulatory body. The Service does not provide official routes, schedules, fares, or real-time operations information.",
             }),
             L(locale, {
-              zh: "本站路線、車站及營運狀態僅供示意、創作、教學或規劃討論，不得作為搭車、安全、投資或法律行為之依據。資料可能有誤、延遲或不完整，使用者應自行查證並承擔使用風險。",
-              en: "Routes, stations, and status labels are for schematic, creative, educational, or planning use only—not for travel, safety, investment, or legal decisions. Data may be wrong, delayed, or incomplete; users verify at their own risk.",
+              zh: "本站所有路線、車站及營運狀態（含內建預設路線與使用者創作）均為示意或創作性質，僅供參考、教學或規劃討論，不得作為搭車、安全、投資或法律行為之依據。資料可能有誤、延遲或不完整，使用者應自行向各該官方來源查證並承擔使用風險。",
+              en: "All routes, stations, and status labels on the site—including built-in defaults and user-created content—are schematic or creative in nature, for reference, education, or planning discussion only—not for travel, safety, investment, or legal decisions. Data may be wrong, delayed, or incomplete; users should verify with official sources in each region and use at their own risk.",
             }),
             L(locale, {
               zh: "於法律允許範圍內，營運者對因使用或無法使用本服務所致之直接、間接或衍生損害不負賠償責任。",
@@ -139,8 +139,8 @@ export function getPageContent(pageId, locale) {
               en: "Base maps are provided by Mapbox under its terms and licenses.",
             }),
             L(locale, {
-              zh: "內建臺北捷運示意資料取自政府開放資料（如國土測繪中心捷運圖資），僅作預設起點；名稱與狀態可能經整理，非官方或即時資訊。",
-              en: "Built-in Taipei Metro schematic data comes from government open data (e.g. NLSC MRT datasets) as a default only; names and status may be curated and are not official or real-time.",
+              zh: "內建預設路線可能涵蓋各國／各地區之軌道系統，資料來源可能包括政府開放資料、社群貢獻或營運者整理（例如部分臺灣地區資料可能參考國土測繪中心等公開圖資），僅作示意起點；名稱、路線與狀態可能經整理，不代表任何官方背書，亦非即時或權威資訊。",
+              en: "Built-in default routes may cover transit systems in various countries and regions. Sources may include government open data, community contributions, or curation by the operator (e.g. some Taiwan data may reference public datasets such as NLSC). They serve as schematic starting points only; names, routes, and status may be curated—they do not represent official endorsement and are not authoritative or real-time.",
             }),
             L(locale, {
               zh: "使用者自行繪製或匯入之路線，其內容、授權及使用責任由使用者自行負擔。",

@@ -28,6 +28,7 @@ import { isAdSidebarEnabled } from "./site/adSidebarConfig.js";
 import { isAdsenseConfigured } from "./site/adsenseConfig.js";
 import { parseShareIdFromPathname } from "./share/parseSharePath.js";
 import { fetchShareById } from "./share/shareApi.js";
+import { installViewportSync } from "./site/viewportSync.js";
 
 const ROUTE_LIST_WIDTH_STORAGE_KEY = "metro-route-list-width";
 const AUTO_SHOW_NEW_ROUTE_STATUS_KEY = "metro-auto-show-new-route-status";
@@ -318,7 +319,11 @@ function App() {
     const schedule = () => requestAnimationFrame(() => resizeMap());
     schedule();
     window.addEventListener("resize", schedule);
-    return () => window.removeEventListener("resize", schedule);
+    const cleanupViewportSync = installViewportSync(schedule);
+    return () => {
+      window.removeEventListener("resize", schedule);
+      cleanupViewportSync();
+    };
   }, []);
 
   const showFinish =

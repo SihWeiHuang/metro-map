@@ -4,8 +4,8 @@ import { Route } from "../map/routeModel.js";
 import { createShareLink } from "../share/shareApi.js";
 import { buildShareUrl } from "../share/parseSharePath.js";
 import {
-  MAX_SHARE_PAYLOAD_BYTES,
   MAX_USER_ROUTES,
+  SHARE_PAYLOAD_MAX_KB,
   SHARE_TTL_DAYS,
   validateSharePayloadText,
 } from "../../shared/shareLimits.js";
@@ -20,6 +20,7 @@ export default function ShareLinkDialog({ open, onClose }) {
   const [expiresAt, setExpiresAt] = useState("");
   const [errorCode, setErrorCode] = useState("");
   const [copied, setCopied] = useState(false);
+  const [tooLargeAlertOpen, setTooLargeAlertOpen] = useState(false);
 
   const resetState = useCallback(() => {
     setBusy(false);
@@ -27,6 +28,11 @@ export default function ShareLinkDialog({ open, onClose }) {
     setExpiresAt("");
     setErrorCode("");
     setCopied(false);
+    setTooLargeAlertOpen(false);
+  }, []);
+
+  const showPayloadTooLargeAlert = useCallback(() => {
+    setTooLargeAlertOpen(true);
   }, []);
 
   const handleClose = () => {
@@ -44,14 +50,11 @@ export default function ShareLinkDialog({ open, onClose }) {
     const json = Route.exportUserStateJSON();
     const validation = validateSharePayloadText(json);
     if (!validation.ok) {
-      setErrorCode(validation.code);
-      setBusy(false);
-      return;
-    }
-
-    const byteLen = new TextEncoder().encode(json).length;
-    if (byteLen > MAX_SHARE_PAYLOAD_BYTES) {
-      setErrorCode("payload_too_large");
+      if (validation.code === "payload_too_large") {
+        showPayloadTooLargeAlert();
+      } else {
+        setErrorCode(validation.code);
+      }
       setBusy(false);
       return;
     }
@@ -59,7 +62,11 @@ export default function ShareLinkDialog({ open, onClose }) {
     const result = await createShareLink(json);
     setBusy(false);
     if (!result.ok) {
-      setErrorCode(result.error);
+      if (result.error === "payload_too_large") {
+        showPayloadTooLargeAlert();
+      } else {
+        setErrorCode(result.error);
+      }
       return;
     }
     setShareUrl(buildShareUrl(result.id));
@@ -87,7 +94,6 @@ export default function ShareLinkDialog({ open, onClose }) {
   };
 
   const errorMessage = (code) => {
-    if (code === "payload_too_large") return t("share.errorPayloadTooLarge");
     if (code === "too_many_routes") return t("share.errorTooManyRoutes", { limit: MAX_USER_ROUTES });
     if (code === "no_routes") return t("share.errorNoRoutes");
     if (code === "rate_limited") return t("share.errorRateLimited");
@@ -100,9 +106,41 @@ export default function ShareLinkDialog({ open, onClose }) {
   if (!open) return null;
 
   const hasRoutes = Route.hasUserContent();
-  const maxKb = Math.round(MAX_SHARE_PAYLOAD_BYTES / 1024);
 
   return (
+    <>
+    {tooLargeAlertOpen ? (
+      <div
+        className="app-import-dialog-backdrop app-share-alert-backdrop"
+        role="presentation"
+        onClick={() => setTooLargeAlertOpen(false)}
+      >
+        <div
+          className="app-import-dialog app-share-alert-dialog"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="share-too-large-title"
+          aria-describedby="share-too-large-message"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h2 id="share-too-large-title" className="app-import-dialog-title">
+            {t("share.payloadTooLargeTitle")}
+          </h2>
+          <p id="share-too-large-message" className="app-import-dialog-message">
+            {t("share.errorPayloadTooLarge", { maxKb: SHARE_PAYLOAD_MAX_KB })}
+          </p>
+          <div className="app-import-dialog-actions">
+            <button
+              type="button"
+              className="app-import-dialog-btn app-import-dialog-btn--primary"
+              onClick={() => setTooLargeAlertOpen(false)}
+            >
+              {t("share.dismissLoadError")}
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
     <div className="app-import-dialog-backdrop" role="presentation" onClick={handleClose}>
       <div
         className="app-import-dialog app-share-dialog"
@@ -117,7 +155,7 @@ export default function ShareLinkDialog({ open, onClose }) {
         <p className="app-import-dialog-message">{t("share.dialogIntro")}</p>
         <ul className="app-share-limits">
           <li>{t("share.limitTtl", { days: SHARE_TTL_DAYS })}</li>
-          <li>{t("share.limitSize", { maxKb })}</li>
+          <li>{t("share.limitSize", { maxKb: SHARE_PAYLOAD_MAX_KB })}</li>
           <li>{t("share.limitRoutes", { limit: MAX_USER_ROUTES })}</li>
           <li>{t("share.limitOptIn")}</li>
         </ul>
@@ -156,5 +194,6 @@ export default function ShareLinkDialog({ open, onClose }) {
         </div>
       </div>
     </div>
+    </>
   );
 }

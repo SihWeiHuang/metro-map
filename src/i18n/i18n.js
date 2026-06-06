@@ -175,7 +175,7 @@ const STRINGS = {
     "share.dialogTitle": "分享連結",
     "share.dialogIntro": "將目前所有使用者路線上傳至伺服器，並產生可分享的短網址。僅在您按下「產生連結」時才會上傳。",
     "share.limitTtl": "連結有效 {days} 天，到期後自動刪除",
-    "share.limitSize": "單次分享檔案上限 {maxKb} KB",
+    "share.limitSize": "分享連結檔案上限 {maxKb} KB（僅限產生分享連結時）",
     "share.limitRoutes": "分享內容最多 {limit} 條使用者路線（路線層級，不含子路線）",
     "share.limitOptIn": "平常繪製仍只儲存在您的瀏覽器，不會自動上傳",
     "share.noUserRoutes": "尚無可分享的使用者路線，請先在地圖上繪製。",
@@ -185,7 +185,9 @@ const STRINGS = {
     "share.copyLink": "複製連結",
     "share.copied": "已複製",
     "share.expiresAt": "有效至 {date}",
-    "share.errorPayloadTooLarge": "路線資料超過單次分享大小上限，請刪除部分路線後再試。",
+    "share.payloadTooLargeTitle": "路線檔案過大",
+    "share.errorPayloadTooLarge":
+      "路線檔案過大（超過 {maxKb} KB），請改用匯出 GeoJSON／JSON 檔案分享。",
     "share.errorTooManyRoutes": "分享內容超過路線數上限（最多 {limit} 條使用者路線），請刪除部分路線後再試。",
     "share.errorNoRoutes": "沒有可分享的使用者路線。",
     "share.errorRateLimited": "今日建立分享連結次數已達上限，請明日再試。",
@@ -369,7 +371,7 @@ const STRINGS = {
     "share.dialogIntro":
       "Upload all of your user-drawn lines to the server and get a short URL. Data is uploaded only when you click Create link.",
     "share.limitTtl": "Links expire after {days} days and are deleted automatically",
-    "share.limitSize": "Max {maxKb} KB per share",
+    "share.limitSize": "Share link file limit: {maxKb} KB (when creating a share link only)",
     "share.limitRoutes": "Up to {limit} user-drawn lines per share (line level, not sub-routes)",
     "share.limitOptIn": "Drawing still saves only in your browser unless you share",
     "share.noUserRoutes": "No user-drawn lines to share yet. Draw on the map first.",
@@ -379,7 +381,9 @@ const STRINGS = {
     "share.copyLink": "Copy link",
     "share.copied": "Copied",
     "share.expiresAt": "Valid until {date}",
-    "share.errorPayloadTooLarge": "Line data exceeds the share size limit. Remove some lines and try again.",
+    "share.payloadTooLargeTitle": "File too large",
+    "share.errorPayloadTooLarge":
+      "Line file is too large (over {maxKb} KB). Please share via GeoJSON/JSON export instead.",
     "share.errorTooManyRoutes":
       "Share exceeds the line count limit (max {limit} user-drawn lines). Remove some lines and try again.",
     "share.errorNoRoutes": "No user-drawn lines to share.",

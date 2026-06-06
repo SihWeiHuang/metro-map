@@ -24,8 +24,8 @@ export function getSupportContent(locale) {
         en: "Indie project · Open source · Global audience",
       }),
       text: L(locale, {
-        zh: "Metro Multiverse 由個人開發與維護，目標是建立全球捷運與都市軌道交通的互動式探索平台。使用者可在地圖上探索既有路網、自行設計路線，並與他人分享自己的地鐵構想。",
-        en: "Metro Multiverse is independently developed and maintained. The goal is a global interactive platform for urban rail and metro—where users explore existing networks, design their own routes, and share their transit ideas with others.",
+        zh: "Metro Multiverse 由個人開發與維護，為非官方之全球軌道交通探索平台，與任何營運機構或政府機關均無隸屬關係。目標是讓使用者在地圖上探索各地路網、自行設計路線，並與他人分享自己的構想。",
+        en: "Metro Multiverse is independently developed and maintained—a non-official global transit exploration platform with no affiliation to any operator or government body. The goal is for users to explore networks worldwide, design their own routes, and share their ideas with others.",
       }),
     },
     whySupport: {
@@ -38,7 +38,7 @@ export function getSupportContent(locale) {
         L(locale, { zh: "地圖服務（如 Mapbox）的使用費用", en: "Map service fees (e.g. Mapbox)" }),
         L(locale, { zh: "伺服器、網域及資料儲存的營運費用", en: "Server, domain, and storage costs" }),
         L(locale, { zh: "新功能的開發與維護", en: "Developing and maintaining new features" }),
-        L(locale, { zh: "各城市路網資料的整理與更新", en: "Curating and updating city network data" }),
+        L(locale, { zh: "各國／各地區路網資料的整理與更新", en: "Curating and updating network data across countries and regions" }),
       ],
     },
     roadmap: {
@@ -48,7 +48,7 @@ export function getSupportContent(locale) {
         en: "Current development directions below. Progress depends on available time and resources—not a fixed timeline.",
       }),
       items: [
-        L(locale, { zh: "納入更多城市與捷運系統的預設資料", en: "More cities and metro systems as built-in data" }),
+        L(locale, { zh: "納入更多國家、城市與軌道系統的預設資料", en: "More countries, cities, and transit systems as built-in data" }),
         L(locale, { zh: "強化路線資料的匯入與匯出", en: "Improved route import and export" }),
         L(locale, { zh: "完善路線分享功能", en: "Enhanced route sharing" }),
         L(locale, { zh: "展示社群使用者作品", en: "Community showcase of user work" }),
@@ -71,8 +71,8 @@ export function getSupportContent(locale) {
       heading: L(locale, { zh: "贊助相關說明", en: "Sponsorship terms" }),
       paragraphs: [
         L(locale, {
-          zh: "贊助是自願的支持，用於協助本專案持續運作；並非捐贈予任何捷運公司或政府機關。",
-          en: "Tips are voluntary support to keep this project running—not a donation to any metro operator or government body.",
+          zh: "贊助是自願的支持，用於協助本非官方專案持續運作；並非捐贈予全球任何軌道營運機構或政府機關。",
+          en: "Tips are voluntary support to keep this non-official project running—not a donation to any rail operator or government body anywhere in the world.",
         }),
         L(locale, {
           zh: "目前贊助不會解鎖額外功能，亦不構成購買服務之契約；若日後有所變更，將於網站公告。",

@@ -24,8 +24,8 @@ export function getContactContent(locale) {
         en: "Your feedback helps this project grow",
       }),
       text: L(locale, {
-        zh: "Metro Multiverse 目前由個人開發與維護。無論是建議、問題回報或任何想法，都歡迎來信分享——每一則回饋都有機會讓網站變得更好。",
-        en: "Metro Multiverse is independently developed and maintained. Whether you have suggestions, bug reports, or ideas to share—you're welcome to reach out. Every message can help make the site better.",
+        zh: "Metro Multiverse 為非官方之個人專案，與全球任何軌道營運機構或政府機關均無隸屬關係。無論是建議、問題回報或任何想法，都歡迎來信分享——每一則回饋都有機會讓網站變得更好。",
+        en: "Metro Multiverse is a non-official personal project with no affiliation to any rail operator or government body worldwide. Whether you have suggestions, bug reports, or ideas to share—you're welcome to reach out. Every message can help make the site better.",
       }),
     },
     email: {
@@ -64,8 +64,8 @@ export function getContactContent(locale) {
           en: "Metro Multiverse welcomes route files you've drawn yourself. If you've mapped a region's metro, subway, light rail, commuter rail, or similar systems with complete and accurate data, we'd love to hear from you.",
         }),
         L(locale, {
-          zh: "經確認後，您的作品未來有機會成為網站內建的預設路線。我們不保證一定採用，資料也可能需要進一步調整或驗證——但非常歡迎您與社群一起完善這個全球軌道交通資料庫。",
-          en: "After review, your work may become a built-in default route on the site. Adoption isn't guaranteed, and data may need further adjustment or verification—but we warmly welcome you to help build this global transit database together.",
+          zh: "經確認後，您的作品未來有機會成為網站內建的預設路線；即使採用，仍屬示意參考資料，不代表任何官方背書。我們不保證一定採用，資料也可能需要進一步調整或驗證——但非常歡迎您與社群一起完善這個全球軌道交通資料庫。",
+          en: "After review, your work may become a built-in default route on the site; even if adopted, it remains schematic reference material and does not represent official endorsement. Adoption isn't guaranteed, and data may need further adjustment or verification—but we warmly welcome you to help build this global transit database together.",
         }),
       ],
     },
@@ -89,20 +89,20 @@ export function getContactContent(locale) {
     outOfScope: {
       heading: L(locale, { zh: "不適合聯絡的事項", en: "Out of scope" }),
       intro: L(locale, {
-        zh: "Metro Multiverse 並非官方單位，無法代為處理以下事項，請直接向相關單位洽詢：",
-        en: "Metro Multiverse is not an official body and cannot help with the following—please contact the relevant authorities directly:",
+        zh: "Metro Multiverse 並非任何國家或地區之官方單位，無法代為處理以下與實際營運相關之事項，請直接向各該地區之官方或營運機構洽詢：",
+        en: "Metro Multiverse is not an official body in any country or region and cannot help with the following operational matters—please contact the relevant official or operating authority in each area directly:",
       }),
       items: [
-        L(locale, { zh: "捷運營運與班次", en: "Metro operations and schedules" }),
+        L(locale, { zh: "各國／各地區軌道系統之營運與班次", en: "Transit operations and schedules in any country or region" }),
         L(locale, { zh: "票價與購票", en: "Fares and ticketing" }),
-        L(locale, { zh: "官方路線規劃", en: "Official route planning" }),
-        L(locale, { zh: "政策爭議", en: "Policy disputes" }),
-        L(locale, { zh: "客服申訴", en: "Customer service complaints" }),
+        L(locale, { zh: "各該地區官方路線規劃", en: "Official route planning in any region" }),
+        L(locale, { zh: "政策或法規爭議", en: "Policy or regulatory disputes" }),
+        L(locale, { zh: "向營運機構提出之客服申訴", en: "Customer service complaints to operating authorities" }),
       ],
     },
     closing: L(locale, {
-      zh: "感謝每一位願意提供建議、回報問題、分享資料或參與建設的人。Metro Multiverse 希望成為一個由社群共同完善的全球軌道交通探索平台。",
-      en: "Thank you to everyone who shares suggestions, reports issues, contributes data, or helps build this project. Metro Multiverse aims to become a global transit exploration platform shaped by its community.",
+      zh: "感謝每一位願意提供建議、回報問題、分享資料或參與建設的人。Metro Multiverse 希望成為一個由社群共同完善的全球軌道交通探索平台——非官方、僅供參考與創作。",
+      en: "Thank you to everyone who shares suggestions, reports issues, contributes data, or helps build this project. Metro Multiverse aims to become a global transit exploration platform shaped by its community—non-official, for reference and creation only.",
     }),
     footerNote: L(locale, {
       zh: `最後更新：${SITE_LAST_UPDATED}`,

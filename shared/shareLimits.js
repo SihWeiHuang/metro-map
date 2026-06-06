@@ -5,8 +5,11 @@ export const EXPORT_FILE_FORMAT = "metro-multiverse";
 /** Max user-drawn lines (unique route_id) site-wide. */
 export const MAX_USER_ROUTES = 30;
 
+/** Max JSON body size for a share link (KiB, shown in UI). */
+export const SHARE_PAYLOAD_MAX_KB = 64;
+
 /** Max JSON body size for a share link (bytes). */
-export const MAX_SHARE_PAYLOAD_BYTES = 200_000;
+export const MAX_SHARE_PAYLOAD_BYTES = SHARE_PAYLOAD_MAX_KB * 1024;
 
 /** Share link TTL (seconds). */
 export const SHARE_TTL_SECONDS = 30 * 24 * 60 * 60;
