@@ -124,7 +124,7 @@ export default function RouteListNavigator({
       <div className={`app-side-panel-header route-list-nav-header${pickerHeaderClass}`}>
         <div className="route-list-nav-path-row">
           <nav className="route-list-nav-path route-list-nav-path--stacked" aria-label={t("routeList.breadcrumbAria")}>
-            <div className="route-list-nav-crumb-line">
+            <div className="route-list-nav-crumb-line route-list-nav-crumb-line--primary">
               {level === "country" ? (
                 <span className="route-list-nav-crumb-spacer" aria-hidden="true" />
               ) : (
@@ -162,8 +162,6 @@ export default function RouteListNavigator({
                   {countryLabel}
                 </button>
               )}
-            </div>
-            <div className="route-list-nav-crumb-line">
               <span className="route-list-nav-chevron route-list-nav-chevron--sep" aria-hidden="true">
                 ›
               </span>
@@ -179,7 +177,7 @@ export default function RouteListNavigator({
                 <span className="route-list-nav-pill route-list-nav-pill--current">{regionLabel}</span>
               )}
             </div>
-            <div className="route-list-nav-crumb-line">
+            <div className="route-list-nav-crumb-line route-list-nav-crumb-line--secondary">
               <span className="route-list-nav-chevron route-list-nav-chevron--sep" aria-hidden="true">
                 ›
               </span>

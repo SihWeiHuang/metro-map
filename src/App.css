@@ -2062,17 +2062,13 @@
   color: var(--color-text-primary);
 }
 
-.route-list-nav-header--picker .route-list-nav-pill--current {
-  padding: 4px 10px;
-  font-size: 0.8125rem;
-  line-height: 1.25;
+.route-list-nav-header--picker .route-list-nav-path--stacked .route-list-nav-pill--current {
   background: rgba(37, 99, 235, 0.2);
   border-color: rgba(37, 99, 235, 0.48);
 }
 
-.route-list-nav-header--picker .route-list-nav-chevron-back {
-  width: var(--route-list-picker-row-h);
-  height: var(--route-list-picker-row-h);
+.route-list-nav-header--picker .route-list-nav-path--stacked {
+  --route-list-crumb-chevron-col: var(--route-list-picker-row-h);
 }
 
 .route-list-nav-header--picker .route-list-nav-chevron {
@@ -2095,8 +2091,6 @@
   gap: 10px;
   width: 100%;
   min-width: 0;
-  container-type: inline-size;
-  container-name: route-list-path;
 }
 
 .route-list-nav-path {
@@ -2107,21 +2101,28 @@
   min-width: 0;
 }
 
-/* 城市／路線層麵包屑：窄螢幕多行（‹ 選地區／› 選城市或 Taiwan／› 路線），寬螢幕單行 */
+/* 麵包屑：預設單行；空間不足時最多兩行（上：‹ 地區 › 城市，下：› 路線） */
 .route-list-nav-path--stacked {
-  --route-list-crumb-gap: 2px;
-  --route-list-crumb-chevron-col: 28px;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  --route-list-crumb-gap: 1px;
+  --route-list-crumb-chevron-col: 22px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--route-list-crumb-gap);
+  row-gap: 2px;
 }
 
 .route-list-nav-crumb-line {
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--route-list-crumb-gap);
   min-width: 0;
-  max-width: 100%;
+}
+
+.route-list-nav-crumb-line--primary,
+.route-list-nav-crumb-line--secondary {
+  flex: 0 1 auto;
 }
 
 .route-list-nav-path--stacked .route-list-nav-chevron-back {
@@ -2134,6 +2135,16 @@
   flex-shrink: 0;
 }
 
+.route-list-nav-path--stacked .route-list-nav-chevron {
+  font-size: 0.875rem;
+}
+
+.route-list-nav-path--stacked .route-list-nav-pill {
+  padding: 2px 7px;
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
 .route-list-nav-crumb-spacer {
   flex-shrink: 0;
   width: var(--route-list-crumb-chevron-col);
@@ -2141,26 +2152,13 @@
 }
 
 .route-list-nav-route-end {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.3;
   color: var(--color-text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-@container route-list-path (min-width: 320px) {
-  .route-list-nav-path--stacked {
-    flex-direction: row;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: var(--route-list-crumb-gap);
-  }
-
-  .route-list-nav-path--stacked .route-list-nav-crumb-line {
-    display: contents;
-  }
 }
 
 .route-list-nav-chevron {
