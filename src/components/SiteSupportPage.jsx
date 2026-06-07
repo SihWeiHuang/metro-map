@@ -12,18 +12,13 @@ export default function SiteSupportPage({ locale }) {
 
   return (
     <div className="site-support">
-      <header className="site-support-hero">
-        <p className="site-support-kicker">{content.intro.kicker}</p>
-        <p className="site-support-lead">{content.intro.text}</p>
-      </header>
-
-      <section className="site-support-cta" aria-labelledby="site-support-cta">
-        <h3 id="site-support-cta" className="site-support-heading">
+      <header className="site-info-hero site-info-hero--support" aria-labelledby="site-support-cta">
+        <h3 id="site-support-cta" className="site-info-hero__title">
           {content.cta.heading}
         </h3>
-        <p className="site-support-text">{content.cta.text}</p>
+        <p className="site-info-hero__text">{content.cta.text}</p>
         {content.sponsorUrl ? (
-          <p className="site-support-action">
+          <p className="site-info-hero__action">
             <a
               href={content.sponsorUrl}
               className="site-info-sponsor-btn"
@@ -34,9 +29,9 @@ export default function SiteSupportPage({ locale }) {
             </a>
           </p>
         ) : (
-          <p className="site-support-text site-support-text--muted">{content.cta.notConfigured}</p>
+          <p className="site-info-hero__text site-info-hero__text--muted">{content.cta.notConfigured}</p>
         )}
-      </section>
+      </header>
 
       <section className="site-support-block" aria-labelledby="site-support-why">
         <h3 id="site-support-why" className="site-support-heading">

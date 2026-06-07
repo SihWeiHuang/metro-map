@@ -35,9 +35,9 @@ export default function SiteContactPage({ locale }) {
 
   return (
     <div className="site-contact">
-      <header className="site-contact-hero">
-        <p className="site-contact-kicker">{content.intro.kicker}</p>
-        <p className="site-contact-lead">{content.intro.text}</p>
+      <header className="site-info-hero site-info-hero--contact">
+        <h3 className="site-info-hero__title">{content.intro.kicker}</h3>
+        <p className="site-info-hero__text">{content.intro.text}</p>
       </header>
 
       <section className="site-contact-block site-contact-email" aria-labelledby="site-contact-email">

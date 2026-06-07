@@ -18,16 +18,6 @@ export function getSupportContent(locale) {
 
   return {
     title: L(locale, { zh: "贊助支持", en: "Support" }),
-    intro: {
-      kicker: L(locale, {
-        zh: "個人開發 · 開源專案 · 面向全球",
-        en: "Indie project · Open source · Global audience",
-      }),
-      text: L(locale, {
-        zh: "Metro Multiverse 由個人開發與維護，為非官方之全球軌道交通探索平台，與任何營運機構或政府機關均無隸屬關係。目標是讓使用者在地圖上探索各地路網、自行設計路線，並與他人分享自己的構想。",
-        en: "Metro Multiverse is independently developed and maintained—a non-official global transit exploration platform with no affiliation to any operator or government body. The goal is for users to explore networks worldwide, design their own routes, and share their ideas with others.",
-      }),
-    },
     whySupport: {
       heading: L(locale, { zh: "為什麼需要支持", en: "Why support matters" }),
       intro: L(locale, {
@@ -58,8 +48,8 @@ export function getSupportContent(locale) {
     cta: {
       heading: L(locale, { zh: "支持這個專案", en: "Support this project" }),
       text: L(locale, {
-        zh: "贊助完全出於自願，沒有任何義務。即使是小額支持，也有助於分擔上述營運成本，讓專案得以持續運作。若您認為 Metro Multiverse 對您有所助益，歡迎透過下方連結贊助。",
-        en: "Support is entirely voluntary—there is no obligation. Even a small contribution helps cover the costs above and keep the project running. If Metro Multiverse has been useful to you, you're welcome to sponsor via the link below.",
+        zh: "贊助完全出於自願，沒有任何義務。即使是小額支持，也有助於分擔營運成本，讓專案得以持續運作。若您認為 Metro Multiverse 對您有所助益，歡迎透過下方連結贊助。",
+        en: "Support is entirely voluntary—there is no obligation. Even a small contribution helps cover operating costs and keep the project running. If Metro Multiverse has been useful to you, you're welcome to sponsor via the link below.",
       }),
       notConfigured: L(locale, {
         zh: "贊助連結尚未設定。維運者可在 Vercel 環境變數加入 VITE_SPONSOR_URL（Ko-fi 網址）。",

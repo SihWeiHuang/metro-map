@@ -10,10 +10,10 @@ export default function SiteAboutPage({ locale }) {
 
   return (
     <div className="site-about">
-      <div className="site-about-hero site-about-hero--compact">
-        <p className="site-about-hero-kicker">{content.subtitle}</p>
-        <p className="site-about-hero-summary">{content.summary}</p>
-      </div>
+      <header className="site-info-hero site-info-hero--about">
+        <h3 className="site-info-hero__title">{content.subtitle}</h3>
+        <p className="site-info-hero__text">{content.summary}</p>
+      </header>
 
       <section
         className="site-about-block site-about-block--primary"
