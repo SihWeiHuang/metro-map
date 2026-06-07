@@ -310,9 +310,9 @@
           "route_id": "g1",
           "name": "環狀線北環段",
           "route_kind": "user",
-          "country": "",
-          "region": "",
-          "status": "planning",
+          "country": "TW",
+          "region": "雙北",
+          "status": "construction",
           "color": "#ffdb00"
         }
       },
@@ -648,9 +648,9 @@
           "route_id": "g2",
           "name": "環狀線東環段",
           "route_kind": "user",
-          "country": "",
-          "region": "",
-          "status": "planning",
+          "country": "TW",
+          "region": "雙北",
+          "status": "construction",
           "color": "#ffdb00"
         }
       },
@@ -862,9 +862,9 @@
           "route_id": "g3",
           "name": "環狀線南環段",
           "route_kind": "user",
-          "country": "",
-          "region": "",
-          "status": "custom",
+          "country": "TW",
+          "region": "雙北",
+          "status": "construction",
           "color": "#ffdb00"
         }
       },
@@ -4200,8 +4200,8 @@
           "route_id": "g23",
           "name": "萬大樹林線",
           "route_kind": "user",
-          "country": "",
-          "region": "",
+          "country": "TW",
+          "region": "雙北",
           "status": "construction",
           "color": "#a1d884"
         }

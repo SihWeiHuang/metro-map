@@ -20,6 +20,17 @@ import {
 import { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER } from "./layers.js";
 import { MAX_USER_ROUTES } from "../../shared/shareLimits.js";
 import {
+  buildCityOptions,
+  buildCountryOptions,
+  canonicalizeCountryId,
+  canonicalizeRegion,
+  collectGeoPairsFromRoutes,
+  formatGeoPatch,
+  getCatalogMapView,
+  getCountryLabelKey,
+  normalizeGeoMetadataPatch,
+} from "./geoCatalog.js";
+import {
   allocateDefaultRouteLabel,
   allocateDefaultStationLabel,
   normalizeAllUserDefaultNames,
@@ -165,6 +176,8 @@ function normalizeBuiltinRoutesAsDefault() {
     f.properties.route_kind = ROUTE_KIND_DEFAULT;
     if (typeof f.properties.country !== "string") f.properties.country = "";
     if (typeof f.properties.region !== "string") f.properties.region = "";
+    f.properties.country = canonicalizeCountryId(f.properties.country);
+    f.properties.region = canonicalizeRegion(f.properties.region);
     f.properties.status = normalizeStatus(f.properties.status);
   }
 }
@@ -384,6 +397,8 @@ function mergeUserStateIntoStore(userSubroutes, userStations) {
     c.properties.route_kind = ROUTE_KIND_USER;
     if (typeof c.properties.country !== "string") c.properties.country = "";
     if (typeof c.properties.region !== "string") c.properties.region = "";
+    c.properties.country = canonicalizeCountryId(c.properties.country);
+    c.properties.region = canonicalizeRegion(c.properties.region);
     c.properties.status = normalizeStatus(c.properties.status);
     return c;
   });
@@ -643,6 +658,8 @@ function normalizeRouteProperties(p) {
   }
   if (typeof p.country !== "string") p.country = "";
   if (typeof p.region !== "string") p.region = "";
+  p.country = canonicalizeCountryId(p.country);
+  p.region = canonicalizeRegion(p.region);
   p.status = normalizeStatus(p.status);
 }
 
@@ -657,8 +674,8 @@ function syncRouteSubrouteMetadata(routeId, sourceProps) {
     sourceProps?.route_kind === ROUTE_KIND_DEFAULT || sourceProps?.route_kind === ROUTE_KIND_USER
       ? sourceProps.route_kind
       : ROUTE_KIND_USER;
-  const country = typeof sourceProps?.country === "string" ? sourceProps.country : "";
-  const region = typeof sourceProps?.region === "string" ? sourceProps.region : "";
+  const country = canonicalizeCountryId(sourceProps?.country);
+  const region = canonicalizeRegion(sourceProps?.region);
   const status = normalizeStatus(sourceProps?.status);
   store.subroutesFC.features.forEach((f) => {
     if (f.properties.route_id !== routeId) return;
@@ -1245,8 +1262,8 @@ function getRouteList() {
     const p = f.properties;
     const rk =
       p.route_kind === ROUTE_KIND_DEFAULT || p.route_kind === ROUTE_KIND_USER ? p.route_kind : ROUTE_KIND_USER;
-    const country = typeof p.country === "string" ? p.country : "";
-    const region = typeof p.region === "string" ? p.region : "";
+    const country = canonicalizeCountryId(p.country);
+    const region = canonicalizeRegion(p.region);
     const status = normalizeStatus(p.status);
     if (!routes[p.route_id]) routes[p.route_id] = [];
     routes[p.route_id].push({
@@ -1526,6 +1543,14 @@ function cancelTempEditing() {
 function getRouteStatus(routeId) {
   const route = store.subroutesFC.features.find((f) => f.properties?.route_id === routeId);
   return normalizeStatus(route?.properties?.status);
+}
+
+function getRouteGeo(routeId) {
+  const entry = getRouteList().find((g) => g.route_id === routeId);
+  return {
+    country: entry?.country ?? "",
+    region: entry?.region ?? "",
+  };
 }
 
 function setRouteStatus(routeId, status) {
@@ -2096,17 +2121,26 @@ function setStationName(stationId, newName) {
 
 function setRouteMetadata(routeId, patch) {
   if (!patch || typeof patch !== "object") return;
+  const normalized = normalizeGeoMetadataPatch(patch);
   const routes = store.subroutesFC.features.filter((f) => f.properties.route_id === routeId);
   if (!routes.length) return;
   for (const f of routes) {
-    if (patch.route_kind === ROUTE_KIND_DEFAULT || patch.route_kind === ROUTE_KIND_USER) {
-      f.properties.route_kind = patch.route_kind;
+    if (normalized.route_kind === ROUTE_KIND_DEFAULT || normalized.route_kind === ROUTE_KIND_USER) {
+      f.properties.route_kind = normalized.route_kind;
     }
-    if (typeof patch.country === "string") f.properties.country = patch.country;
-    if (typeof patch.region === "string") f.properties.region = patch.region;
-    if (patch.status && ROUTE_STATUS_VALUES.has(patch.status)) f.properties.status = patch.status;
+    if (typeof normalized.country === "string") f.properties.country = normalized.country;
+    if (typeof normalized.region === "string") f.properties.region = normalized.region;
+    if (normalized.status && ROUTE_STATUS_VALUES.has(normalized.status)) f.properties.status = normalized.status;
   }
   refreshSources();
+}
+
+function getRouteGeoCountryOptions() {
+  return buildCountryOptions(getRouteList());
+}
+
+function getRouteGeoCityOptions(countryId) {
+  return buildCityOptions(countryId, getRouteList());
 }
 
 function sanitizeRouteForExport(feature) {
@@ -2593,9 +2627,16 @@ export const Route = {
   ROUTE_STATUS_CUSTOM,
   getRouteList,
   getRouteStatus,
+  getRouteGeo,
   setRouteStatus,
   getActiveEditRouteId,
   setRouteMetadata,
+  formatGeoPatch,
+  getRouteGeoCountryOptions,
+  getRouteGeoCityOptions,
+  getCatalogMapView,
+  getCountryLabelKey,
+  collectGeoPairsFromRoutes,
   deleteSubroute,
   deleteRoute,
   deleteRoutes,

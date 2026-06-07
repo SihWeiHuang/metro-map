@@ -23,6 +23,7 @@ function getRouteMergePickOrder(routes, mergePickSubrouteIds) {
 }
 
 export default function RouteListPanel({
+  routes: routesOverride,
   onRefresh,
   showRouteActions = false,
   mergeSelectMode = false,
@@ -30,7 +31,7 @@ export default function RouteListPanel({
   onEditRouteMetadata,
 }) {
   const { t } = useI18n();
-  const routeList = Route.getRouteList();
+  const routeList = routesOverride ?? Route.getRouteList();
   const [selectedRouteIds, setSelectedRouteIds] = useState(() => new Set());
   const [mergePickSubrouteIds, setMergePickSubrouteIds] = useState(() => getMergePickSubrouteIds());
   const [columnVisibility] = useState(defaultRouteListColumns);

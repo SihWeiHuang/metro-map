@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import "./App.css";
 import MapView from "./components/MapView.jsx";
-import RouteListPanel from "./components/RouteListPanel.jsx";
+import RouteListNavigator from "./components/RouteListNavigator.jsx";
 import RouteStatusDialog from "./components/RouteStatusDialog.jsx";
 import {
   setMode,
@@ -368,7 +368,7 @@ function App() {
   const handleFinishEditing = async () => {
     const result = await finishEditing();
     if (result?.ok && result.newRouteIds?.length > 0 && autoShowNewRouteStatus) {
-      setStatusDialog({ routeIds: result.newRouteIds });
+      setStatusDialog({ routeIds: result.newRouteIds, isNewRoute: true });
     }
     bumpRouteList();
   };
@@ -384,7 +384,7 @@ function App() {
   };
 
   const openRouteMetadataDialog = (routeId) => {
-    setStatusDialog({ routeIds: [routeId] });
+    setStatusDialog({ routeIds: [routeId], isNewRoute: false });
   };
 
   const closeStatusDialog = () => setStatusDialog(null);
@@ -725,24 +725,14 @@ function App() {
           style={{ width: routeListWidthPx }}
           aria-label={t("app.routeListAria")}
         >
-          <div className="app-side-panel-header">
-            <h2>
-              {t("app.routeListTitle", {
-                current: Route.countUserRoutes(),
-                limit: Route.getMaxUserRoutes(),
-              })}
-            </h2>
-          </div>
-          <div className="app-side-panel-content route-list-sidebar-scroll">
-            <RouteListPanel
-              key={listTick}
-              onRefresh={bumpRouteList}
-              showRouteActions={routeListEditActions}
-              mergeSelectMode={mergeSelectMode}
-              splitLineSelectMode={splitLineSelectMode}
-              onEditRouteMetadata={openRouteMetadataDialog}
-            />
-          </div>
+          <RouteListNavigator
+            onRefresh={bumpRouteList}
+            listRevision={listTick}
+            showRouteActions={routeListEditActions}
+            mergeSelectMode={mergeSelectMode}
+            splitLineSelectMode={splitLineSelectMode}
+            onEditRouteMetadata={openRouteMetadataDialog}
+          />
           {shareViewActive ? (
             <div className="app-share-sidebar-note" role="note">
               <span className="app-share-sidebar-note-badge">{t("share.viewModeBadge")}</span>
@@ -1007,6 +997,7 @@ function App() {
       {statusDialog != null && (
         <RouteStatusDialog
           routeIds={statusDialog.routeIds}
+          isNewRoute={statusDialog.isNewRoute === true}
           suppressAutoOpen={!autoShowNewRouteStatus}
           onSuppressAutoOpenChange={(suppress) => updateAutoShowNewRouteStatus(!suppress)}
           onClose={closeStatusDialog}

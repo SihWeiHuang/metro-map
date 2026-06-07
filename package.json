@@ -12,7 +12,9 @@
     "fit:mrt": "node scripts/fit-mrt-routes.mjs",
     "convert:geojson": "node scripts/geojson-to-metro-import.mjs",
     "test:names": "node scripts/test-default-names.mjs",
-    "test:share-limits": "node scripts/test-share-limits.mjs"
+    "test:share-limits": "node scripts/test-share-limits.mjs",
+    "test:geo-catalog": "node scripts/test-geo-catalog.mjs",
+    "test:route-list-nav": "node scripts/test-route-list-nav-prefs.mjs"
   },
   "dependencies": {
     "@turf/turf": "^7.3.4",

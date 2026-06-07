@@ -2007,6 +2007,259 @@
 }
 
 /* ==========================================
+   Route List Geo Navigation
+   ========================================== */
+
+.route-list-nav-header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  min-height: auto;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+/* 國家／城市層：頂部導覽略突出，與下方選項列表簡潔區隔；兩層固定同高 */
+.route-list-nav-header--picker {
+  --route-list-picker-row-h: 28px;
+  min-height: calc(var(--route-list-picker-row-h) + 22px);
+  padding-top: 11px;
+  padding-bottom: 11px;
+  box-sizing: border-box;
+  background: var(--color-background-secondary);
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.route-list-nav-header--picker > .route-list-nav-title,
+.route-list-nav-header--picker > .route-list-nav-path-row {
+  min-height: var(--route-list-picker-row-h);
+  align-items: center;
+}
+
+.route-list-nav-header--picker + .route-list-sidebar-scroll .route-geo-nav-list {
+  padding-top: 6px;
+}
+
+.route-list-nav-header--picker .route-list-nav-title {
+  font-size: 1rem;
+  line-height: var(--route-list-picker-row-h);
+  letter-spacing: 0.01em;
+}
+
+.route-list-nav-header--picker .route-list-nav-step-label {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: var(--route-list-picker-row-h);
+  color: var(--color-text-primary);
+}
+
+.route-list-nav-header--picker .route-list-nav-pill--current {
+  padding: 4px 10px;
+  font-size: 0.8125rem;
+  line-height: 1.25;
+  background: rgba(37, 99, 235, 0.14);
+  border-color: rgba(37, 99, 235, 0.32);
+}
+
+.route-list-nav-header--picker .route-list-nav-chevron-back {
+  width: var(--route-list-picker-row-h);
+  height: var(--route-list-picker-row-h);
+}
+
+.route-list-nav-header--picker .route-list-nav-chevron {
+  color: var(--color-text-primary);
+  opacity: 0.72;
+}
+
+.route-list-nav-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text-primary);
+}
+
+.route-list-nav-path-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.route-list-nav-path {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.route-list-nav-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--color-text-secondary);
+  user-select: none;
+}
+
+.route-list-nav-chevron--sep {
+  flex-shrink: 0;
+}
+
+.route-list-nav-chevron-back {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.route-list-nav-chevron-back:hover .route-list-nav-chevron {
+  color: var(--color-text-primary);
+}
+
+.route-list-nav-chevron-back:hover {
+  background: var(--color-background-secondary);
+}
+
+.route-list-nav-chevron-back:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.route-list-nav-pills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.route-list-nav-step-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.route-list-nav-count {
+  flex: 0 1 auto;
+  max-width: 42%;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-list-nav-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 10px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  border-radius: 999px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-list-nav-pill--link {
+  color: var(--color-text-secondary);
+  background: var(--color-background-secondary);
+  border: 0.5px solid var(--color-border-primary);
+  cursor: pointer;
+}
+
+.route-list-nav-pill--link:hover {
+  color: var(--color-primary-dark);
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.route-list-nav-pill--link:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.route-list-nav-pill--current {
+  color: var(--color-primary-dark);
+  background: rgba(37, 99, 235, 0.1);
+  border: 0.5px solid rgba(37, 99, 235, 0.22);
+}
+
+.route-geo-nav-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+
+.route-geo-nav-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 12px;
+  text-align: left;
+  font: inherit;
+  color: var(--color-text-primary);
+  background: transparent;
+  border: none;
+  border-bottom: 0.5px solid var(--color-border-primary);
+  cursor: pointer;
+}
+
+.route-geo-nav-row:hover {
+  background: var(--color-background-secondary);
+}
+
+.route-geo-nav-label {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.route-geo-nav-meta {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.route-geo-nav-chevron {
+  font-size: 1.125rem;
+  line-height: 1;
+  color: var(--color-text-secondary);
+}
+
+.route-list-nav-mode-hint,
+.route-list-geo-empty {
+  margin: 0;
+  padding: 12px;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
+/* ==========================================
    Route List Panel
    ========================================== */
 
@@ -2701,6 +2954,28 @@ html[lang="en"] .route-list-badge {
 }
 
 .app-route-status-select:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.app-route-status-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  color: var(--color-text-secondary);
+}
+
+.app-route-status-text-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 0.9375rem;
+  color: var(--color-text-primary);
+  border: 0.5px solid var(--color-border-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-background-primary);
+  box-sizing: border-box;
+}
+
+.app-route-status-text-input:focus {
   outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }
