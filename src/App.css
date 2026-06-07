@@ -2438,6 +2438,200 @@ html[lang="en"] .route-list-inner {
   flex-shrink: 0;
 }
 
+.route-list-table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  row-gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 0.5px solid var(--color-border-primary);
+  background: var(--color-background-secondary);
+  flex-shrink: 0;
+}
+
+.route-list-table-toolbar--edit {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  align-items: flex-start;
+}
+
+.route-list-inner--edit .route-batch-toolbar {
+  z-index: 2;
+}
+
+.route-list-table-toolbar--pick .route-list-filter-select:disabled,
+.route-list-table-toolbar--pick .route-list-columns-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.route-list-table-toolbar-hint {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+.route-list-inner--edit .route-list-table-toolbar--edit .route-list-filters {
+  flex: 1 1 auto;
+  min-width: min(100%, 12rem);
+}
+
+.route-list-inner--edit .route-list-table-toolbar--edit .route-list-columns-control {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+@container route-list (max-width: 300px) {
+  .route-list-inner--edit .route-list-table-toolbar--edit {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .route-list-inner--edit .route-list-table-toolbar--edit .route-list-columns-control {
+    margin-left: 0;
+    align-self: flex-end;
+  }
+}
+
+.route-list-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.route-list-filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.route-list-filter-select {
+  width: auto;
+  max-width: 5.25rem;
+  flex: 0 0 auto;
+  padding: 4px 4px 4px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.route-list-filter-select:focus-visible {
+  outline: 2px solid var(--color-focus-ring, #1e88e5);
+  outline-offset: 2px;
+}
+
+.route-list-filter-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+html[lang="en"] .route-list-filter-select {
+  max-width: 6.25rem;
+  font-size: 11px;
+}
+
+.route-list-filter-empty {
+  margin: 0;
+  padding: 16px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.route-list-columns-control {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.route-list-columns-trigger {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.route-list-columns-trigger:hover,
+.route-list-columns-trigger--open {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-secondary);
+}
+
+.route-list-columns-trigger:focus-visible {
+  outline: 2px solid var(--color-focus-ring, #1e88e5);
+  outline-offset: 2px;
+}
+
+.route-list-columns-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.route-list-columns-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 5;
+  min-width: 11rem;
+  max-width: min(16rem, calc(100vw - 24px));
+  padding: 8px 10px;
+  border: 0.5px solid var(--color-border-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-background-primary);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+.route-list-columns-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  padding: 4px 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.route-list-columns-option input {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.route-list-columns-option--locked {
+  opacity: 0.72;
+  cursor: default;
+}
+
+.route-list-columns-option--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.route-list-columns-hint {
+  margin: 0 0 6px;
+  padding-left: 22px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+}
+
 .route-list-column-header {
   padding: 7px 10px;
   border-bottom: 0.5px solid var(--color-border-primary);
@@ -2460,17 +2654,51 @@ html[lang="en"] .route-list-inner {
 .route-list-column-header.route-list-column-header--grid {
   display: grid;
   align-items: center;
-  column-gap: 10px;
+  column-gap: 6px;
   row-gap: 6px;
 }
 
-.route-row-tags-col,
-.route-list-header-tags {
+.route-row-status-col,
+.route-row-kind-col,
+.route-list-header-tags,
+.route-list-header-status {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
   flex-shrink: 0;
   min-width: 0;
+}
+
+.route-row-tags-col {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.route-list-header-meta,
+.route-row-meta-col {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.route-list-header-meta {
+  justify-content: flex-start;
+}
+
+.route-row-meta-col {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-row-meta-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
 }
 
 .route-row-tags-inner {
@@ -2526,6 +2754,13 @@ html[lang="en"] .route-list-badge {
 }
 
 .route-list-header-tags .route-list-header-label {
+  display: block;
+  width: var(--route-badge-width);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.route-list-header-status .route-list-header-label {
   display: block;
   width: var(--route-badge-width);
   text-align: center;
@@ -2733,8 +2968,13 @@ html[lang="en"] .route-list-badge {
 
 .route-list-inner--edit .route-row-name-col,
 .route-list-inner--edit .route-row-tags-col,
+.route-list-inner--edit .route-row-status-col,
+.route-list-inner--edit .route-row-kind-col,
+.route-list-inner--edit .route-row-meta-col,
 .route-list-inner--edit .route-list-header-name,
-.route-list-inner--edit .route-list-header-tags {
+.route-list-inner--edit .route-list-header-tags,
+.route-list-inner--edit .route-list-header-status,
+.route-list-inner--edit .route-list-header-meta {
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -2742,7 +2982,10 @@ html[lang="en"] .route-list-badge {
 }
 
 .route-list-inner--edit .route-row-tags-col,
-.route-list-inner--edit .route-list-header-tags {
+.route-list-inner--edit .route-row-status-col,
+.route-list-inner--edit .route-row-kind-col,
+.route-list-inner--edit .route-list-header-tags,
+.route-list-inner--edit .route-list-header-status {
   flex-shrink: 1;
 }
 

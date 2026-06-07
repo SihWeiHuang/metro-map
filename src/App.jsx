@@ -29,6 +29,8 @@ import { isAdsenseConfigured } from "./site/adsenseConfig.js";
 import { parseShareIdFromPathname } from "./share/parseSharePath.js";
 import { fetchShareById } from "./share/shareApi.js";
 import { installViewportSync } from "./site/viewportSync.js";
+import { resetRouteListColumns } from "./components/routeListColumnPrefs.js";
+import { resetRouteListFilter } from "./components/routeListFilterPrefs.js";
 
 const ROUTE_LIST_WIDTH_STORAGE_KEY = "metro-route-list-width";
 const AUTO_SHOW_NEW_ROUTE_STATUS_KEY = "metro-auto-show-new-route-status";
@@ -73,6 +75,7 @@ function App() {
   const [editStationSubmode, setEditStationSubmodeState] = useState("crud");
   const [modeHint, setModeHint] = useState(() => t("modeHint.general"));
   const [listTick, setListTick] = useState(0);
+  const [tablePrefsRevision, setTablePrefsRevision] = useState(0);
   const [routeListWidthPx, setRouteListWidthPx] = useState(readStoredRouteListWidth);
   const routeListWidthRef = useRef(routeListWidthPx);
   routeListWidthRef.current = routeListWidthPx;
@@ -608,6 +611,9 @@ function App() {
     setPendingImport(null);
     setShareDialogOpen(false);
     Route.resetToDefaultState();
+    resetRouteListColumns();
+    resetRouteListFilter();
+    setTablePrefsRevision((n) => n + 1);
     dismissSharePathIfPresent();
     bumpRouteList();
     bumpShareView();
@@ -728,6 +734,7 @@ function App() {
           <RouteListNavigator
             onRefresh={bumpRouteList}
             listRevision={listTick}
+            tablePrefsRevision={tablePrefsRevision}
             showRouteActions={routeListEditActions}
             mergeSelectMode={mergeSelectMode}
             splitLineSelectMode={splitLineSelectMode}
