@@ -5,6 +5,7 @@ import {
   buildCountryOptions,
   canonicalizeCountryId,
   canonicalizeRegion,
+  getCityLabelKey,
   getCountryLabelKey,
 } from "../map/geoCatalog.js";
 
@@ -20,6 +21,8 @@ export function formatCountryLabel(countryId, t) {
 /** @param {unknown} regionId @param {(key: string) => string} t */
 export function formatRegionLabel(regionId, t) {
   const rid = canonicalizeRegion(regionId);
+  const key = getCityLabelKey(rid);
+  if (key) return t(key);
   if (rid === GEO_REGION_OTHER) return t("geo.otherCity");
   return rid;
 }

@@ -10,6 +10,7 @@ import {
   collectGeoPairsFromRoutes,
   formatGeoPatch,
   getCatalogMapView,
+  getCityLabelKey,
   getCountryLabelKey,
   normalizeGeoMetadataPatch,
 } from "../src/map/geoCatalog.js";
@@ -53,6 +54,7 @@ assert(view?.center[0] === DEFAULT_MAP_VIEW.center[0], "雙北 map center lng");
 assert(view?.zoom === DEFAULT_MAP_VIEW.zoom, "雙北 map zoom");
 
 assert(getCountryLabelKey(GEO_COUNTRY_TW) === "geo.country.tw", "TW label key");
+assert(getCityLabelKey("雙北") === "geo.city.greaterTaipeiArea", "雙北 city label key");
 assert(getCountryLabelKey("韓國") === null, "custom country has no label key");
 
 const patch = normalizeGeoMetadataPatch({ country: "台灣", region: " 高雄 ", status: "operating" });

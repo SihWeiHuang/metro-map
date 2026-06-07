@@ -2017,6 +2017,7 @@
   min-height: auto;
   padding-top: 10px;
   padding-bottom: 10px;
+  padding-left: var(--spacing-sm);
 }
 
 /* 國家／城市層：頂部導覽略突出，與下方選項列表簡潔區隔；兩層固定同高 */
@@ -2030,10 +2031,18 @@
   border-bottom: 1px solid var(--color-border-primary);
 }
 
-.route-list-nav-header--picker > .route-list-nav-title,
-.route-list-nav-header--picker > .route-list-nav-path-row {
+.route-list-nav-header--picker:has(.route-list-nav-path--stacked) {
+  min-height: auto;
+}
+
+.route-list-nav-header--picker > .route-list-nav-title {
   min-height: var(--route-list-picker-row-h);
   align-items: center;
+}
+
+.route-list-nav-header--picker > .route-list-nav-path-row {
+  min-height: var(--route-list-picker-row-h);
+  align-items: flex-start;
 }
 
 .route-list-nav-header--picker + .route-list-sidebar-scroll .route-geo-nav-list {
@@ -2057,8 +2066,8 @@
   padding: 4px 10px;
   font-size: 0.8125rem;
   line-height: 1.25;
-  background: rgba(37, 99, 235, 0.14);
-  border-color: rgba(37, 99, 235, 0.32);
+  background: rgba(37, 99, 235, 0.2);
+  border-color: rgba(37, 99, 235, 0.48);
 }
 
 .route-list-nav-header--picker .route-list-nav-chevron-back {
@@ -2086,6 +2095,8 @@
   gap: 10px;
   width: 100%;
   min-width: 0;
+  container-type: inline-size;
+  container-name: route-list-path;
 }
 
 .route-list-nav-path {
@@ -2094,6 +2105,62 @@
   gap: 6px;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* 城市／路線層麵包屑：窄螢幕多行（‹ 選地區／› 選城市或 Taiwan／› 路線），寬螢幕單行 */
+.route-list-nav-path--stacked {
+  --route-list-crumb-gap: 2px;
+  --route-list-crumb-chevron-col: 28px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.route-list-nav-crumb-line {
+  display: flex;
+  align-items: center;
+  gap: var(--route-list-crumb-gap);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.route-list-nav-path--stacked .route-list-nav-chevron-back {
+  width: var(--route-list-crumb-chevron-col);
+  height: var(--route-list-crumb-chevron-col);
+}
+
+.route-list-nav-path--stacked .route-list-nav-chevron--sep {
+  width: var(--route-list-crumb-chevron-col);
+  flex-shrink: 0;
+}
+
+.route-list-nav-crumb-spacer {
+  flex-shrink: 0;
+  width: var(--route-list-crumb-chevron-col);
+  height: var(--route-list-crumb-chevron-col);
+}
+
+.route-list-nav-route-end {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@container route-list-path (min-width: 320px) {
+  .route-list-nav-path--stacked {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--route-list-crumb-gap);
+  }
+
+  .route-list-nav-path--stacked .route-list-nav-crumb-line {
+    display: contents;
+  }
 }
 
 .route-list-nav-chevron {
@@ -2110,6 +2177,7 @@
 
 .route-list-nav-chevron--sep {
   flex-shrink: 0;
+  pointer-events: none;
 }
 
 .route-list-nav-chevron-back {
@@ -2124,14 +2192,16 @@
   border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
-}
-
-.route-list-nav-chevron-back:hover .route-list-nav-chevron {
-  color: var(--color-text-primary);
+  transition: background-color 0.12s ease;
 }
 
 .route-list-nav-chevron-back:hover {
-  background: var(--color-background-secondary);
+  background: rgba(37, 99, 235, 0.2);
+}
+
+.route-list-nav-chevron-back:hover .route-list-nav-chevron {
+  color: var(--color-primary);
+  opacity: 1;
 }
 
 .route-list-nav-chevron-back:focus-visible {
@@ -2201,9 +2271,36 @@
 }
 
 .route-list-nav-pill--current {
-  color: var(--color-primary-dark);
-  background: rgba(37, 99, 235, 0.1);
-  border: 0.5px solid rgba(37, 99, 235, 0.22);
+  color: var(--color-primary);
+  background: rgba(37, 99, 235, 0.18);
+  border: 1px solid rgba(37, 99, 235, 0.42);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .route-list-nav-pill--current,
+  .route-list-nav-header--picker .route-list-nav-pill--current {
+    color: #93c5fd;
+    background: rgba(59, 130, 246, 0.3);
+    border-color: rgba(96, 165, 250, 0.58);
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.18);
+  }
+
+  .route-list-nav-chevron-back:hover {
+    background: rgba(59, 130, 246, 0.26);
+  }
+
+  .route-list-nav-chevron-back:hover .route-list-nav-chevron {
+    color: #93c5fd;
+  }
+}
+
+.route-list-nav-pill--pending {
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0.5px solid var(--color-border-primary);
+  opacity: 0.72;
+  cursor: default;
 }
 
 .route-geo-nav-list {

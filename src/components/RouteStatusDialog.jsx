@@ -8,6 +8,7 @@ import {
 } from "../map/geoCatalog.js";
 import { loadLastRouteGeo, saveLastRouteGeo } from "../map/lastRouteGeoPrefs.js";
 import { Route } from "../map/routeModel.js";
+import { formatRegionLabel } from "./routeListGeoNav.js";
 
 const STATUS_OPTIONS = [
   Route.ROUTE_STATUS_OPERATING,
@@ -36,8 +37,7 @@ function countryOptionLabel(countryId, t) {
 }
 
 function regionOptionLabel(regionId, t) {
-  if (regionId === GEO_REGION_OTHER) return t("geo.otherCity");
-  return regionId;
+  return formatRegionLabel(regionId, t);
 }
 
 function resolveCountryValue(selectValue, customText) {

@@ -97,6 +97,11 @@ export default function RouteListNavigator({
     }
   };
 
+  const goToCountry = () => {
+    setLevel("country");
+    setSelectedRegionId("");
+  };
+
   const pickCountry = (item) => {
     setSelectedCountryId(canonicalizeCountryId(item.countryId));
     setSelectedRegionId("");
@@ -117,55 +122,73 @@ export default function RouteListNavigator({
   return (
     <>
       <div className={`app-side-panel-header route-list-nav-header${pickerHeaderClass}`}>
-        {level === "country" ? (
-          <h2 className="route-list-nav-title">{t("routeList.navTitleCountries")}</h2>
-        ) : (
-          <div className="route-list-nav-path-row">
-            <nav className="route-list-nav-path" aria-label={t("routeList.breadcrumbAria")}>
-              <button
-                type="button"
-                className="route-list-nav-chevron-back"
-                onClick={goBack}
-                aria-label={t("routeList.navBack")}
-              >
-                <span className="route-list-nav-chevron" aria-hidden="true">
-                  ‹
+        <div className="route-list-nav-path-row">
+          <nav className="route-list-nav-path route-list-nav-path--stacked" aria-label={t("routeList.breadcrumbAria")}>
+            <div className="route-list-nav-crumb-line">
+              {level === "country" ? (
+                <span className="route-list-nav-crumb-spacer" aria-hidden="true" />
+              ) : (
+                <button
+                  type="button"
+                  className="route-list-nav-chevron-back"
+                  onClick={goBack}
+                  aria-label={t("routeList.navBack")}
+                >
+                  <span className="route-list-nav-chevron" aria-hidden="true">
+                    ‹
+                  </span>
+                </button>
+              )}
+              {level === "country" ? (
+                <span className="route-list-nav-pill route-list-nav-pill--current">
+                  {t("routeList.navTitleCountries")}
                 </span>
-              </button>
-              <div className="route-list-nav-pills">
-                {level === "routes" ? (
-                  <>
-                    <button
-                      type="button"
-                      className="route-list-nav-pill route-list-nav-pill--link"
-                      onClick={() => setLevel("city")}
-                      aria-label={t("routeList.navBackToCity", { country: countryLabel })}
-                    >
-                      {countryLabel}
-                    </button>
-                    <span className="route-list-nav-chevron route-list-nav-chevron--sep" aria-hidden="true">
-                      ›
-                    </span>
-                    <span className="route-list-nav-pill route-list-nav-pill--current">{regionLabel}</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="route-list-nav-pill route-list-nav-pill--current">{countryLabel}</span>
-                    <span className="route-list-nav-chevron route-list-nav-chevron--sep" aria-hidden="true">
-                      ›
-                    </span>
-                    <span className="route-list-nav-step-label">{t("routeList.navTitleCities")}</span>
-                  </>
-                )}
-              </div>
-            </nav>
-            {level === "routes" ? (
-              <span className="route-list-nav-count" title={routeCountSubtitle}>
+              ) : level === "city" ? (
+                <button
+                  type="button"
+                  className="route-list-nav-pill route-list-nav-pill--link"
+                  onClick={goToCountry}
+                  aria-label={t("routeList.navTitleCountries")}
+                >
+                  {t("routeList.navTitleCountries")}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="route-list-nav-pill route-list-nav-pill--link"
+                  onClick={() => setLevel("city")}
+                  aria-label={t("routeList.navBackToCity", { country: countryLabel })}
+                >
+                  {countryLabel}
+                </button>
+              )}
+            </div>
+            <div className="route-list-nav-crumb-line">
+              <span className="route-list-nav-chevron route-list-nav-chevron--sep" aria-hidden="true">
+                ›
+              </span>
+              {level === "country" ? (
+                <span className="route-list-nav-pill route-list-nav-pill--pending">
+                  {t("routeList.navTitleCities")}
+                </span>
+              ) : level === "city" ? (
+                <span className="route-list-nav-pill route-list-nav-pill--current">
+                  {t("routeList.navTitleCities")}
+                </span>
+              ) : (
+                <span className="route-list-nav-pill route-list-nav-pill--current">{regionLabel}</span>
+              )}
+            </div>
+            <div className="route-list-nav-crumb-line">
+              <span className="route-list-nav-chevron route-list-nav-chevron--sep" aria-hidden="true">
+                ›
+              </span>
+              <span className="route-list-nav-route-end" title={routeCountSubtitle}>
                 {routeCountSubtitle}
               </span>
-            ) : null}
-          </div>
-        )}
+            </div>
+          </nav>
+        </div>
       </div>
 
       <div className="app-side-panel-content route-list-sidebar-scroll">

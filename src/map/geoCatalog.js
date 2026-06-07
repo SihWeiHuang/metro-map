@@ -42,6 +42,11 @@ export const GEO_COUNTRY_LABEL_KEYS = {
   [GEO_COUNTRY_OTHER]: "geo.otherCountry",
 };
 
+/** 有 i18n 翻譯的城市 regionId → key（儲存值仍為中文 regionId，如「雙北」） */
+export const GEO_CITY_LABEL_KEYS = {
+  雙北: "geo.city.greaterTaipeiArea",
+};
+
 const COUNTRY_ALIAS_TO_ID = new Map([
   ["台灣", GEO_COUNTRY_TW],
   ["臺灣", GEO_COUNTRY_TW],
@@ -116,6 +121,16 @@ export function hasCatalogMapView(countryId, region) {
 export function getCountryLabelKey(countryId) {
   const cid = canonicalizeCountryId(countryId);
   return GEO_COUNTRY_LABEL_KEYS[cid] ?? null;
+}
+
+/**
+ * i18n key；自訂城市無對應 key 時回傳 null（UI 改顯示原始字串）。
+ * @param {unknown} regionId
+ * @returns {string | null}
+ */
+export function getCityLabelKey(regionId) {
+  const rid = canonicalizeRegion(regionId);
+  return GEO_CITY_LABEL_KEYS[rid] ?? null;
 }
 
 /**
