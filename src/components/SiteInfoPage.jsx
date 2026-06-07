@@ -8,9 +8,9 @@ import SiteContactPage from "./SiteContactPage.jsx";
 import SiteSupportPage from "./SiteSupportPage.jsx";
 
 /**
- * @param {{ pageId: import('../site/siteRoutes.js').SitePageId, onClose: () => void }} props
+ * @param {{ pageId: import('../site/siteRoutes.js').SitePageId, onClose: () => void, adGutter?: boolean }} props
  */
-export default function SiteInfoPage({ pageId, onClose }) {
+export default function SiteInfoPage({ pageId, onClose, adGutter = false }) {
   const { t, locale } = useI18n();
   const aboutContent = pageId === "about" ? getAboutContent(locale) : null;
   const supportContent = pageId === "support" ? getSupportContent(locale) : null;
@@ -27,7 +27,12 @@ export default function SiteInfoPage({ pageId, onClose }) {
   if (!content) return null;
 
   return (
-    <div className="site-info-overlay" role="dialog" aria-modal="true" aria-labelledby="site-info-title">
+    <div
+      className={`site-info-overlay${adGutter ? " site-info-overlay--ad-gutter" : ""}`}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="site-info-title"
+    >
       <div
         className={`site-info-panel${
           pageId === "about"

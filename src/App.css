@@ -4,6 +4,8 @@
 
 :root {
   --app-surface-gutter: var(--spacing-md);
+  /* Match AD_SIDEBAR_WIDTH_PX in src/site/adSidebarConfig.js */
+  --ad-sidebar-width: 160px;
 }
 
 /* ==========================================
@@ -216,6 +218,12 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+@media (min-width: 769px) {
+  .site-info-overlay.site-info-overlay--ad-gutter {
+    right: var(--ad-sidebar-width, 160px);
+  }
 }
 
 .site-info-panel {

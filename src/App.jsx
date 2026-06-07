@@ -697,7 +697,7 @@ function App() {
           </div>
         </div>
       </header>
-      {sitePage && <SiteInfoPage pageId={sitePage} onClose={closeSitePage} />}
+      {sitePage && <SiteInfoPage pageId={sitePage} onClose={closeSitePage} adGutter={adSidebarEnabled} />}
       {shareBootstrap.phase === "loading" ? (
         <div className="app-share-loading" role="status" aria-live="polite">
           {t("share.loading")}
