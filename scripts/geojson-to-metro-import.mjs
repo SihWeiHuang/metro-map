@@ -203,7 +203,7 @@ export function convertGeoJsonToMetroImport(geojson, meta = {}) {
           color,
           route_kind: "user",
           country: "TW",
-          region: "雙北",
+          region: "大台北地區",
           status: "operating",
         },
       });

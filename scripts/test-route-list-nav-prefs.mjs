@@ -1,4 +1,4 @@
-import { canonicalizeCountryId } from "../src/map/geoCatalog.js";
+import { canonicalizeCountryId, GEO_REGION_GREATER_TAIPEI } from "../src/map/geoCatalog.js";
 import {
   ROUTE_LIST_NAV_STORAGE_KEY,
   loadRouteListNav,
@@ -21,7 +21,7 @@ saveRouteListNav({ level: "routes", countryId: "TW", regionId: "雙北" });
 const loaded = loadRouteListNav();
 assert(loaded?.level === "routes", "restore routes level");
 assert(loaded?.countryId === "TW", "restore country");
-assert(loaded?.regionId === "雙北", "restore region");
+assert(loaded?.regionId === GEO_REGION_GREATER_TAIPEI, "legacy 雙北 canonicalizes on restore");
 
 saveRouteListNav({ level: "city", countryId: "JP", regionId: "" });
 assert(loadRouteListNav()?.level === "city", "restore city level");

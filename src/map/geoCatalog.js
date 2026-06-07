@@ -3,7 +3,7 @@
  *
  * 儲存慣例（寫入 route properties）：
  * - `country`：國家代碼（例如 "TW"、"JP"）；空字串表示「其他」
- * - `region`：城市／地區顯示名（例如 "雙北"）；空字串表示「其他」
+ * - `region`：城市／地區顯示名（例如 "大台北地區"）；空字串表示「其他」
  *
  * 畫面顯示名稱透過 i18n（geo.country.*）或直接使用自訂字串。
  */
@@ -19,6 +19,9 @@ export const GEO_REGION_OTHER = "";
 /** 台灣國家代碼（與內建預設路線一致） */
 export const GEO_COUNTRY_TW = "TW";
 
+/** 台灣大台北地區儲存用 regionId（舊資料可能仍為「雙北」） */
+export const GEO_REGION_GREATER_TAIPEI = "大台北地區";
+
 /**
  * 內建目錄：營運方預先定義的國家與城市，含地圖預設視野。
  *
@@ -31,7 +34,7 @@ export const GEO_COUNTRY_TW = "TW";
 export const BUILTIN_GEO_CATALOG = [
   {
     countryId: GEO_COUNTRY_TW,
-    cities: [{ regionId: "雙北", mapView: DEFAULT_MAP_VIEW }],
+    cities: [{ regionId: GEO_REGION_GREATER_TAIPEI, mapView: DEFAULT_MAP_VIEW }],
   },
 ];
 
@@ -42,10 +45,13 @@ export const GEO_COUNTRY_LABEL_KEYS = {
   [GEO_COUNTRY_OTHER]: "geo.otherCountry",
 };
 
-/** 有 i18n 翻譯的城市 regionId → key（儲存值仍為中文 regionId，如「雙北」） */
+/** 有 i18n 翻譯的城市 regionId → key */
 export const GEO_CITY_LABEL_KEYS = {
+  [GEO_REGION_GREATER_TAIPEI]: "geo.city.greaterTaipeiArea",
   雙北: "geo.city.greaterTaipeiArea",
 };
+
+const REGION_ALIAS_TO_ID = new Map([["雙北", GEO_REGION_GREATER_TAIPEI]]);
 
 const COUNTRY_ALIAS_TO_ID = new Map([
   ["台灣", GEO_COUNTRY_TW],
@@ -76,7 +82,8 @@ export function canonicalizeCountryId(country) {
  * @returns {string}
  */
 export function canonicalizeRegion(region) {
-  return String(region ?? "").trim();
+  const raw = String(region ?? "").trim();
+  return REGION_ALIAS_TO_ID.get(raw) ?? raw;
 }
 
 /** @param {unknown} countryId */
@@ -163,8 +170,8 @@ function compareCountryIds(a, b) {
 function compareRegionIds(a, b) {
   if (a === GEO_REGION_OTHER) return 1;
   if (b === GEO_REGION_OTHER) return -1;
-  if (a === "雙北") return -1;
-  if (b === "雙北") return 1;
+  if (a === GEO_REGION_GREATER_TAIPEI) return -1;
+  if (b === GEO_REGION_GREATER_TAIPEI) return 1;
   return a.localeCompare(b, "zh-Hant");
 }
 

@@ -345,7 +345,7 @@ async function main() {
           color: pickColor(group.lineName),
           route_kind: "user",
           country: "TW",
-          region: "雙北",
+          region: "大台北地區",
           status: groupStatus,
         },
       });

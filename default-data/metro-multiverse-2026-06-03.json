@@ -311,7 +311,7 @@
           "name": "環狀線北環段",
           "route_kind": "user",
           "country": "TW",
-          "region": "雙北",
+          "region": "大台北地區",
           "status": "construction",
           "color": "#ffdb00"
         }
@@ -649,7 +649,7 @@
           "name": "環狀線東環段",
           "route_kind": "user",
           "country": "TW",
-          "region": "雙北",
+          "region": "大台北地區",
           "status": "construction",
           "color": "#ffdb00"
         }
@@ -863,7 +863,7 @@
           "name": "環狀線南環段",
           "route_kind": "user",
           "country": "TW",
-          "region": "雙北",
+          "region": "大台北地區",
           "status": "construction",
           "color": "#ffdb00"
         }
@@ -1178,7 +1178,7 @@
           "color": "#79bce8",
           "route_kind": "user",
           "country": "TW",
-          "region": "雙北",
+          "region": "大台北地區",
           "status": "construction"
         }
       },
@@ -1460,7 +1460,7 @@
           "color": "#FFDB00",
           "route_kind": "user",
           "country": "TW",
-          "region": "雙北",
+          "region": "大台北地區",
           "status": "operating"
         }
       },
@@ -1518,7 +1518,7 @@
           "color": "#008659",
           "route_kind": "user",
           "country": "TW",
-          "region": "雙北",
+          "region": "大台北地區",
           "status": "operating"
         }
       },
@@ -1780,7 +1780,7 @@
           "color": "#F8B61C",
           "route_kind": "user",
           "country": "TW",
-          "region": "雙北",
+          "region": "大台北地區",
           "status": "operating"
         }
       },
@@ -1938,7 +1938,7 @@
           "color": "#F8B61C",
           "route_kind": "user",
           "country": "TW",
-          "region": "雙北",
+          "region": "大台北地區",
           "status": "operating"
         }
       },
@@ -2576,7 +2576,7 @@
           "color": "#C48C31",
           "route_kind": "user",
           "country": "TW",
-          "region": "雙北",
+          "region": "大台北地區",
           "status": "operating"
         }
       },
@@ -2770,7 +2770,7 @@
           "color": "#008659",
           "route_kind": "user",
           "country": "TW",
-          "region": "雙北",
+          "region": "大台北地區",
           "status": "operating"
         }
       },
@@ -3156,7 +3156,7 @@
           "color": "#0070bd",
           "route_kind": "user",
           "country": "TW",
-          "region": "雙北",
+          "region": "大台北地區",
           "status": "operating"
         }
       },
@@ -3626,7 +3626,7 @@
           "color": "#E3002C",
           "route_kind": "user",
           "country": "TW",
-          "region": "雙北",
+          "region": "大台北地區",
           "status": "operating"
         }
       },
@@ -3660,7 +3660,7 @@
           "color": "#E3002C",
           "route_kind": "user",
           "country": "TW",
-          "region": "雙北",
+          "region": "大台北地區",
           "status": "operating"
         }
       },
@@ -4201,7 +4201,7 @@
           "name": "萬大樹林線",
           "route_kind": "user",
           "country": "TW",
-          "region": "雙北",
+          "region": "大台北地區",
           "status": "construction",
           "color": "#a1d884"
         }
