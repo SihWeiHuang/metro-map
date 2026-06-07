@@ -1365,7 +1365,7 @@
   pointer-events: none;
 }
 
-/* Finish/Cancel Bar */
+/* Finish/Cancel Bar — buttons float over map with halo only (no dock wrapper) */
 .app-map-finish-slot {
   position: absolute;
   bottom: var(--spacing-lg);
@@ -1380,52 +1380,86 @@
   gap: var(--spacing-md);
 }
 
-.mode-finish-bar {
+.app-controls-toolbar .mode-cancel-bar {
+  margin-top: var(--spacing-sm);
+  width: 100%;
+}
+
+.mode-finish-bar,
+.mode-cancel-bar {
+  --edit-mode-action-halo: rgba(255, 255, 255, 0.44);
+  --edit-mode-action-glow: rgba(255, 255, 255, 0.21);
+  position: relative;
+  z-index: 1;
   padding: var(--spacing-md) var(--spacing-xl);
   font-size: 0.875rem;
   font-weight: 600;
   border: none;
   border-radius: var(--radius-md);
-  background: var(--color-success);
   color: white;
   cursor: pointer;
-  transition: 
+  transition:
     background var(--transition-fast),
-    transform var(--transition-fast);
-  box-shadow: var(--shadow-lg);
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+  box-shadow:
+    0 0 0 1px var(--edit-mode-action-halo),
+    0 0 0 1.5px rgba(255, 255, 255, 0.14),
+    0 0 7px var(--edit-mode-action-glow),
+    0 0 14px rgba(255, 255, 255, 0.09),
+    0 4px 14px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
 
-.mode-finish-bar:hover {
+.mode-finish-bar {
+  background: var(--color-success);
+}
+
+.mode-finish-bar:hover:not(:disabled) {
+  --edit-mode-action-halo: rgba(255, 255, 255, 0.49);
+  --edit-mode-action-glow: rgba(255, 255, 255, 0.29);
   background: var(--color-success-dark);
   transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1px var(--edit-mode-action-halo),
+    0 0 0 2px rgba(255, 255, 255, 0.17),
+    0 0 10px var(--edit-mode-action-glow),
+    0 0 18px rgba(255, 255, 255, 0.12),
+    0 8px 20px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
 
-.mode-finish-bar:active {
+.mode-finish-bar:active:not(:disabled) {
   transform: translateY(0);
 }
 
 .mode-cancel-bar {
-  padding: var(--spacing-md) var(--spacing-xl);
-  font-size: 0.875rem;
-  font-weight: 600;
-  border: none;
-  border-radius: var(--radius-md);
   background: var(--color-danger);
-  color: white;
-  cursor: pointer;
-  transition: 
-    background var(--transition-fast),
-    transform var(--transition-fast);
-  box-shadow: var(--shadow-lg);
 }
 
-.mode-cancel-bar:hover {
+.mode-cancel-bar:hover:not(:disabled) {
+  --edit-mode-action-halo: rgba(255, 255, 255, 0.49);
+  --edit-mode-action-glow: rgba(255, 255, 255, 0.29);
   background: var(--color-danger-dark);
   transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1px var(--edit-mode-action-halo),
+    0 0 0 2px rgba(255, 255, 255, 0.17),
+    0 0 10px var(--edit-mode-action-glow),
+    0 0 18px rgba(255, 255, 255, 0.12),
+    0 8px 20px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
 
-.mode-cancel-bar:active {
+.mode-cancel-bar:active:not(:disabled) {
   transform: translateY(0);
+}
+
+.mode-finish-bar:disabled,
+.mode-cancel-bar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* ==========================================
@@ -3875,7 +3909,7 @@ html[lang="en"] .route-list-badge {
 }
 
 .mode-buttons button,
-.app-controls-toolbar button:not(.app-edit-mode-toggle):not(.edit-station-submode-btn) {
+.app-controls-toolbar button:not(.app-edit-mode-toggle):not(.edit-station-submode-btn):not(.mode-cancel-bar) {
   padding: 10px var(--spacing-md);
   font-size: 0.875rem;
   font-weight: 500;
@@ -3892,7 +3926,7 @@ html[lang="en"] .route-list-badge {
 }
 
 .mode-buttons button:hover:not(:disabled),
-.app-controls-toolbar button:not(.app-edit-mode-toggle):not(.edit-station-submode-btn):hover:not(:disabled) {
+.app-controls-toolbar button:not(.app-edit-mode-toggle):not(.edit-station-submode-btn):not(.mode-cancel-bar):hover:not(:disabled) {
   background: var(--color-gray-200);
   border-color: var(--color-border-secondary);
 }
@@ -3906,7 +3940,7 @@ html[lang="en"] .route-list-badge {
 }
 
 .mode-buttons button:disabled,
-.app-controls-toolbar button:disabled:not(.edit-station-submode-btn) {
+.app-controls-toolbar button:disabled:not(.edit-station-submode-btn):not(.mode-cancel-bar) {
   opacity: 0.4;
   cursor: not-allowed;
 }

@@ -832,7 +832,13 @@ function App() {
                 </button>
               </div>
               {showMergeCancel && (
-                <button type="button" id="mergeCancelButton" disabled={toolsDisabled} onClick={cancelMerge}>
+                <button
+                  type="button"
+                  id="mergeCancelButton"
+                  className="mode-cancel-bar"
+                  disabled={toolsDisabled}
+                  onClick={cancelMerge}
+                >
                   {t("app.cancel")}
                 </button>
               )}
