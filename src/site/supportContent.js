@@ -48,8 +48,8 @@ export function getSupportContent(locale) {
     cta: {
       heading: L(locale, { zh: "支持這個專案", en: "Support this project" }),
       text: L(locale, {
-        zh: "贊助完全出於自願，沒有任何義務。即使是小額支持，也有助於分擔營運成本，讓專案得以持續運作。若您認為 Metro Multiverse 對您有所助益，歡迎透過下方連結贊助。",
-        en: "Support is entirely voluntary—there is no obligation. Even a small contribution helps cover operating costs and keep the project running. If Metro Multiverse has been useful to you, you're welcome to sponsor via the link below.",
+        zh: "贊助完全出於自願，沒有任何義務。即使是小額支持，也有助於分擔營運成本，讓專案得以持續運作。若您認為 Metro Multiverse 對您有所助益，歡迎透過下方 Ko-fi 連結贊助，非常感謝您的支持。",
+        en: "Support is entirely voluntary—there is no obligation. Even a small contribution helps cover operating costs and keep the project running. If Metro Multiverse has been useful to you, you're welcome to sponsor via the Ko-fi link below—thank you for your support.",
       }),
       notConfigured: L(locale, {
         zh: "贊助連結尚未設定。維運者可在 Vercel 環境變數加入 VITE_SPONSOR_URL（Ko-fi 網址）。",
