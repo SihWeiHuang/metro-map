@@ -116,6 +116,19 @@ function applyRouteHoverLabelFilters(map, hoveredSubrouteIds, level = STATION_LA
   }
 }
 
+/** @returns {string[]} */
+export function getActiveRouteHoverSubrouteIds() {
+  return [...activeRouteHoverSubrouteIds];
+}
+
+/** 清除路線 hover 站名分流狀態，但不還原 stations-label 可見性 filter（編輯路線隱藏時用）。 */
+export function clearRouteHoverLabelState(map, level = STATION_LABEL_COLLISION_LEVEL) {
+  activeRouteHoverSubrouteIds = [];
+  stationLabelVisibilityFilter = null;
+  applyLayoutToLayers(map, STATION_LABEL_COLLISION_LAYER_IDS, getStationLabelCollisionLayout(level));
+  hideRouteHoverLabelLayer(map);
+}
+
 function clearRouteHoverLabelFilters(map, level = STATION_LABEL_COLLISION_LEVEL) {
   activeRouteHoverSubrouteIds = [];
   const base = stationLabelVisibilityFilter;

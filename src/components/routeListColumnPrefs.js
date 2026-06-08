@@ -1,29 +1,13 @@
-/**
- * Persisted visibility for route list table columns (header + cells).
- *
- * Third-layer only (RouteListPanel). Layers 1–2 geo navigation (country / city) lives in
- * RouteListNavigator + routeListGeoNav.js. Toggleable columns here: status badge, kind tag.
- * Name is always shown; edit-mode actions column is not part of this prefs module.
- */
+/** Persisted visibility for route list table columns (header + cells). */
 
 export const ROUTE_LIST_COLS_STORAGE_KEY = "metro-map-route-list-columns-v1";
 
-/** @typedef {"kind" | "status"} RouteListToggleableColKey */
-
-export const ROUTE_LIST_TOGGLEABLE_COL_KEYS = /** @type {const} */ (["status", "kind"]);
-
-const COL_KEYS = [...ROUTE_LIST_TOGGLEABLE_COL_KEYS];
-
-/** @type {Record<RouteListToggleableColKey, string>} */
-export const ROUTE_LIST_COL_I18N_KEYS = {
-  status: "routeList.colStatus",
-  kind: "routeList.colKind",
-};
+const COL_KEYS = ["kind", "actions"];
 
 export function defaultRouteListColumns() {
   return {
     kind: true,
-    status: true,
+    actions: true,
   };
 }
 
@@ -45,29 +29,11 @@ export function loadRouteListColumns() {
 }
 
 export function saveRouteListColumns(cols) {
-  const payload = {};
-  for (const k of COL_KEYS) {
-    if (typeof cols[k] === "boolean") payload[k] = cols[k];
-  }
   try {
-    localStorage.setItem(ROUTE_LIST_COLS_STORAGE_KEY, JSON.stringify(payload));
+    localStorage.setItem(ROUTE_LIST_COLS_STORAGE_KEY, JSON.stringify(cols));
   } catch {
     /* ignore */
   }
-}
-
-/** Restore default column visibility (all toggleable columns on). */
-export function resetRouteListColumns() {
-  const defaults = defaultRouteListColumns();
-  saveRouteListColumns(defaults);
-  return defaults;
-}
-
-/**
- * @param {ReturnType<typeof defaultRouteListColumns>} columnVisibility
- */
-export function resolveRouteListColumns(columnVisibility) {
-  return columnVisibility;
 }
 
 /**
@@ -75,11 +41,13 @@ export function resolveRouteListColumns(columnVisibility) {
  * @param {ReturnType<typeof defaultRouteListColumns>} cols
  */
 export function buildRouteListGridTemplate(showRouteActions, cols) {
+  if (!showRouteActions) {
+    const parts = ["22px", "minmax(0, 1fr)"];
+    if (cols.kind) parts.push("minmax(7.5rem, max-content)");
+    return parts.join(" ");
+  }
   const parts = ["22px", "minmax(0, 1fr)"];
-  const badgeCol = "var(--route-badge-width)";
-
-  if (cols.status) parts.push(badgeCol);
-  if (cols.kind) parts.push(badgeCol);
-  if (showRouteActions) parts.push("max-content");
+  if (cols.kind) parts.push("minmax(0, 1fr)");
+  if (cols.actions) parts.push("max-content");
   return parts.join(" ");
 }

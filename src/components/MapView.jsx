@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useI18n } from "../i18n/I18nProvider.jsx";
-import { getMap, isMapStyleReady, setMapInstance } from "../map/mapInstance.js";
+import { setMapInstance } from "../map/mapInstance.js";
 import {
   applyMapCameraAfterLoad,
   bindMapViewPersistence,
@@ -24,26 +24,6 @@ import { configureMiddleButtonDragPan } from "../map/mapMiddleButtonPan.js";
 
 const DEFAULT_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
 
-function mapLanguageForLocale(locale) {
-  return locale === "en" ? "en" : "zh-Hant";
-}
-
-function applyMapLanguage(map, locale) {
-  if (!map) return;
-  const mapLanguage = mapLanguageForLocale(locale);
-  const run = () => {
-    try {
-      if (typeof map.setLanguage === "function") {
-        map.setLanguage(mapLanguage);
-      }
-    } catch {
-      /* custom styles may not support setLanguage */
-    }
-  };
-  if (isMapStyleReady(map)) run();
-  else map.once("style.load", run);
-}
-
 export default function MapView({ onModeChange }) {
   const { locale } = useI18n();
   const containerRef = useRef(null);
@@ -55,6 +35,7 @@ export default function MapView({ onModeChange }) {
 
   useEffect(() => {
     if (!containerRef.current) return;
+    const mapLanguage = locale === "en" ? "en" : "zh-Hant";
     const view = lastViewRef.current;
 
     mapboxgl.accessToken = DEFAULT_TOKEN;
@@ -65,14 +46,14 @@ export default function MapView({ onModeChange }) {
       zoom: view.zoom,
       bearing: view.bearing,
       pitch: view.pitch,
-      language: mapLanguageForLocale(locale),
+      language: mapLanguage,
     });
 
     map.addControl(
       new mapboxgl.NavigationControl({
         visualizePitch: true,
       }),
-      "top-right",
+      "top-right"
     );
 
     setMapInstance(map);
@@ -98,7 +79,7 @@ export default function MapView({ onModeChange }) {
     const scheduleResize = () => {
       requestAnimationFrame(() => {
         try {
-          if (isMapStyleReady(map)) map.resize();
+          map.resize();
         } catch {
           /* map removed */
         }
@@ -125,12 +106,6 @@ export default function MapView({ onModeChange }) {
       setMapInstance(null);
       map.remove();
     };
-    // Map is created once; basemap language updates via applyMapLanguage.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    applyMapLanguage(getMap(), locale);
   }, [locale]);
 
   return <div id="map" ref={containerRef} className="map-canvas" />;

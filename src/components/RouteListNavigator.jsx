@@ -44,7 +44,6 @@ function GeoNavList({ items, getLabel, onPick, countLabel }) {
 
 export default function RouteListNavigator({
   listRevision = 0,
-  tablePrefsRevision = 0,
   onRefresh,
   showRouteActions = false,
   mergeSelectMode = false,
@@ -219,7 +218,6 @@ export default function RouteListNavigator({
           filteredRoutes.length > 0 ? (
             <RouteListPanel
               routes={filteredRoutes}
-              tablePrefsRevision={tablePrefsRevision}
               onRefresh={onRefresh}
               showRouteActions={routeLayerEditActions}
               mergeSelectMode={routeLayerMerge}

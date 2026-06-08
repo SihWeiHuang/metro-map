@@ -1,11 +1,3 @@
-/**
- * Third-layer route table (RouteListPanel): tabular list with column toggles and filters.
- *
- * - Layers 1–2 (RouteListNavigator): country / city geo navigation via GeoNavList.
- * - Layer 3 (this panel): receives `routes={filteredRoutes}` for the selected city only.
- *   Column visibility (routeListColumnPrefs) and status/kind filters (routeListFilterPrefs)
- *   apply here; do not duplicate geo filters.
- */
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../i18n/I18nProvider.jsx";
@@ -20,21 +12,8 @@ import {
 } from "../map/modeBundle.js";
 import {
   buildRouteListGridTemplate,
-  loadRouteListColumns,
-  resolveRouteListColumns,
-  ROUTE_LIST_COL_I18N_KEYS,
-  ROUTE_LIST_TOGGLEABLE_COL_KEYS,
-  saveRouteListColumns,
+  defaultRouteListColumns,
 } from "./routeListColumnPrefs.js";
-import {
-  filterRouteListEntries,
-  loadRouteListFilter,
-  ROUTE_LIST_KIND_FILTER_I18N,
-  ROUTE_LIST_KIND_FILTER_VALUES,
-  ROUTE_LIST_STATUS_FILTER_I18N,
-  ROUTE_LIST_STATUS_FILTER_VALUES,
-  saveRouteListFilter,
-} from "./routeListFilterPrefs.js";
 
 function getRouteMergePickOrder(routes, mergePickSubrouteIds) {
   for (let i = 0; i < mergePickSubrouteIds.length; i++) {
@@ -45,7 +24,6 @@ function getRouteMergePickOrder(routes, mergePickSubrouteIds) {
 
 export default function RouteListPanel({
   routes: routesOverride,
-  tablePrefsRevision = 0,
   onRefresh,
   showRouteActions = false,
   mergeSelectMode = false,
@@ -56,91 +34,15 @@ export default function RouteListPanel({
   const routeList = routesOverride ?? Route.getRouteList();
   const [selectedRouteIds, setSelectedRouteIds] = useState(() => new Set());
   const [mergePickSubrouteIds, setMergePickSubrouteIds] = useState(() => getMergePickSubrouteIds());
-  const [columnVisibility, setColumnVisibility] = useState(() => loadRouteListColumns());
-  const [columnsOpen, setColumnsOpen] = useState(false);
-  const [listFilter, setListFilter] = useState(() => loadRouteListFilter());
-  const [suppressRowEditUntil, setSuppressRowEditUntil] = useState(0);
+  const [columnVisibility] = useState(defaultRouteListColumns);
 
-  const bumpSuppressRowEdit = useCallback(() => {
-    setSuppressRowEditUntil(Date.now() + 500);
-  }, []);
-
-  useEffect(() => {
-    if (suppressRowEditUntil <= Date.now()) return;
-    const id = setTimeout(() => {
-      setSuppressRowEditUntil(0);
-    }, suppressRowEditUntil - Date.now() + 1);
-    return () => clearTimeout(id);
-  }, [suppressRowEditUntil]);
-
-  const clearSelection = useCallback(() => {
-    setSelectedRouteIds(new Set());
-  }, []);
-
-  useEffect(() => {
-    setColumnVisibility(loadRouteListColumns());
-    setListFilter(loadRouteListFilter());
-    setColumnsOpen(false);
-  }, [tablePrefsRevision]);
-
-  const listCols = useMemo(() => resolveRouteListColumns(columnVisibility), [columnVisibility]);
-
-  const setColumnVisible = useCallback((key, visible) => {
-    setColumnVisibility((prev) => {
-      const next = { ...prev, [key]: visible };
-      saveRouteListColumns(next);
-      return next;
-    });
-  }, []);
-
-  const setStatusFilter = useCallback(
-    (statusFilter) => {
-      setListFilter((prev) => {
-        const next = { ...prev, statusFilter };
-        saveRouteListFilter(next);
-        return next;
-      });
-      bumpSuppressRowEdit();
-    },
-    [bumpSuppressRowEdit],
+  const listCols = useMemo(
+    () => ({
+      ...columnVisibility,
+      kind: showRouteActions ? false : columnVisibility.kind,
+    }),
+    [columnVisibility, showRouteActions],
   );
-
-  const setKindFilter = useCallback(
-    (kindFilter) => {
-      setListFilter((prev) => {
-        const next = { ...prev, kindFilter };
-        saveRouteListFilter(next);
-        return next;
-      });
-      bumpSuppressRowEdit();
-    },
-    [bumpSuppressRowEdit],
-  );
-
-  const visibleRouteList = useMemo(
-    () => filterRouteListEntries(routeList, listFilter),
-    [routeList, listFilter],
-  );
-
-  const visibleRouteIds = useMemo(
-    () => new Set(visibleRouteList.map((g) => g.route_id)),
-    [visibleRouteList],
-  );
-
-  const visibleRouteIdsKey = useMemo(
-    () => visibleRouteList.map((g) => g.route_id).join("\0"),
-    [visibleRouteList],
-  );
-
-  useEffect(() => {
-    setSelectedRouteIds((prev) => {
-      if (prev.size === 0) return prev;
-      const visible = new Set(visibleRouteIdsKey ? visibleRouteIdsKey.split("\0") : []);
-      const next = new Set(Array.from(prev).filter((id) => visible.has(id)));
-      if (next.size === prev.size && [...next].every((id) => prev.has(id))) return prev;
-      return next;
-    });
-  }, [visibleRouteIdsKey]);
 
   const gridTemplateColumns = useMemo(
     () => buildRouteListGridTemplate(showRouteActions, listCols),
@@ -174,32 +76,14 @@ export default function RouteListPanel({
     if (!mergeSelectMode) setMergePickSubrouteIds([]);
   }, [mergeSelectMode]);
 
-  const listPickMode = mergeSelectMode || splitLineSelectMode;
-
-  useEffect(() => {
-    if (listPickMode) setColumnsOpen(false);
-  }, [listPickMode]);
-
-  const allSelected =
-    visibleRouteList.length > 0 && visibleRouteList.every((g) => selectedRouteIds.has(g.route_id));
-  const selectedCount = Array.from(selectedRouteIds).filter((id) => visibleRouteIds.has(id)).length;
-  const hasSelection = selectedRouteIds.size > 0;
+  const allSelected = routeList.length > 0 && selectedRouteIds.size === routeList.length;
+  const selectedCount = selectedRouteIds.size;
   const activeEditRouteId = showRouteActions ? Route.getActiveEditRouteId() : null;
   const toolbarLocked = !!activeEditRouteId;
-  /** 已勾選至少一條時，點列僅切換勾選、不進入路線編輯 */
-  const batchSelectMode = showRouteActions && hasSelection;
-  /** 含篩選切換後的短暫緩衝，避免清空勾選或列表重排時誤觸編輯 */
-  const blockRowEdit =
-    showRouteActions && (hasSelection || Date.now() < suppressRowEditUntil);
+  /** 已勾選至少一條時，禁止點列進入臨時編輯，僅能繼續勾選 */
+  const blockRowEdit = showRouteActions && selectedRouteIds.size > 0;
 
-  const handleFilterInteraction = useCallback(() => {
-    if (hasSelection) bumpSuppressRowEdit();
-  }, [bumpSuppressRowEdit, hasSelection]);
-
-  const selectedVisibleRouteIds = useCallback(
-    () => Array.from(selectedRouteIds).filter((id) => visibleRouteIds.has(id)),
-    [selectedRouteIds, visibleRouteIds],
-  );
+  const visibleRouteList = routeList;
 
   const toggleRouteSelect = (routeId) => {
     setSelectedRouteIds((prev) => {
@@ -211,42 +95,25 @@ export default function RouteListPanel({
   };
 
   const toggleSelectAll = () => {
-    const visibleIds = visibleRouteList.map((g) => g.route_id);
     setSelectedRouteIds((prev) => {
-      const allVisibleSelected =
-        visibleIds.length > 0 && visibleIds.every((id) => prev.has(id));
-      if (allVisibleSelected) {
-        const next = new Set(prev);
-        for (const id of visibleIds) next.delete(id);
-        return next;
-      }
-      const next = new Set(prev);
-      for (const id of visibleIds) next.add(id);
-      return next;
+      if (routeList.length > 0 && prev.size === routeList.length) return new Set();
+      return new Set(routeList.map((g) => g.route_id));
     });
   };
 
-  const toggleSelectedVisibility = () => {
-    const ids = selectedVisibleRouteIds();
-    if (ids.length < 2) return;
-    const hiddenCount = ids.filter((id) => Route.isRouteHidden(id)).length;
-    if (hiddenCount === 0) {
-      if (Route.setRoutesHidden(ids, true)) onRefresh();
-    } else if (hiddenCount === ids.length) {
-      if (Route.setRoutesHidden(ids, false)) onRefresh();
-    }
+  const hideSelected = () => {
+    if (Route.setRoutesHidden(Array.from(selectedRouteIds), true)) onRefresh();
+  };
+
+  const showSelected = () => {
+    if (Route.setRoutesHidden(Array.from(selectedRouteIds), false)) onRefresh();
   };
 
   const deleteSelected = () => {
-    const ids = selectedVisibleRouteIds();
-    if (ids.length === 0) return;
-    if (!confirm(t("routeList.confirmDeleteMany", { count: ids.length }))) return;
-    Route.deleteRoutes(ids);
-    setSelectedRouteIds((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) next.delete(id);
-      return next;
-    });
+    if (selectedRouteIds.size === 0) return;
+    if (!confirm(t("routeList.confirmDeleteMany", { count: selectedRouteIds.size }))) return;
+    Route.deleteRoutes(Array.from(selectedRouteIds));
+    setSelectedRouteIds(new Set());
     onRefresh();
   };
 
@@ -265,8 +132,7 @@ export default function RouteListPanel({
   };
 
   const exportSelected = () => {
-    const ids = selectedVisibleRouteIds();
-    const result = Route.exportRoutesJSON(ids);
+    const result = Route.exportRoutesJSON(Array.from(selectedRouteIds));
     if (!result.ok) {
       if (result.error === "no_user_routes") {
         alert(t("routeList.exportNoUserRoutes"));
@@ -283,9 +149,7 @@ export default function RouteListPanel({
   };
 
   return (
-    <div
-      className={`route-list-inner${showRouteActions ? " route-list-inner--edit" : ""}${listPickMode ? " route-list-inner--pick" : ""}`}
-    >
+    <div className={`route-list-inner${showRouteActions ? " route-list-inner--edit" : ""}`}>
       {mergeSelectMode && (
         <div className="route-batch-toolbar route-merge-toolbar">
           <span className="route-merge-toolbar-hint">{t("routeList.mergePickHint")}</span>
@@ -308,9 +172,6 @@ export default function RouteListPanel({
           </div>
           {selectedCount >= 1 && (
             <div className="route-batch-toolbar-actions">
-              <button type="button" onClick={clearSelection} disabled={toolbarLocked}>
-                {t("routeList.clearSelection")}
-              </button>
               <button
                 type="button"
                 onClick={exportSelected}
@@ -318,81 +179,34 @@ export default function RouteListPanel({
               >
                 {t("routeList.exportSelected")}
               </button>
-              {selectedCount >= 2 && (() => {
-                const ids = selectedVisibleRouteIds();
-                const hiddenCount = ids.filter((id) => Route.isRouteHidden(id)).length;
-                const allHidden = hiddenCount === ids.length;
-                const mixedVisibility = hiddenCount > 0 && !allHidden;
-                return (
-                  <button
-                    type="button"
-                    onClick={toggleSelectedVisibility}
-                    disabled={toolbarLocked || mixedVisibility}
-                    title={mixedVisibility ? t("routeList.toggleVisibilityMixedTitle") : undefined}
-                  >
-                    {allHidden ? t("routeList.showRoutes") : t("routeList.hideRoutes")}
-                  </button>
-                );
-              })()}
               {selectedCount >= 2 && (
+                <>
+                  <button type="button" onClick={hideSelected} disabled={toolbarLocked}>
+                    {t("routeList.hideRoutes")}
+                  </button>
+                  <button type="button" onClick={showSelected} disabled={toolbarLocked}>
+                    {t("routeList.showRoutes")}
+                  </button>
                   <button type="button" onClick={deleteSelected} disabled={toolbarLocked}>
                     {t("routeList.deleteSelected")}
                   </button>
+                </>
               )}
             </div>
           )}
         </div>
       )}
-      <div
-        className={`route-list-table-toolbar${showRouteActions ? " route-list-table-toolbar--edit" : ""}${listPickMode ? " route-list-table-toolbar--pick" : ""}`}
-        onMouseDown={(e) => e.stopPropagation()}
-        onMouseUp={(e) => e.stopPropagation()}
-      >
-        <RouteListFiltersControl
-          statusFilter={listFilter.statusFilter}
-          kindFilter={listFilter.kindFilter}
-          onStatusFilterChange={setStatusFilter}
-          onKindFilterChange={setKindFilter}
-          onFilterInteraction={handleFilterInteraction}
-          disabled={listPickMode}
-          t={t}
-        />
-        <RouteListColumnsControl
-          open={columnsOpen}
-          onOpenChange={setColumnsOpen}
-          columnVisibility={columnVisibility}
-          onToggleColumn={setColumnVisible}
-          disabled={listPickMode}
-          t={t}
-        />
-        {listPickMode ? (
-          <p className="route-list-table-toolbar-hint" role="status">
-            {t("routeList.tableToolbarPickHint")}
-          </p>
-        ) : null}
-      </div>
-      {visibleRouteList.length === 0 ? (
-        <p className="route-list-filter-empty" role="status">
-          {t("routeList.filterEmpty")}
-        </p>
-      ) : (
-        <>
       <div className="route-list-column-header route-list-column-header--grid" role="row" style={gridStyle}>
         <div className="route-row-lead" aria-hidden="true" />
         <div className="route-list-header-name">
           <span className="route-list-header-label">{t("routeList.colName")}</span>
         </div>
-        {listCols.status && (
-          <div className="route-list-header-status">
-            <span className="route-list-header-label">{t("routeList.colStatus")}</span>
-          </div>
-        )}
         {listCols.kind && (
           <div className="route-list-header-tags">
             <span className="route-list-header-label">{t("routeList.colKind")}</span>
           </div>
         )}
-        {showRouteActions && (
+        {showRouteActions && listCols.actions && (
           <div className="route-row-trailing route-list-header-trailing">
             <span className="route-list-header-label">{t("routeList.colActions")}</span>
           </div>
@@ -416,9 +230,7 @@ export default function RouteListPanel({
             onMergePick={() => handleMergeRoutePick(g)}
             onSplitLinePick={() => handleSplitRoutePick(g)}
             activeEditRouteId={activeEditRouteId}
-            batchSelectMode={batchSelectMode}
             blockRowEdit={blockRowEdit}
-            suppressRowEditUntil={suppressRowEditUntil}
             cols={listCols}
             gridStyle={gridStyle}
             t={t}
@@ -426,137 +238,6 @@ export default function RouteListPanel({
           />
         );
       })}
-        </>
-      )}
-    </div>
-  );
-}
-
-function RouteListFiltersControl({
-  statusFilter,
-  kindFilter,
-  onStatusFilterChange,
-  onKindFilterChange,
-  onFilterInteraction,
-  disabled = false,
-  t,
-}) {
-  const stopFilterPointer = (e) => {
-    e.stopPropagation();
-    onFilterInteraction?.();
-  };
-
-  return (
-    <div
-      className="route-list-filters"
-      role="group"
-      aria-label={t("routeList.filterGroupAria")}
-      onMouseDown={stopFilterPointer}
-      onMouseUp={stopFilterPointer}
-      onClick={stopFilterPointer}
-      onPointerDown={stopFilterPointer}
-    >
-      <span className="route-list-filter-label" id="route-list-filter-label">
-        {t("routeList.filterLabel")}
-      </span>
-      <select
-        className="route-list-filter-select"
-        value={statusFilter}
-        disabled={disabled}
-        aria-label={t("routeList.filterStatusAria")}
-        aria-labelledby="route-list-filter-label"
-        onChange={(e) => onStatusFilterChange(e.target.value)}
-      >
-        <option value="all">{t("routeList.filterAll")}</option>
-        {ROUTE_LIST_STATUS_FILTER_VALUES.filter((v) => v !== "all").map((value) => (
-          <option key={value} value={value}>
-            {t(ROUTE_LIST_STATUS_FILTER_I18N[value])}
-          </option>
-        ))}
-      </select>
-      <select
-        className="route-list-filter-select"
-        value={kindFilter}
-        disabled={disabled}
-        aria-label={t("routeList.filterKindAria")}
-        onChange={(e) => onKindFilterChange(e.target.value)}
-      >
-        <option value="all">{t("routeList.filterAll")}</option>
-        {ROUTE_LIST_KIND_FILTER_VALUES.filter((v) => v !== "all").map((value) => (
-          <option key={value} value={value}>
-            {t(ROUTE_LIST_KIND_FILTER_I18N[value])}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function RouteListColumnsControl({
-  open,
-  onOpenChange,
-  columnVisibility,
-  onToggleColumn,
-  disabled = false,
-  t,
-}) {
-  const rootRef = useRef(null);
-
-  useEffect(() => {
-    if (!open || disabled) return;
-    const onPointerDown = (e) => {
-      if (rootRef.current?.contains(e.target)) return;
-      onOpenChange(false);
-    };
-    const onKeyDown = (e) => {
-      if (e.key === "Escape") onOpenChange(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown, true);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open, onOpenChange, disabled]);
-
-  const toggleOpen = () => {
-    if (disabled) return;
-    onOpenChange(!open);
-  };
-
-  return (
-    <div className="route-list-columns-control" ref={rootRef}>
-      <button
-        type="button"
-        className={`route-list-columns-trigger${open ? " route-list-columns-trigger--open" : ""}`}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        aria-label={t("routeList.columnsToggleAria")}
-        disabled={disabled}
-        title={disabled ? t("routeList.tableToolbarPickHint") : undefined}
-        onClick={toggleOpen}
-      >
-        {t("routeList.columnsTitle")}
-      </button>
-      {open ? (
-        <div
-          className="route-list-columns-popover"
-          role="dialog"
-          aria-label={t("routeList.columnsTitle")}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          {ROUTE_LIST_TOGGLEABLE_COL_KEYS.map((key) => (
-            <label key={key} className="route-list-columns-option">
-              <input
-                type="checkbox"
-                checked={columnVisibility[key]}
-                onChange={(e) => onToggleColumn(key, e.target.checked)}
-              />
-              <span>{t(ROUTE_LIST_COL_I18N_KEYS[key])}</span>
-            </label>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -924,9 +605,7 @@ function RouteRow({
   onMergePick,
   onSplitLinePick,
   activeEditRouteId,
-  batchSelectMode = false,
   blockRowEdit = false,
-  suppressRowEditUntil = 0,
   cols,
   gridStyle,
   t,
@@ -936,13 +615,7 @@ function RouteRow({
 
   const isRowEditExcludedTarget = (target) => {
     if (!(target instanceof Element)) return true;
-    if (
-      target.closest(
-        ".route-row-trailing, .route-row-status-col, .route-row-kind-col",
-      )
-    ) {
-      return true;
-    }
+    if (target.closest(".route-row-trailing, .route-row-tags-col")) return true;
     if (target.closest("button, input, label, a, select, textarea")) return true;
     return false;
   };
@@ -961,7 +634,6 @@ function RouteRow({
 
   const startEdit = (e) => {
     rowEditPressRef.current = false;
-    if (Date.now() < suppressRowEditUntil) return;
     if (!showRouteActions || disableRowActions || blockRowEdit) return;
     if (isRowEditExcludedTarget(e.target)) return;
     rowEditPressRef.current = true;
@@ -973,14 +645,13 @@ function RouteRow({
   const endMouseUp = (e) => {
     if (!rowEditPressRef.current) return;
     rowEditPressRef.current = false;
-    if (Date.now() < suppressRowEditUntil) return;
     if (!showRouteActions || disableRowActions || blockRowEdit) return;
     if (isRowEditExcludedTarget(e.target)) return;
     setMode("edit-route-active");
   };
 
   const handleBatchRowClick = (e) => {
-    if (!batchSelectMode || mergeSelectMode) return;
+    if (!blockRowEdit || mergeSelectMode) return;
     if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT" || e.target.tagName === "B") return;
     onToggleSelect();
   };
@@ -999,7 +670,7 @@ function RouteRow({
 
   const listPickMode = mergeSelectMode || splitLineSelectMode;
   const rowClass =
-    `route-header route-item route-list-row-grid${showRouteActions ? (batchSelectMode ? " route-item-batch-select" : "") : listPickMode ? " route-item-merge-select" : " route-item-readonly"}${isActiveEditingRow ? " route-item-active-edit" : ""}${isLockedByOtherRow ? " route-item-disabled" : ""}${mergePickOrder > 0 ? " route-item-merge-picked" : ""}`;
+    `route-header route-item route-list-row-grid${showRouteActions ? (blockRowEdit ? " route-item-batch-select" : "") : listPickMode ? " route-item-merge-select" : " route-item-readonly"}${isActiveEditingRow ? " route-item-active-edit" : ""}${isLockedByOtherRow ? " route-item-disabled" : ""}${mergePickOrder > 0 ? " route-item-merge-picked" : ""}`;
 
   const status = g.status ?? Route.ROUTE_STATUS_CUSTOM;
   const statusLabelKey = {
@@ -1009,31 +680,32 @@ function RouteRow({
     [Route.ROUTE_STATUS_CUSTOM]: "routeStatus.custom",
   }[status];
 
-  const statusBadge = (
-    <span
-      className={`route-list-badge route-status-badge route-status-${status}`}
-      title={t("routeList.statusBadgeTitle")}
-      onMouseDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {t(statusLabelKey)}
-    </span>
+  const typeTags = (
+    <div className="route-row-tags-inner">
+      {/* 左側：營運狀態與日後新增標籤 */}
+      <div className="route-row-tags-meta">
+        <span
+          className={`route-list-badge route-status-badge route-status-${status}`}
+          title={t("routeList.statusBadgeTitle")}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {t(statusLabelKey)}
+        </span>
+      </div>
+      {/* 右側固定：使用者／預設（勿移除此區塊順序） */}
+      <span
+        className={`route-list-badge route-kind-badge route-row-tags-kind route-kind-${g.route_kind === Route.ROUTE_KIND_DEFAULT ? "default" : "user"}`}
+        title={t("routeList.kindBadgeTitle")}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {g.route_kind === Route.ROUTE_KIND_DEFAULT ? t("routeList.kindDefault") : t("routeList.kindUser")}
+      </span>
+    </div>
   );
 
-  const kindBadge = (
-    <span
-      className={`route-list-badge route-kind-badge route-row-tags-kind route-kind-${g.route_kind === Route.ROUTE_KIND_DEFAULT ? "default" : "user"}`}
-      title={t("routeList.kindBadgeTitle")}
-      onMouseDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {g.route_kind === Route.ROUTE_KIND_DEFAULT ? t("routeList.kindDefault") : t("routeList.kindUser")}
-    </span>
-  );
-
-  const isRouteHidden = Route.isRouteHidden(g.route_id);
-
-  const trailingActions = showRouteActions && (
+  const trailingActions = showRouteActions && cols.actions && (
     <div className="route-row-trailing">
       <RouteColorPicker
         routeId={g.route_id}
@@ -1057,16 +729,28 @@ function RouteRow({
       <button
         type="button"
         className="route-row-action-btn"
-        disabled={disableHideShow}
-        title={isRouteHidden ? t("routeList.show") : t("routeList.hide")}
+        disabled={disableHideShow || Route.isRouteHidden(g.route_id)}
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
-          Route.setRouteHidden(g.route_id, !isRouteHidden);
+          Route.setRouteHidden(g.route_id, true);
           onRefresh();
         }}
       >
-        {isRouteHidden ? t("routeList.show") : t("routeList.hide")}
+        {t("routeList.hide")}
+      </button>
+      <button
+        type="button"
+        className="route-row-action-btn"
+        disabled={disableHideShow || !Route.isRouteHidden(g.route_id)}
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          Route.setRouteHidden(g.route_id, false);
+          onRefresh();
+        }}
+      >
+        {t("routeList.show")}
       </button>
       <button
         type="button"
@@ -1099,7 +783,7 @@ function RouteRow({
           ? handleMergeRowClick
           : splitLineSelectMode
             ? handleSplitRouteRowClick
-            : batchSelectMode
+            : blockRowEdit
               ? handleBatchRowClick
               : undefined
       }
@@ -1136,8 +820,7 @@ function RouteRow({
           allowRename={showRouteActions}
         />
       </div>
-      {cols.status && <div className="route-row-status-col">{statusBadge}</div>}
-      {cols.kind && <div className="route-row-kind-col">{kindBadge}</div>}
+      {cols.kind && <div className="route-row-tags-col">{typeTags}</div>}
       {trailingActions}
     </div>
   );

@@ -1,6 +1,6 @@
 import * as T from "@turf/turf";
 import { t } from "../i18n/i18n.js";
-import { getMap, isMapStyleReady } from "./mapInstance.js";
+import { getMap } from "./mapInstance.js";
 import {
   buildStationDisplayCollections,
   clearSmoothLineDisplayCache,
@@ -1048,7 +1048,7 @@ function refreshTempEditSources() {
 
 function applyHiddenSubrouteVisibility() {
   const map = getMap();
-  if (!isMapStyleReady(map)) return;
+  if (!map) return;
   const hiddenIds = Array.from(store.hiddenSubrouteIds);
   const visibleSubrouteIds = Array.from(
     new Set(store.subroutesFC.features.map((f) => f.properties.subroute_id).filter((rid) => !store.hiddenSubrouteIds.has(rid)))
@@ -1115,7 +1115,7 @@ function refreshSources(options = {}) {
   }
 
   const map = getMap();
-  if (!isMapStyleReady(map)) return;
+  if (!map) return;
 
   let routesData;
   let stationsDisplayFC;

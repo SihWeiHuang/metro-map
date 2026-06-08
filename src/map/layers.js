@@ -1,5 +1,4 @@
 import { MAPBOX_BASEMAP_LIGHT_PRESET } from "./basemapAppearanceConfig.js";
-import { isMapStyleReady } from "./mapInstance.js";
 import {
   buildStationDisplayCollections,
   featureCollectionWithSmoothedLineStrings,
@@ -548,7 +547,6 @@ function chainLayerOrder(map, layerIds) {
  * Standard: routes (`middle`), geometry (`top`); labels omit slot. Place collision yield in applyBasemap*.
  */
 export function ensureMetroLayerStackOrder(map) {
-  if (!isMapStyleReady(map)) return;
   const roadLabelBeforeId = findMetroGeometryInsertBeforeRoadLabelLayerId(map);
   const mapLabelBeforeId = roadLabelBeforeId ?? findMetroGeometryInsertBeforeLayerId(map);
   const usesSlots = styleUsesMapboxSlots(map);

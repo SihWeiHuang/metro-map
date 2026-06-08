@@ -50,7 +50,7 @@ function caseWhenHighlighted(matchExpr, highlightedValue, defaultValue) {
   return ["case", matchExpr, highlightedValue, defaultValue];
 }
 
-function hideStationHoverOverlayLayers(map, { preserveRouteHoverLabels = false } = {}) {
+export function hideStationHoverOverlayLayers(map, { preserveRouteHoverLabels = false } = {}) {
   if (map.getLayer("stations-circle-hover")) {
     map.setFilter("stations-circle-hover", ["all", REGULAR_STATION_LAYER_FILTER, EMPTY_STATION_FILTER]);
   }
