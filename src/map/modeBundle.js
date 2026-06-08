@@ -1057,6 +1057,7 @@ function finishTempNodeDrag() {
     cancelAnimationFrame(tempNodePreviewRaf);
     tempNodePreviewRaf = null;
   }
+  if (M.dragging.isClickCandidate) return;
   Route.refreshTempEditSources();
   Route.refreshSources();
 }

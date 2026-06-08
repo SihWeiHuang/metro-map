@@ -1568,14 +1568,14 @@ function addTempNodeAt(coord, subrouteId, insertIndex = null) {
   if (!session) return;
   if (insertIndex === null) session.nodes.push(coord);
   else session.nodes.splice(insertIndex, 0, coord);
-  refreshSources();
+  refreshTempEditSources();
 }
 
 function deleteTempNodeByIndex(idx, subrouteId) {
   const session = subrouteId ? store.temp.editingSessions.find((s) => s.subrouteId === subrouteId) : store.temp.editingSessions[0];
   if (!session || idx < 0 || idx >= session.nodes.length) return;
   session.nodes.splice(idx, 1);
-  refreshSources();
+  refreshTempEditSources();
 }
 
 function updateTempNodeCoord(idx, coord, subrouteId) {
