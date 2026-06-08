@@ -11,6 +11,7 @@ import {
   filterRoutesForGeo,
   formatCountryLabel,
   formatRegionLabel,
+  sanitizeRouteListNavSelection,
 } from "./routeListGeoNav.js";
 
 /** @typedef {"country" | "city" | "routes"} NavLevel */
@@ -58,6 +59,17 @@ export default function RouteListNavigator({
   const [selectedRegionId, setSelectedRegionId] = useState(() => loadRouteListNav()?.regionId ?? "");
 
   useEffect(() => {
+    const next = sanitizeRouteListNavSelection(level, selectedCountryId, selectedRegionId);
+    if (
+      next.level !== level ||
+      next.countryId !== selectedCountryId ||
+      next.regionId !== selectedRegionId
+    ) {
+      setLevel(next.level);
+      setSelectedCountryId(next.countryId);
+      setSelectedRegionId(next.regionId);
+      return;
+    }
     saveRouteListNav({ level, countryId: selectedCountryId, regionId: selectedRegionId });
   }, [level, selectedCountryId, selectedRegionId]);
 

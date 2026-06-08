@@ -6,7 +6,8 @@ import {
   canonicalizeCountryId,
   canonicalizeRegion,
 } from "../map/geoCatalog.js";
-import { loadLastRouteGeo, saveLastRouteGeo } from "../map/lastRouteGeoPrefs.js";
+import { saveLastRouteGeo } from "../map/lastRouteGeoPrefs.js";
+import { getRouteListNavGeoPreset } from "../map/routeListNavPrefs.js";
 import { Route } from "../map/routeModel.js";
 import { formatRegionLabel } from "./routeListGeoNav.js";
 
@@ -55,8 +56,8 @@ function buildInitialCountrySelect(countryId, countryOptions) {
   if (countryOptions.some((o) => o.countryId === countryId)) {
     return { select: countryId, custom: "" };
   }
-  if (countryId === GEO_COUNTRY_OTHER) {
-    return { select: GEO_COUNTRY_OTHER, custom: "" };
+  if (countryId === GEO_COUNTRY_OTHER || !countryId) {
+    return { select: SELECT_CUSTOM, custom: "" };
   }
   return { select: SELECT_CUSTOM, custom: countryId };
 }
@@ -65,10 +66,20 @@ function buildInitialRegionSelect(regionId, regionOptions) {
   if (regionOptions.some((o) => o.regionId === regionId)) {
     return { select: regionId, custom: "" };
   }
-  if (regionId === GEO_REGION_OTHER) {
-    return { select: GEO_REGION_OTHER, custom: "" };
+  if (regionId === GEO_REGION_OTHER || !regionId) {
+    const first = regionOptions[0];
+    if (first) return { select: first.regionId, custom: "" };
+    return { select: SELECT_CUSTOM, custom: "" };
   }
   return { select: SELECT_CUSTOM, custom: regionId };
+}
+
+function defaultRegionSelectForCountry(countryId) {
+  const cities = Route.getRouteGeoCityOptions(countryId);
+  if (cities.length > 0) {
+    return { select: cities[0].regionId, custom: "" };
+  }
+  return { select: SELECT_CUSTOM, custom: "" };
 }
 
 export default function RouteStatusDialog({
@@ -83,9 +94,9 @@ export default function RouteStatusDialog({
   const primaryRouteId = routeIds?.[0];
   const initialStatus = primaryRouteId ? Route.getRouteStatus(primaryRouteId) : Route.ROUTE_STATUS_CUSTOM;
   const routeGeo = primaryRouteId ? Route.getRouteGeo(primaryRouteId) : { country: GEO_COUNTRY_OTHER, region: GEO_REGION_OTHER };
-  const lastGeo = useMemo(() => loadLastRouteGeo(), []);
-  const presetGeo = isNewRoute && lastGeo ? lastGeo : routeGeo;
-  const showCountryPlaceholder = isNewRoute && !lastGeo;
+  const navGeoPreset = useMemo(() => (isNewRoute ? getRouteListNavGeoPreset() : null), [isNewRoute]);
+  const presetGeo = isNewRoute ? (navGeoPreset ?? routeGeo) : routeGeo;
+  const showCountryPlaceholder = isNewRoute && !navGeoPreset;
 
   const countryOptions = useMemo(() => Route.getRouteGeoCountryOptions(), []);
   const initialCountry = useMemo(
@@ -125,8 +136,15 @@ export default function RouteStatusDialog({
     if (next === SELECT_CUSTOM) {
       setCustomCountry("");
     }
-    setRegionSelect(GEO_REGION_OTHER);
-    setCustomRegion("");
+    if (next === SELECT_UNSET) {
+      setRegionSelect(GEO_REGION_OTHER);
+      setCustomRegion("");
+      return;
+    }
+    const countryId = resolveCountryValue(next, next === SELECT_CUSTOM ? "" : "");
+    const nextRegion = defaultRegionSelectForCountry(countryId);
+    setRegionSelect(nextRegion.select);
+    setCustomRegion(nextRegion.custom);
   };
 
   const save = () => {
@@ -236,16 +254,14 @@ export default function RouteStatusDialog({
           </select>
         </label>
 
-        {isNewRoute ? (
-          <label className="app-route-status-checkbox-field">
-            <input
-              type="checkbox"
-              checked={suppressAutoOpen}
-              onChange={(e) => onSuppressAutoOpenChange?.(e.target.checked)}
-            />
-            <span>{t("routeStatus.doNotShowForNewRoutes")}</span>
-          </label>
-        ) : null}
+        <label className="app-route-status-checkbox-field">
+          <input
+            type="checkbox"
+            checked={suppressAutoOpen}
+            onChange={(e) => onSuppressAutoOpenChange?.(e.target.checked)}
+          />
+          <span>{t("routeStatus.doNotShowForNewRoutes")}</span>
+        </label>
 
         <div className="app-import-dialog-actions app-route-status-actions">
           <button type="button" className="app-import-dialog-btn app-import-dialog-btn--cancel" onClick={onClose}>

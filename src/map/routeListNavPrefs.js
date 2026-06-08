@@ -27,8 +27,21 @@ export function loadRouteListNav() {
 }
 
 /**
- * @param {{ level: RouteListNavLevel, countryId?: unknown, regionId?: unknown }} nav
+ * 依路線清單目前導覽層級，取得新路線資訊視窗的預設地區／城市。
+ * @returns {{ country: string, region: string } | null}
  */
+export function getRouteListNavGeoPreset() {
+  const nav = loadRouteListNav();
+  if (!nav) return null;
+  if (nav.level === "routes" && nav.countryId !== "" && nav.regionId !== "") {
+    return { country: nav.countryId, region: nav.regionId };
+  }
+  if (nav.level === "city" && nav.countryId !== "") {
+    return { country: nav.countryId, region: "" };
+  }
+  return null;
+}
+
 export function saveRouteListNav({ level, countryId = "", regionId = "" }) {
   if (typeof localStorage === "undefined") return;
   if (level !== "country" && level !== "city" && level !== "routes") return;

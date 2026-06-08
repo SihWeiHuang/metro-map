@@ -176,11 +176,12 @@ function compareRegionIds(a, b) {
 }
 
 /**
- * 國家選項：內建目錄 + 路線中出現過的值 +「其他」（固定最後）。
+ * 國家選項：內建目錄 + 路線中出現過的值 +「其他」（固定最後，可關閉）。
  * @param {Array<{ country?: unknown, region?: unknown }>} [routes]
+ * @param {{ includeOther?: boolean }} [options]
  * @returns {Array<{ countryId: string, fromCatalog: boolean }>}
  */
-export function buildCountryOptions(routes = []) {
+export function buildCountryOptions(routes = [], { includeOther = true } = {}) {
   const byId = new Map();
 
   for (const entry of BUILTIN_GEO_CATALOG) {
@@ -188,15 +189,20 @@ export function buildCountryOptions(routes = []) {
   }
 
   for (const { countryId } of collectGeoPairsFromRoutes(routes)) {
+    if (!includeOther && countryId === GEO_COUNTRY_OTHER) continue;
     if (!byId.has(countryId)) {
       byId.set(countryId, { countryId, fromCatalog: false });
     }
   }
 
+  if (!includeOther) {
+    byId.delete(GEO_COUNTRY_OTHER);
+  }
+
   const sorted = Array.from(byId.values()).sort((a, b) => compareCountryIds(a.countryId, b.countryId));
 
   // 路線中已有 country="" 時會先被 collectGeoPairsFromRoutes 收進 byId，勿重複追加。
-  if (!byId.has(GEO_COUNTRY_OTHER)) {
+  if (includeOther && !byId.has(GEO_COUNTRY_OTHER)) {
     sorted.push({ countryId: GEO_COUNTRY_OTHER, fromCatalog: true });
   }
 
@@ -204,12 +210,13 @@ export function buildCountryOptions(routes = []) {
 }
 
 /**
- * 城市選項：該國家的目錄城市 + 路線中出現過的值 +「其他」（固定最後）。
+ * 城市選項：該國家的目錄城市 + 路線中出現過的值 +「其他」（固定最後，可關閉）。
  * @param {unknown} countryId
  * @param {Array<{ country?: unknown, region?: unknown }>} [routes]
+ * @param {{ includeOther?: boolean }} [options]
  * @returns {Array<{ regionId: string, fromCatalog: boolean }>}
  */
-export function buildCityOptions(countryId, routes = []) {
+export function buildCityOptions(countryId, routes = [], { includeOther = true } = {}) {
   const cid = canonicalizeCountryId(countryId);
   const byId = new Map();
 
@@ -220,14 +227,19 @@ export function buildCityOptions(countryId, routes = []) {
 
   for (const pair of collectGeoPairsFromRoutes(routes)) {
     if (pair.countryId !== cid) continue;
+    if (!includeOther && pair.regionId === GEO_REGION_OTHER) continue;
     if (!byId.has(pair.regionId)) {
       byId.set(pair.regionId, { regionId: pair.regionId, fromCatalog: false });
     }
   }
 
+  if (!includeOther) {
+    byId.delete(GEO_REGION_OTHER);
+  }
+
   const sorted = Array.from(byId.values()).sort((a, b) => compareRegionIds(a.regionId, b.regionId));
 
-  if (!byId.has(GEO_REGION_OTHER)) {
+  if (includeOther && !byId.has(GEO_REGION_OTHER)) {
     sorted.push({ regionId: GEO_REGION_OTHER, fromCatalog: true });
   }
 

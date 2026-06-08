@@ -130,7 +130,7 @@ const STRINGS = {
     "routeList.routeInfo": "資訊",
     "routeList.routeInfoTitle": "編輯路線狀態（營運中、規劃中等）",
     "routeList.statusBadgeTitle": "路線營運狀態",
-    "routeStatus.dialogTitle": "路線中繼資料",
+    "routeStatus.dialogTitle": "設定路線資訊",
     "routeStatus.dialogTitleNew": "設定新路線資訊",
     "routeStatus.countryLabel": "地區",
     "routeStatus.cityLabel": "城市",
