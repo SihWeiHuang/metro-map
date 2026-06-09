@@ -1192,23 +1192,27 @@ function expandSubrouteIdsToRouteGroups(subrouteIds) {
   return [...expanded];
 }
 
+function setRouteHoverLayerFilter(map, layerId, ids, hiddenIds) {
+  if (!map.getLayer(layerId)) return;
+  if (!ids.length) {
+    map.setFilter(layerId, ["==", ["get", "subroute_id"], ""]);
+  } else {
+    map.setFilter(layerId, [
+      "all",
+      ["in", ["get", "subroute_id"], ["literal", ids]],
+      ["!", ["in", ["get", "subroute_id"], ["literal", hiddenIds]]],
+    ]);
+  }
+}
+
 function applyRouteHoverHighlightFilters(visibleSubrouteIds) {
   const map = getMap();
   if (!map) return;
   const hiddenIds = Array.from(store.hiddenSubrouteIds);
   const ids = expandSubrouteIdsToRouteGroups(visibleSubrouteIds).filter((rid) => !store.hiddenSubrouteIds.has(rid));
 
-  if (map.getLayer("routes-line-hover")) {
-    if (!ids.length) {
-      map.setFilter("routes-line-hover", ["==", ["get", "subroute_id"], ""]);
-    } else {
-      map.setFilter("routes-line-hover", [
-        "all",
-        ["in", ["get", "subroute_id"], ["literal", ids]],
-        ["!", ["in", ["get", "subroute_id"], ["literal", hiddenIds]]],
-      ]);
-    }
-  }
+  setRouteHoverLayerFilter(map, "routes-line-hover-casing", ids, hiddenIds);
+  setRouteHoverLayerFilter(map, "routes-line-hover", ids, hiddenIds);
 
   // 先關閉 hover 路線站名的智慧閃避，再放大字級，避免放大後被擠掉而閃爍。
   applyStationLabelCollisionForRouteHover(map, ids);

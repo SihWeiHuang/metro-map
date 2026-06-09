@@ -282,6 +282,9 @@ function applyEditStationSubmode() {
   if (editStationSubmode === "move-label") {
     hideTransferSnapHint();
     Route.clearHover();
+    if (map.getLayer("routes-line-hover-casing")) {
+      map.setFilter("routes-line-hover-casing", ["==", ["get", "subroute_id"], ""]);
+    }
     if (map.getLayer("routes-line-hover")) {
       map.setFilter("routes-line-hover", ["==", ["get", "subroute_id"], ""]);
     }

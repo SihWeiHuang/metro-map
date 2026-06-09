@@ -22,10 +22,14 @@ import {
   MRT_REFERENCE_STATIONS_SOURCE_ID,
 } from "./mrtReferenceOverlay.js";
 
+const ROUTE_HOVER_LINE_WIDTH = 9;
+const ROUTE_HOVER_CASING_WIDTH = 12;
+
 function metroRouteLayerIds() {
   return [
     ...(isMrtReferenceOverlayActive() ? [MRT_REFERENCE_LAYER_ID] : []),
     "routes-line",
+    "routes-line-hover-casing",
     "routes-line-hover",
   ];
 }
@@ -668,12 +672,28 @@ export function initializeLayers(map, store) {
   });
 
   addMetroRouteLayer(map, {
+    id: "routes-line-hover-casing",
+    type: "line",
+    source: "routes",
+    paint: {
+      "line-color": "#ffffff",
+      "line-width": ROUTE_HOVER_CASING_WIDTH,
+      "line-opacity": 0.55,
+    },
+    filter: ["==", ["get", "subroute_id"], ""],
+    layout: {
+      "line-join": "round",
+      "line-cap": "round",
+    },
+  });
+
+  addMetroRouteLayer(map, {
     id: "routes-line-hover",
     type: "line",
     source: "routes",
     paint: {
       "line-color": ["coalesce", ["get", "color"], "#1e88e5"],
-      "line-width": 9,
+      "line-width": ROUTE_HOVER_LINE_WIDTH,
     },
     filter: ["==", ["get", "subroute_id"], ""],
     layout: {
