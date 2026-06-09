@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../i18n/I18nProvider.jsx";
 import {
   GEO_COUNTRY_OTHER,
@@ -9,7 +9,7 @@ import {
 import { saveLastRouteGeo } from "../map/lastRouteGeoPrefs.js";
 import { getRouteListNavGeoPreset } from "../map/routeListNavPrefs.js";
 import { Route } from "../map/routeModel.js";
-import { formatRegionLabel } from "./routeListGeoNav.js";
+import { buildCityNavEntries, formatRegionLabel } from "./routeListGeoNav.js";
 
 const STATUS_OPTIONS = [
   Route.ROUTE_STATUS_OPERATING,
@@ -56,8 +56,8 @@ function buildInitialCountrySelect(countryId, countryOptions) {
   if (countryOptions.some((o) => o.countryId === countryId)) {
     return { select: countryId, custom: "" };
   }
-  if (countryId === GEO_COUNTRY_OTHER || !countryId) {
-    return { select: SELECT_CUSTOM, custom: "" };
+  if (countryId === GEO_COUNTRY_OTHER) {
+    return { select: GEO_COUNTRY_OTHER, custom: "" };
   }
   return { select: SELECT_CUSTOM, custom: countryId };
 }
@@ -66,20 +66,41 @@ function buildInitialRegionSelect(regionId, regionOptions) {
   if (regionOptions.some((o) => o.regionId === regionId)) {
     return { select: regionId, custom: "" };
   }
-  if (regionId === GEO_REGION_OTHER || !regionId) {
-    const first = regionOptions[0];
-    if (first) return { select: first.regionId, custom: "" };
-    return { select: SELECT_CUSTOM, custom: "" };
+  if (regionId === GEO_REGION_OTHER) {
+    return { select: GEO_REGION_OTHER, custom: "" };
   }
   return { select: SELECT_CUSTOM, custom: regionId };
 }
 
-function defaultRegionSelectForCountry(countryId) {
-  const cities = Route.getRouteGeoCityOptions(countryId);
+function ensureCountryOption(options, countryId) {
+  const cid = canonicalizeCountryId(countryId);
+  if (options.some((o) => o.countryId === cid)) return options;
+  return [...options, { countryId: cid, fromCatalog: false }];
+}
+
+function ensureCityOption(options, regionId) {
+  const rid = canonicalizeRegion(regionId);
+  if (options.some((o) => o.regionId === rid)) return options;
+  return [...options, { regionId: rid, fromCatalog: false }];
+}
+
+/** 依已選地區取得城市選項；自訂地區未輸入時不帶入其他地區的城市 */
+function getCityOptionsForDialog(countrySelect, customCountry) {
+  if (countrySelect === SELECT_UNSET) return [];
+  if (countrySelect === SELECT_CUSTOM && !customCountry.trim()) return [];
+  const countryId = resolveCountryValue(countrySelect, customCountry);
+  return buildCityNavEntries(Route.getRouteList(), countryId);
+}
+
+function pickDefaultRegionSelect(cities, preferredRegionId) {
+  const preferred = canonicalizeRegion(preferredRegionId);
+  if (cities.some((o) => o.regionId === preferred)) {
+    return { select: preferred, custom: "" };
+  }
   if (cities.length > 0) {
     return { select: cities[0].regionId, custom: "" };
   }
-  return { select: SELECT_CUSTOM, custom: "" };
+  return { select: GEO_REGION_OTHER, custom: "" };
 }
 
 export default function RouteStatusDialog({
@@ -98,7 +119,10 @@ export default function RouteStatusDialog({
   const presetGeo = isNewRoute ? (navGeoPreset ?? routeGeo) : routeGeo;
   const showCountryPlaceholder = isNewRoute && !navGeoPreset;
 
-  const countryOptions = useMemo(() => Route.getRouteGeoCountryOptions(), []);
+  const countryOptions = useMemo(() => {
+    const base = Route.getRouteGeoCountryOptions();
+    return isNewRoute ? base : ensureCountryOption(base, routeGeo.country);
+  }, [isNewRoute, routeGeo.country]);
   const initialCountry = useMemo(
     () =>
       showCountryPlaceholder
@@ -112,40 +136,59 @@ export default function RouteStatusDialog({
   const [customCountry, setCustomCountry] = useState(initialCountry.custom);
   const [regionSelect, setRegionSelect] = useState(() => {
     if (initialCountry.select === SELECT_UNSET) return GEO_REGION_OTHER;
+    let cities = getCityOptionsForDialog(initialCountry.select, initialCountry.custom);
     const resolvedCountry = resolveCountryValue(initialCountry.select, initialCountry.custom);
-    const cities = Route.getRouteGeoCityOptions(resolvedCountry);
+    if (!isNewRoute && canonicalizeCountryId(routeGeo.country) === canonicalizeCountryId(resolvedCountry)) {
+      cities = ensureCityOption(cities, routeGeo.region);
+    }
     return buildInitialRegionSelect(presetGeo.region, cities).select;
   });
   const [customRegion, setCustomRegion] = useState(() => {
     if (initialCountry.select === SELECT_UNSET) return "";
+    let cities = getCityOptionsForDialog(initialCountry.select, initialCountry.custom);
     const resolvedCountry = resolveCountryValue(initialCountry.select, initialCountry.custom);
-    const cities = Route.getRouteGeoCityOptions(resolvedCountry);
+    if (!isNewRoute && canonicalizeCountryId(routeGeo.country) === canonicalizeCountryId(resolvedCountry)) {
+      cities = ensureCityOption(cities, routeGeo.region);
+    }
     return buildInitialRegionSelect(presetGeo.region, cities).custom;
   });
 
   const countryChosen = countrySelect !== SELECT_UNSET;
   const resolvedCountry = countryChosen ? resolveCountryValue(countrySelect, customCountry) : GEO_COUNTRY_OTHER;
 
-  const cityOptions = useMemo(
-    () => (countryChosen ? Route.getRouteGeoCityOptions(resolvedCountry) : []),
-    [countryChosen, resolvedCountry],
-  );
+  const cityOptions = useMemo(() => {
+    if (!countryChosen) return [];
+    let base = getCityOptionsForDialog(countrySelect, customCountry);
+    if (
+      !isNewRoute &&
+      canonicalizeCountryId(routeGeo.country) === canonicalizeCountryId(resolvedCountry)
+    ) {
+      base = ensureCityOption(base, routeGeo.region);
+    }
+    return base;
+  }, [countryChosen, countrySelect, customCountry, resolvedCountry, isNewRoute, routeGeo.country, routeGeo.region]);
 
   const handleCountryChange = (next) => {
     setCountrySelect(next);
+    const nextCustomCountry = next === SELECT_CUSTOM ? "" : customCountry;
     if (next === SELECT_CUSTOM) {
       setCustomCountry("");
     }
-    if (next === SELECT_UNSET) {
-      setRegionSelect(GEO_REGION_OTHER);
-      setCustomRegion("");
-      return;
-    }
-    const countryId = resolveCountryValue(next, next === SELECT_CUSTOM ? "" : "");
-    const nextRegion = defaultRegionSelectForCountry(countryId);
+    const cities = getCityOptionsForDialog(next, nextCustomCountry);
+    const nextRegion = pickDefaultRegionSelect(cities, presetGeo.region);
     setRegionSelect(nextRegion.select);
     setCustomRegion(nextRegion.custom);
   };
+
+  useEffect(() => {
+    if (countrySelect !== SELECT_CUSTOM) return;
+    if (regionSelect === SELECT_CUSTOM) return;
+    const cities = getCityOptionsForDialog(countrySelect, customCountry);
+    if (cities.some((o) => o.regionId === regionSelect)) return;
+    const nextRegion = pickDefaultRegionSelect(cities, presetGeo.region);
+    setRegionSelect(nextRegion.select);
+    setCustomRegion(nextRegion.custom);
+  }, [countrySelect, customCountry, regionSelect, presetGeo.region]);
 
   const save = () => {
     const country = resolveCountryValue(countrySelect, customCountry);
@@ -154,7 +197,7 @@ export default function RouteStatusDialog({
       Route.setRouteMetadata(routeId, { status: selectedStatus, country, region });
     }
     saveLastRouteGeo(country, region);
-    onSaved?.();
+    onSaved?.({ country, region });
     onClose();
   };
 
@@ -168,7 +211,7 @@ export default function RouteStatusDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="route-status-dialog-title" className="app-import-dialog-title">
-          {t(isNewRoute ? "routeStatus.dialogTitleNew" : "routeStatus.dialogTitle")}
+          {t("routeStatus.dialogTitle")}
         </h2>
 
         <label className="app-route-status-select-field" htmlFor="route-country-select">

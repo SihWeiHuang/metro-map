@@ -2136,11 +2136,11 @@ function setRouteMetadata(routeId, patch) {
 }
 
 function getRouteGeoCountryOptions() {
-  return buildCountryOptions(getRouteList(), { includeOther: false });
+  return buildCountryOptions(getRouteList(), { includeOther: true });
 }
 
 function getRouteGeoCityOptions(countryId) {
-  return buildCityOptions(countryId, getRouteList(), { includeOther: false });
+  return buildCityOptions(countryId, getRouteList(), { includeOther: true });
 }
 
 function sanitizeRouteForExport(feature) {

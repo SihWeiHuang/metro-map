@@ -46,6 +46,8 @@ function GeoNavList({ items, getLabel, onPick, countLabel }) {
 export default function RouteListNavigator({
   listRevision = 0,
   onRefresh,
+  geoFocus = null,
+  onGeoFocusHandled,
   showRouteActions = false,
   mergeSelectMode = false,
   splitLineSelectMode = false,
@@ -57,6 +59,19 @@ export default function RouteListNavigator({
   const [level, setLevel] = useState(() => loadRouteListNav()?.level ?? "country");
   const [selectedCountryId, setSelectedCountryId] = useState(() => loadRouteListNav()?.countryId ?? "");
   const [selectedRegionId, setSelectedRegionId] = useState(() => loadRouteListNav()?.regionId ?? "");
+
+  useEffect(() => {
+    if (!geoFocus) return;
+    const next = sanitizeRouteListNavSelection(
+      "routes",
+      canonicalizeCountryId(geoFocus.country),
+      canonicalizeRegion(geoFocus.region),
+    );
+    setLevel(next.level);
+    setSelectedCountryId(next.countryId);
+    setSelectedRegionId(next.regionId);
+    onGeoFocusHandled?.();
+  }, [geoFocus, onGeoFocusHandled]);
 
   useEffect(() => {
     const next = sanitizeRouteListNavSelection(level, selectedCountryId, selectedRegionId);

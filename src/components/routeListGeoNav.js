@@ -10,12 +10,7 @@ import {
   getCountryLabelKey,
 } from "../map/geoCatalog.js";
 
-/** 路線清單導覽不顯示「其他地區」 */
-function isExcludedCountryNavId(countryId) {
-  return canonicalizeCountryId(countryId) === GEO_COUNTRY_OTHER;
-}
-
-/** 路線清單導覽：台灣內不顯示「其他城市」 */
+/** 路線清單導覽：台灣內不顯示「其他城市」（「其他地區」內仍保留） */
 function isExcludedCityNavId(countryId, regionId) {
   const cid = canonicalizeCountryId(countryId);
   const rid = canonicalizeRegion(regionId);
@@ -76,12 +71,10 @@ export function countRoutesInCity(routeList, countryId, regionId) {
  * @returns {Array<{ countryId: string, fromCatalog: boolean, routeCount: number }>}
  */
 export function buildCountryNavEntries(routeList) {
-  return buildCountryOptions(routeList)
-    .filter((opt) => !isExcludedCountryNavId(opt.countryId))
-    .map((opt) => ({
-      ...opt,
-      routeCount: countRoutesInCountry(routeList, opt.countryId),
-    }));
+  return buildCountryOptions(routeList).map((opt) => ({
+    ...opt,
+    routeCount: countRoutesInCountry(routeList, opt.countryId),
+  }));
 }
 
 /**
@@ -99,7 +92,7 @@ export function buildCityNavEntries(routeList, countryId) {
 }
 
 /**
- * 若導覽停在已從清單隱藏的「其他」項目，退回上一層。
+ * 若導覽停在台灣內已隱藏的「其他城市」，退回城市列表。
  * @param {"country" | "city" | "routes"} level
  * @param {unknown} countryId
  * @param {unknown} regionId
@@ -107,9 +100,6 @@ export function buildCityNavEntries(routeList, countryId) {
 export function sanitizeRouteListNavSelection(level, countryId, regionId) {
   const cid = canonicalizeCountryId(countryId);
   const rid = canonicalizeRegion(regionId);
-  if (isExcludedCountryNavId(cid)) {
-    return { level: "country", countryId: "", regionId: "" };
-  }
   if (isExcludedCityNavId(cid, rid)) {
     if (level === "routes") {
       return { level: "city", countryId: cid, regionId: "" };

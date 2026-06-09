@@ -87,6 +87,7 @@ function App() {
   const langMenuRef = useRef(null);
   const siteHeaderRef = useRef(null);
   const [statusDialog, setStatusDialog] = useState(null);
+  const [routeListGeoFocus, setRouteListGeoFocus] = useState(null);
   const [autoShowNewRouteStatus, setAutoShowNewRouteStatus] = useState(readAutoShowNewRouteStatus);
   const [sitePage, setSitePage] = useState(() =>
     typeof window !== "undefined" ? parseSitePageFromHash(window.location.hash) : null
@@ -221,6 +222,17 @@ function App() {
   }, []);
 
   const bumpRouteList = () => setListTick((t) => t + 1);
+
+  const handleRouteMetadataSaved = (payload) => {
+    bumpRouteList();
+    if (payload?.country != null && payload?.region != null) {
+      setRouteListGeoFocus({
+        country: payload.country,
+        region: payload.region,
+        seq: Date.now(),
+      });
+    }
+  };
 
   useEffect(() => {
     registerEditStationSubmodeChange(onEditStationSubmodeChange);
@@ -728,6 +740,8 @@ function App() {
           <RouteListNavigator
             onRefresh={bumpRouteList}
             listRevision={listTick}
+            geoFocus={routeListGeoFocus}
+            onGeoFocusHandled={() => setRouteListGeoFocus(null)}
             showRouteActions={routeListEditActions}
             mergeSelectMode={mergeSelectMode}
             splitLineSelectMode={splitLineSelectMode}
@@ -1007,7 +1021,7 @@ function App() {
           suppressAutoOpen={!autoShowNewRouteStatus}
           onSuppressAutoOpenChange={(suppress) => updateAutoShowNewRouteStatus(!suppress)}
           onClose={closeStatusDialog}
-          onSaved={bumpRouteList}
+          onSaved={handleRouteMetadataSaved}
         />
       )}
       {fileMenuOpen && (
