@@ -30,6 +30,7 @@ import {
   getCountryLabelKey,
   normalizeGeoMetadataPatch,
 } from "./geoCatalog.js";
+import { resolveRouteListNavGeoForNewRoute } from "./routeListNavPrefs.js";
 import {
   allocateDefaultRouteLabel,
   allocateDefaultStationLabel,
@@ -1435,6 +1436,7 @@ function endTempEditingAndCommit() {
   const newRouteIds = [];
   const editedSubrouteIds = new Set();
   const transferStationIdsToNormalize = new Set();
+  const newRouteNavGeo = resolveRouteListNavGeoForNewRoute(getRouteList());
 
   store.temp.editingSessions.forEach((session) => {
     const { subrouteId, nodes } = session;
@@ -1471,8 +1473,8 @@ function endTempEditingAndCommit() {
           name: defaultRoute.name,
           user_default_route_label: defaultRoute.user_default_route_label,
           route_kind: ROUTE_KIND_USER,
-          country: "",
-          region: "",
+          country: newRouteNavGeo?.country ?? "",
+          region: newRouteNavGeo?.region ?? "",
           status: ROUTE_STATUS_CUSTOM,
         },
       });

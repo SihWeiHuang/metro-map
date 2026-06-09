@@ -8,7 +8,7 @@ import {
   canonicalizeRegion,
 } from "../map/geoCatalog.js";
 import { saveLastRouteGeo } from "../map/lastRouteGeoPrefs.js";
-import { getRouteListNavGeoPreset } from "../map/routeListNavPrefs.js";
+import { resolveRouteListNavGeoForNewRoute } from "../map/routeListNavPrefs.js";
 import { Route } from "../map/routeModel.js";
 import { buildCityNavEntries, formatRegionLabel } from "./routeListGeoNav.js";
 
@@ -160,7 +160,10 @@ export default function RouteStatusDialog({
   const primaryRouteId = routeIds?.[0];
   const initialStatus = primaryRouteId ? Route.getRouteStatus(primaryRouteId) : Route.ROUTE_STATUS_CUSTOM;
   const routeGeo = primaryRouteId ? Route.getRouteGeo(primaryRouteId) : { country: GEO_COUNTRY_OTHER, region: GEO_REGION_OTHER };
-  const navGeoPreset = useMemo(() => (isNewRoute ? getRouteListNavGeoPreset() : null), [isNewRoute]);
+  const navGeoPreset = useMemo(
+    () => (isNewRoute ? resolveRouteListNavGeoForNewRoute(Route.getRouteList()) : null),
+    [isNewRoute],
+  );
   const presetGeo = isNewRoute ? (navGeoPreset ?? routeGeo) : routeGeo;
   const showCountryPlaceholder = isNewRoute && !navGeoPreset;
 
