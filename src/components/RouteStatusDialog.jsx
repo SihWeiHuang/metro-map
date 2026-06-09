@@ -374,16 +374,14 @@ export default function RouteStatusDialog({
           </select>
         </label>
 
-        {isNewRoute ? (
-          <label className="app-route-status-checkbox-field">
-            <input
-              type="checkbox"
-              checked={suppressAutoOpen}
-              onChange={(e) => onSuppressAutoOpenChange?.(e.target.checked)}
-            />
-            <span>{t("routeStatus.doNotShowForNewRoutes")}</span>
-          </label>
-        ) : null}
+        <label className="app-route-status-checkbox-field">
+          <input
+            type="checkbox"
+            checked={suppressAutoOpen}
+            onChange={(e) => onSuppressAutoOpenChange?.(e.target.checked)}
+          />
+          <span>{t("routeStatus.doNotShowForNewRoutes")}</span>
+        </label>
 
         <div className="app-import-dialog-actions app-route-status-actions">
           <button type="button" className="app-import-dialog-btn app-import-dialog-btn--cancel" onClick={requestClose}>
