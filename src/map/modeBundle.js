@@ -314,25 +314,12 @@ export function setCursorForMode(e) {
       setCursor("grabbing");
       return;
     }
-    cursor = "crosshair";
-    if (e) {
-      const onNode = map.queryRenderedFeatures(e.point, { layers: ["temp-edit-nodes-layer"] });
-      if (onNode.length) {
-        cursor = "grab";
-      } else {
-        const onStation = map.queryRenderedFeatures(e.point, { layers: STATION_CIRCLE_LAYERS });
-        if (onStation.length) {
-          cursor = "pointer";
-        } else {
-          const onExistingRoute = map.queryRenderedFeatures(e.point, { layers: ["routes-line"] });
-          if (onExistingRoute.length) {
-            cursor = "pointer";
-          } else {
-            if (queryTempEditLineAtPoint(map, e.point).length) cursor = "pointer";
-          }
-        }
-      }
+    if (shouldSkipPointerHoverWork()) {
+      const panning = M.pointer.isDown || (map.dragPan && map.dragPan.isActive && map.dragPan.isActive());
+      setCursor(panning ? "grabbing" : "crosshair");
+      return;
     }
+    cursor = e ? cursorForDraftingPoint(map, e.point) : "crosshair";
   } else if (M.mode === "edit-station") {
     cursor = "";
     if (e) {
@@ -386,6 +373,35 @@ function clearStationHoverHighlight() {
 
 function isDraftingHoverMode(mode = M.mode) {
   return mode === "add-route" || mode === "edit-route-active";
+}
+
+/** Skip hit-tests during map pan / inertia so panning does not compete with Mapbox repaint. */
+function shouldSkipPointerHoverWork() {
+  if (M.dragging.type) return true;
+  if (M.pointer.isDown) return true;
+  const map = getMap();
+  if (!map) return false;
+  if (typeof map.isMoving === "function" && map.isMoving()) return true;
+  if (map.dragPan && typeof map.dragPan.isActive === "function" && map.dragPan.isActive()) return true;
+  return false;
+}
+
+function draftingCursorLayers(map) {
+  const tempLineLayers = map.getLayer(TEMP_EDIT_LINE_HIT_LAYER)
+    ? [TEMP_EDIT_LINE_HIT_LAYER]
+    : ["temp-edit-line-layer"];
+  return ["temp-edit-nodes-layer", ...STATION_CIRCLE_LAYERS, "routes-line", ...tempLineLayers];
+}
+
+function cursorForDraftingPoint(map, point) {
+  const hits = map.queryRenderedFeatures(point, { layers: draftingCursorLayers(map) });
+  if (!hits.length) return "crosshair";
+  const layerId = hits[0].layer?.id;
+  if (layerId === "temp-edit-nodes-layer") return "grab";
+  if (STATION_CIRCLE_LAYERS.includes(layerId)) return "pointer";
+  if (layerId === "routes-line") return "pointer";
+  if (layerId === TEMP_EDIT_LINE_HIT_LAYER || layerId === "temp-edit-line-layer") return "pointer";
+  return "crosshair";
 }
 
 function isStationHoverLayerId(layerId) {
@@ -553,6 +569,8 @@ function updateHoverFromPointer(e) {
 
   const map = getMap();
   if (!map) return;
+
+  if (isDraftingHoverMode() && shouldSkipPointerHoverWork()) return;
 
   const target = pickHoverTarget(map, e.point);
 
@@ -1529,6 +1547,7 @@ function flushPointerMoveHandlers() {
   pendingPointerMoveEvent = null;
   if (!e) return;
   setCursorForMode(e);
+  if (isDraftingHoverMode() && shouldSkipPointerHoverWork()) return;
   updateHoverFromPointer(e);
 }
 
@@ -1547,8 +1566,13 @@ export function initializeEventListeners() {
     if (!isPrimaryMouseButton(e)) return;
     M.pointer.isDown = true;
   });
-  map.on("mouseup", () => {
+  map.on("mouseup", (e) => {
     M.pointer.isDown = false;
+    if (isDraftingHoverMode()) {
+      requestAnimationFrame(() => {
+        if (!M.dragging.type) setCursorForMode(e);
+      });
+    }
   });
 
   map.on("mousemove", (e) => {
