@@ -1046,6 +1046,16 @@ function refreshTempEditSources() {
   map.getSource("temp-edit-nodes") && map.getSource("temp-edit-nodes").setData(tempNodesFC);
 }
 
+function refreshStationDisplaySources() {
+  colorPreviewDisplayCache = null;
+  schedulePersistToStorage();
+  const map = getMap();
+  if (!map) return;
+  const built = buildStationDisplayCollections(store.stationsFC, store.subroutesFC);
+  map.getSource("stations") && map.getSource("stations").setData(built.stationsDisplayFC);
+  map.getSource("station-labels") && map.getSource("station-labels").setData(built.stationLabelsFC);
+}
+
 function applyHiddenSubrouteVisibility() {
   const map = getMap();
   if (!map) return;
@@ -1397,7 +1407,7 @@ function startNewTempRoute() {
   store.temp.previewStations = [];
   store.temp.queuedStations = [];
   store.temp.editingSessions = [{ subrouteId: null, nodes: [] }];
-  refreshSources();
+  refreshTempEditSources();
 }
 
 function startEditRoute(routeId) {
@@ -1523,12 +1533,14 @@ function endTempEditingAndCommit() {
 
 function cancelTempEditing() {
   const previewIds = new Set(store.temp.previewStations || []);
+  const stationsBefore = store.stationsFC.features.length;
   store.stationsFC.features = store.stationsFC.features.filter((s) => {
     const sid = s.properties?.station_id;
     if (sid && previewIds.has(sid)) return false;
     if (s.properties?.subroute_id === "__temp_preview__") return false;
     return true;
   });
+  const stationsChanged = store.stationsFC.features.length !== stationsBefore;
 
   clearEditSessionHiddenSubroutes();
   store.temp.editingSessions = [];
@@ -1536,7 +1548,12 @@ function cancelTempEditing() {
   store.temp.queuedStations = [];
   store.temp.subrouteIdEditing = null;
   syncCountersFromLoadedFeatures();
-  refreshSources();
+
+  if (stationsChanged) {
+    refreshStationDisplaySources();
+  }
+  refreshTempEditSources();
+  applyHiddenSubrouteVisibility();
   return { ok: true };
 }
 

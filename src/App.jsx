@@ -382,17 +382,17 @@ function App() {
     if (result?.ok && result.newRouteIds?.length > 0 && autoShowNewRouteStatus) {
       setStatusDialog({ routeIds: result.newRouteIds, isNewRoute: true });
     }
-    bumpRouteList();
+    requestAnimationFrame(() => bumpRouteList());
   };
 
   const handleCancelRouteEditing = () => {
     cancelRouteEditing();
-    bumpRouteList();
+    requestAnimationFrame(() => bumpRouteList());
   };
 
   const handleExitEditRouteSelect = () => {
     exitEditRouteSelectMode();
-    bumpRouteList();
+    requestAnimationFrame(() => bumpRouteList());
   };
 
   const openRouteMetadataDialog = (routeId) => {

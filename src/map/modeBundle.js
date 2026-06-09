@@ -826,6 +826,20 @@ export function popupStationForEditing(station) {
 
 const EDIT_SESSION_MODES = new Set(["add-route", "edit-route-select", "edit-route-active", "edit-station"]);
 
+/** Mode switches that do not add/remove metro layers — skip synchronous layer reorder. */
+const METRO_LAYER_STACK_STABLE_MODES = new Set([
+  "general",
+  "add-route",
+  "edit-route-select",
+  "edit-route-active",
+  "merge",
+  "split-line",
+]);
+
+function shouldEnsureMetroLayerStackOrder(prevMode, nextMode) {
+  return !METRO_LAYER_STACK_STABLE_MODES.has(prevMode) || !METRO_LAYER_STACK_STABLE_MODES.has(nextMode);
+}
+
 export function setMode(next) {
   if (M.mode === next) return;
   const prevMode = M.mode;
@@ -846,7 +860,9 @@ export function setMode(next) {
   updateTransferSnapVisibility();
   emitModeHint();
   const map = getMap();
-  if (map) ensureMetroLayerStackOrder(map);
+  if (map && shouldEnsureMetroLayerStackOrder(prevMode, next)) {
+    ensureMetroLayerStackOrder(map);
+  }
 }
 
 function cancelTempRouteEditingSession(nextMode) {
