@@ -1,4 +1,4 @@
-import { GEO_REGION_OTHER, canonicalizeCountryId, canonicalizeRegion } from "./geoCatalog.js";
+import { canonicalizeCountryId, canonicalizeRegion } from "./geoCatalog.js";
 
 export const ROUTE_LIST_NAV_STORAGE_KEY = "metro-map-route-list-nav-v1";
 
@@ -27,10 +27,8 @@ export function loadRouteListNav() {
 }
 
 /**
- * @param {{ level: RouteListNavLevel, countryId?: unknown, regionId?: unknown }} nav
- */
-/**
  * 依路線清單目前導覽層級，取得新路線資訊視窗的預設地區／城市。
+ * 停在城市列表層時不預設城市，由視窗改選該地區第一個有效城市。
  * @returns {{ country: string, region: string } | null}
  */
 export function getRouteListNavGeoPreset() {
@@ -40,7 +38,7 @@ export function getRouteListNavGeoPreset() {
     return { country: nav.countryId, region: nav.regionId };
   }
   if (nav.level === "city" && nav.countryId !== "") {
-    return { country: nav.countryId, region: GEO_REGION_OTHER };
+    return { country: nav.countryId, region: "" };
   }
   return null;
 }

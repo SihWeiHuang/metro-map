@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "../i18n/I18nProvider.jsx";
 import {
   GEO_COUNTRY_OTHER,
+  GEO_COUNTRY_TW,
   GEO_REGION_OTHER,
   canonicalizeCountryId,
   canonicalizeRegion,
@@ -94,13 +95,57 @@ function getCityOptionsForDialog(countrySelect, customCountry) {
 
 function pickDefaultRegionSelect(cities, preferredRegionId) {
   const preferred = canonicalizeRegion(preferredRegionId);
-  if (cities.some((o) => o.regionId === preferred)) {
+  if (preferred && cities.some((o) => o.regionId === preferred)) {
     return { select: preferred, custom: "" };
   }
   if (cities.length > 0) {
     return { select: cities[0].regionId, custom: "" };
   }
   return { select: GEO_REGION_OTHER, custom: "" };
+}
+
+function resolveInitialRegionSelect(isNewRoute, presetRegion, cities, routeGeo, resolvedCountry) {
+  let list = cities;
+  if (!isNewRoute && canonicalizeCountryId(routeGeo.country) === canonicalizeCountryId(resolvedCountry)) {
+    list = ensureCityOption(list, routeGeo.region);
+  }
+  if (isNewRoute) {
+    return pickDefaultRegionSelect(list, presetRegion);
+  }
+  return buildInitialRegionSelect(presetRegion, list);
+}
+
+function validateRouteStatusForm(
+  { countrySelect, customCountry, regionSelect, customRegion, countryChosen },
+  t,
+) {
+  if (!countryChosen || countrySelect === SELECT_UNSET) {
+    alert(t("routeStatus.errorCountryRequired"));
+    return false;
+  }
+  if (countrySelect === SELECT_CUSTOM && !customCountry.trim()) {
+    alert(t("routeStatus.errorCustomCountryRequired"));
+    return false;
+  }
+  if (regionSelect === SELECT_CUSTOM && !customRegion.trim()) {
+    alert(t("routeStatus.errorCustomCityRequired"));
+    return false;
+  }
+
+  const country = resolveCountryValue(countrySelect, customCountry);
+  const region = resolveRegionValue(regionSelect, customRegion);
+  if (country === GEO_COUNTRY_TW && region === GEO_REGION_OTHER) {
+    alert(t("routeStatus.errorTwOtherCity"));
+    return false;
+  }
+
+  const cities = getCityOptionsForDialog(countrySelect, customCountry);
+  if (regionSelect !== SELECT_CUSTOM && !cities.some((o) => o.regionId === regionSelect)) {
+    alert(t("routeStatus.errorCityRequired"));
+    return false;
+  }
+
+  return true;
 }
 
 export default function RouteStatusDialog({
@@ -136,21 +181,15 @@ export default function RouteStatusDialog({
   const [customCountry, setCustomCountry] = useState(initialCountry.custom);
   const [regionSelect, setRegionSelect] = useState(() => {
     if (initialCountry.select === SELECT_UNSET) return GEO_REGION_OTHER;
-    let cities = getCityOptionsForDialog(initialCountry.select, initialCountry.custom);
+    const cities = getCityOptionsForDialog(initialCountry.select, initialCountry.custom);
     const resolvedCountry = resolveCountryValue(initialCountry.select, initialCountry.custom);
-    if (!isNewRoute && canonicalizeCountryId(routeGeo.country) === canonicalizeCountryId(resolvedCountry)) {
-      cities = ensureCityOption(cities, routeGeo.region);
-    }
-    return buildInitialRegionSelect(presetGeo.region, cities).select;
+    return resolveInitialRegionSelect(isNewRoute, presetGeo.region, cities, routeGeo, resolvedCountry).select;
   });
   const [customRegion, setCustomRegion] = useState(() => {
     if (initialCountry.select === SELECT_UNSET) return "";
-    let cities = getCityOptionsForDialog(initialCountry.select, initialCountry.custom);
+    const cities = getCityOptionsForDialog(initialCountry.select, initialCountry.custom);
     const resolvedCountry = resolveCountryValue(initialCountry.select, initialCountry.custom);
-    if (!isNewRoute && canonicalizeCountryId(routeGeo.country) === canonicalizeCountryId(resolvedCountry)) {
-      cities = ensureCityOption(cities, routeGeo.region);
-    }
-    return buildInitialRegionSelect(presetGeo.region, cities).custom;
+    return resolveInitialRegionSelect(isNewRoute, presetGeo.region, cities, routeGeo, resolvedCountry).custom;
   });
 
   const countryChosen = countrySelect !== SELECT_UNSET;
@@ -190,9 +229,43 @@ export default function RouteStatusDialog({
     setCustomRegion(nextRegion.custom);
   }, [countrySelect, customCountry, regionSelect, presetGeo.region]);
 
+  const requestClose = useCallback(() => {
+    if (isNewRoute && !window.confirm(t("routeStatus.confirmDismissNewRoute"))) {
+      return;
+    }
+    onClose();
+  }, [isNewRoute, onClose, t]);
+
+  const handleBackdropClick = useCallback(
+    (e) => {
+      if (e.target !== e.currentTarget) return;
+      if (isNewRoute) return;
+      onClose();
+    },
+    [isNewRoute, onClose],
+  );
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      requestClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [requestClose]);
+
   const save = () => {
+    if (
+      !validateRouteStatusForm(
+        { countrySelect, customCountry, regionSelect, customRegion, countryChosen },
+        t,
+      )
+    ) {
+      return;
+    }
     const country = resolveCountryValue(countrySelect, customCountry);
-    const region = countryChosen ? resolveRegionValue(regionSelect, customRegion) : GEO_REGION_OTHER;
+    const region = resolveRegionValue(regionSelect, customRegion);
     for (const routeId of routeIds) {
       Route.setRouteMetadata(routeId, { status: selectedStatus, country, region });
     }
@@ -202,7 +275,11 @@ export default function RouteStatusDialog({
   };
 
   return (
-    <div className="app-import-dialog-backdrop" role="presentation" onClick={onClose}>
+    <div
+      className="app-import-dialog-backdrop"
+      role="presentation"
+      onClick={handleBackdropClick}
+    >
       <div
         className="app-import-dialog app-route-status-dialog"
         role="dialog"
@@ -297,17 +374,19 @@ export default function RouteStatusDialog({
           </select>
         </label>
 
-        <label className="app-route-status-checkbox-field">
-          <input
-            type="checkbox"
-            checked={suppressAutoOpen}
-            onChange={(e) => onSuppressAutoOpenChange?.(e.target.checked)}
-          />
-          <span>{t("routeStatus.doNotShowForNewRoutes")}</span>
-        </label>
+        {isNewRoute ? (
+          <label className="app-route-status-checkbox-field">
+            <input
+              type="checkbox"
+              checked={suppressAutoOpen}
+              onChange={(e) => onSuppressAutoOpenChange?.(e.target.checked)}
+            />
+            <span>{t("routeStatus.doNotShowForNewRoutes")}</span>
+          </label>
+        ) : null}
 
         <div className="app-import-dialog-actions app-route-status-actions">
-          <button type="button" className="app-import-dialog-btn app-import-dialog-btn--cancel" onClick={onClose}>
+          <button type="button" className="app-import-dialog-btn app-import-dialog-btn--cancel" onClick={requestClose}>
             {t("app.importCancel")}
           </button>
           <button type="button" className="app-import-dialog-btn app-import-dialog-btn--merge" onClick={save}>
