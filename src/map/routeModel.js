@@ -2048,6 +2048,7 @@ function mergeRoutes(subrouteIdA, subrouteIdB) {
   syncRouteSubrouteMetadata(targetRouteId, routeA_feature.properties);
 
   const unifiedColor = routeA_feature.properties.color || routeB_feature.properties.color || "#1e88e5";
+  bumpRoutesGeometryRevision();
   setRouteColor(targetRouteId, unifiedColor);
   syncCountersFromLoadedFeatures();
   return { ok: true };

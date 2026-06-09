@@ -44,6 +44,15 @@ let onModeChange = () => {};
 let onEditStationSubmodeChange = () => {};
 let onModeHintChange = () => {};
 let onMergePickChange = () => {};
+let onRouteListInvalidation = () => {};
+
+export function registerRouteListInvalidation(fn) {
+  onRouteListInvalidation = typeof fn === "function" ? fn : () => {};
+}
+
+function notifyRouteListInvalidation() {
+  onRouteListInvalidation();
+}
 
 export function registerModeChange(fn) {
   onModeChange = fn;
@@ -81,9 +90,12 @@ export function pickRouteForMerge(subrouteId) {
   if (mergePick.length < 2) return { picked: true, merged: false };
   const res = Route.mergeRoutes(mergePick[0], mergePick[1]);
   if (!res.ok) alert(res.msg);
-  else alert(t("routeModel.mergeSuccess"));
+  else {
+    alert(t("routeModel.mergeSuccess"));
+    notifyRouteListInvalidation();
+  }
   setMode("general");
-  return { picked: true, merged: true, ok: res.ok, msg: res.msg };
+  return { picked: true, merged: res.ok, ok: res.ok, msg: res.msg };
 }
 
 export const M = {
@@ -1549,6 +1561,7 @@ export function pickSubRouteForSplitLine(subrouteId) {
     }
   } else {
     alert(t("routeModel.splitLineSuccess"));
+    notifyRouteListInvalidation();
   }
   setMode("general");
   return res;

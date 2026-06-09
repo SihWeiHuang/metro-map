@@ -12,6 +12,7 @@ import {
   setEditStationSubmode,
   registerEditStationSubmodeChange,
   registerModeHintChange,
+  registerRouteListInvalidation,
 } from "./map/modeBundle.js";
 import { Route } from "./map/routeModel.js";
 import { useI18n } from "./i18n/I18nProvider.jsx";
@@ -240,6 +241,12 @@ function App() {
 
   useEffect(() => {
     registerModeHintChange(setModeHint);
+  }, []);
+
+  useEffect(() => {
+    registerRouteListInvalidation(() => {
+      requestAnimationFrame(() => bumpRouteList());
+    });
   }, []);
 
   useEffect(() => Route.subscribeImportUndoAvailability(setImportUndoAvailable), []);
