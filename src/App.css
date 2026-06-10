@@ -1351,13 +1351,48 @@
   gap: var(--spacing-md);
 }
 
+.app-map-finish-slot--triple {
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: min(calc(100% - 2rem), 28rem);
+  gap: var(--spacing-sm);
+}
+
+.app-map-finish-slot--triple .mode-finish-bar,
+.app-map-finish-slot--triple .mode-cancel-bar,
+.app-map-finish-slot--triple .mode-delete-route-bar {
+  flex: 1 1 auto;
+  min-width: 6.5rem;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 480px) {
+  .app-map-finish-slot--triple {
+    max-width: calc(100% - 1rem);
+    bottom: var(--spacing-md);
+  }
+
+  .app-map-finish-slot--triple .mode-finish-bar,
+  .app-map-finish-slot--triple .mode-cancel-bar,
+  .app-map-finish-slot--triple .mode-delete-route-bar {
+    flex: 1 1 calc(50% - var(--spacing-sm));
+    min-width: 0;
+  }
+
+  .app-map-finish-slot--triple .mode-finish-bar {
+    flex: 1 1 100%;
+  }
+}
+
 .app-controls-toolbar .mode-cancel-bar {
   margin-top: var(--spacing-sm);
   width: 100%;
 }
 
 .mode-finish-bar,
-.mode-cancel-bar {
+.mode-cancel-bar,
+.mode-delete-route-bar {
   --edit-mode-action-halo: rgba(255, 255, 255, 0.44);
   --edit-mode-action-glow: rgba(255, 255, 255, 0.21);
   position: relative;
@@ -1426,8 +1461,31 @@
   transform: translateY(0);
 }
 
+.mode-delete-route-bar {
+  background: #b91c1c;
+}
+
+.mode-delete-route-bar:hover:not(:disabled) {
+  --edit-mode-action-halo: rgba(255, 255, 255, 0.49);
+  --edit-mode-action-glow: rgba(255, 255, 255, 0.29);
+  background: #991b1b;
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1px var(--edit-mode-action-halo),
+    0 0 0 2px rgba(255, 255, 255, 0.17),
+    0 0 10px var(--edit-mode-action-glow),
+    0 0 18px rgba(255, 255, 255, 0.12),
+    0 8px 20px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.mode-delete-route-bar:active:not(:disabled) {
+  transform: translateY(0);
+}
+
 .mode-finish-bar:disabled,
-.mode-cancel-bar:disabled {
+.mode-cancel-bar:disabled,
+.mode-delete-route-bar:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;

@@ -759,7 +759,7 @@ function RouteRow({
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
-          if (confirm(t("routeList.confirmDeleteLine", { id: g.route_id }))) {
+          if (confirm(t("routeList.confirmDeleteLine", { name: currentName || g.route_id }))) {
             Route.deleteRoute(g.route_id);
             onRefresh();
           }

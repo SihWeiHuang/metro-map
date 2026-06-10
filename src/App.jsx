@@ -17,7 +17,8 @@ import {
 import { Route } from "./map/routeModel.js";
 import { useI18n } from "./i18n/I18nProvider.jsx";
 import { resizeMap } from "./map/mapInstance.js";
-import { requestDefaultMapView, requestImportedMapView } from "./map/mapViewState.js";
+import { requestImportedMapView } from "./map/mapViewState.js";
+import { clearSiteLocalStorage } from "./site/siteLocalStorage.js";
 import SiteHeaderNav from "./components/SiteHeaderNav.jsx";
 import SiteInfoPage from "./components/SiteInfoPage.jsx";
 import ShareLinkDialog from "./components/ShareLinkDialog.jsx";
@@ -402,6 +403,19 @@ function App() {
     requestAnimationFrame(() => bumpRouteList());
   };
 
+  const activeEditRouteId = isEditingRouteActive ? Route.getActiveEditRouteId() : null;
+
+  const handleDeleteActiveRouteOnMap = () => {
+    const routeId = Route.getActiveEditRouteId();
+    if (!routeId) return;
+    const routeEntry = Route.getRouteList().find((g) => g.route_id === routeId);
+    const routeName = routeEntry?.subroutes[0]?.name || routeId;
+    if (!window.confirm(t("routeList.confirmDeleteLine", { name: routeName }))) return;
+    cancelRouteEditing();
+    Route.deleteRoute(routeId);
+    requestAnimationFrame(() => bumpRouteList());
+  };
+
   const openRouteMetadataDialog = (routeId) => {
     setStatusDialog({ routeIds: [routeId], isNewRoute: false });
   };
@@ -471,12 +485,12 @@ function App() {
     const successVars =
       result.mode === "replaceMatching"
         ? {
-            replacedSubRoutes: result.replacedSubRouteCount,
-            addedSubRoutes: result.addedSubRouteCount,
+            replacedRoutes: result.replacedRouteCount,
+            addedRoutes: result.addedRouteCount,
             stations: result.stationCount,
           }
         : {
-            subRoutes: result.subRouteCount,
+            routes: result.routeCount,
             stations: result.stationCount,
           };
     alert(t(successKey, successVars));
@@ -569,12 +583,12 @@ function App() {
     const successVars =
       result.mode === "replaceMatching"
         ? {
-            replacedSubRoutes: result.replacedSubRouteCount,
-            addedSubRoutes: result.addedSubRouteCount,
+            replacedRoutes: result.replacedRouteCount,
+            addedRoutes: result.addedRouteCount,
             stations: result.stationCount,
           }
         : {
-            subRoutes: result.subRouteCount,
+            routes: result.routeCount,
             stations: result.stationCount,
           };
     alert(t(successKey, successVars));
@@ -621,16 +635,10 @@ function App() {
   const handleFileMenuReset = () => {
     if (!window.confirm(t("app.resetToDefaultConfirm"))) return;
     closeFileMenu();
-    cancelRouteEditing();
-    setMode("general");
-    setEditToolsOpen(false);
-    setPendingImport(null);
-    setShareDialogOpen(false);
     Route.resetToDefaultState();
+    clearSiteLocalStorage();
     dismissSharePathIfPresent();
-    bumpRouteList();
-    bumpShareView();
-    requestDefaultMapView();
+    window.location.reload();
   };
 
   const shareExpiresAt = Route.getShareViewExpiresAt();
@@ -945,9 +953,11 @@ function App() {
             {showFinish && editToolsOpen && (
               <div
                 className={`app-map-finish-slot${
-                  showEditRouteActiveCommitActions || showAddRouteCommitActions
-                    ? " app-map-finish-slot--pair"
-                    : ""
+                  showEditRouteActiveCommitActions && activeEditRouteId && !shareViewActive
+                    ? " app-map-finish-slot--triple"
+                    : showEditRouteActiveCommitActions || showAddRouteCommitActions
+                      ? " app-map-finish-slot--pair"
+                      : ""
                 }`}
               >
                 {showEditRouteActiveCommitActions ? (
@@ -960,6 +970,17 @@ function App() {
                     >
                       {t("app.cancelRouteEdit")}
                     </button>
+                    {activeEditRouteId && !shareViewActive ? (
+                      <button
+                        type="button"
+                        id="deleteRouteOnMapButton"
+                        className="mode-delete-route-bar"
+                        title={t("app.deleteRouteOnMapTitle")}
+                        onClick={handleDeleteActiveRouteOnMap}
+                      >
+                        {t("app.deleteRouteOnMap")}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       id="finishRouteEditButton"
