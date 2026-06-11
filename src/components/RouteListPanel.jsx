@@ -26,6 +26,7 @@ export default function RouteListPanel({
   const { t } = useI18n();
   const routeList = routesOverride ?? Route.getRouteList();
   const [selectedRouteIds, setSelectedRouteIds] = useState(() => new Set());
+  const [openColorPickerRouteId, setOpenColorPickerRouteId] = useState(null);
   const mergePickSubrouteIds = useMetroMergePick();
   const [columnVisibility] = useState(defaultRouteListColumns);
 
@@ -64,9 +65,12 @@ export default function RouteListPanel({
   const allSelected = routeList.length > 0 && selectedRouteIds.size === routeList.length;
   const selectedCount = selectedRouteIds.size;
   const activeEditRouteId = showRouteActions ? Route.getActiveEditRouteId() : null;
-  const toolbarLocked = !!activeEditRouteId;
+  const colorPickerOpen = openColorPickerRouteId != null;
+  const toolbarLocked = !!activeEditRouteId || colorPickerOpen;
   /** 已勾選至少一條時，禁止點列進入臨時編輯，僅能繼續勾選 */
   const blockRowEdit = showRouteActions && selectedRouteIds.size > 0;
+  /** 選色面板開啟時，禁止點其他路線列（避免誤進編輯或批次勾選） */
+  const suspendRowInteraction = colorPickerOpen;
 
   const visibleRouteList = routeList;
   const VIRTUAL_THRESHOLD = 80;
@@ -175,7 +179,7 @@ export default function RouteListPanel({
   return (
     <div
       ref={listScrollRef}
-      className={`route-list-inner${showRouteActions ? " route-list-inner--edit" : ""}`}
+      className={`route-list-inner${showRouteActions ? " route-list-inner--edit" : ""}${colorPickerOpen ? " route-list-inner--color-picker-open" : ""}`}
     >
       {mergeSelectMode && (
         <div className="route-batch-toolbar route-merge-toolbar">
@@ -258,6 +262,11 @@ export default function RouteListPanel({
             onSplitLinePick={() => handleSplitRoutePick(g)}
             activeEditRouteId={activeEditRouteId}
             blockRowEdit={blockRowEdit}
+            suspendRowInteraction={suspendRowInteraction}
+            colorPickerOpen={openColorPickerRouteId === g.route_id}
+            onColorPickerOpenChange={(nextOpen) => {
+              setOpenColorPickerRouteId(nextOpen ? g.route_id : null);
+            }}
             cols={listCols}
             gridStyle={gridStyle}
             t={t}
@@ -357,9 +366,8 @@ function normalizeRouteHexColor(input) {
   return null;
 }
 
-function RouteColorPicker({ routeId, color, disabled }) {
+function RouteColorPicker({ routeId, color, disabled, open, onOpenChange }) {
   const { t } = useI18n();
-  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(color);
   const [hexText, setHexText] = useState(color);
   const originalColorRef = useRef(color);
@@ -369,7 +377,7 @@ function RouteColorPicker({ routeId, color, disabled }) {
   const popoverRef = useRef(null);
   const nativeColorInputRef = useRef(null);
   const openRef = useRef(false);
-  const suppressOutsideCloseRef = useRef(false);
+  const commitOnCloseRef = useRef(false);
   const previewRafRef = useRef(null);
   const pendingPreviewColorRef = useRef(null);
   const [placement, setPlacement] = useState("below");
@@ -386,7 +394,6 @@ function RouteColorPicker({ routeId, color, disabled }) {
 
   useEffect(() => {
     openRef.current = open;
-    if (!open) suppressOutsideCloseRef.current = false;
   }, [open]);
 
   useEffect(() => {
@@ -431,39 +438,20 @@ function RouteColorPicker({ routeId, color, disabled }) {
     [flushMapColorPreview],
   );
 
-  const revertPreview = useCallback(() => {
-    cancelPendingMapPreview();
-    Route.setRouteColor(routeId, originalColorRef.current);
-  }, [cancelPendingMapPreview, routeId]);
-
-  const revertAndClose = useCallback(() => {
-    if (!openRef.current) return;
-    suppressOutsideCloseRef.current = true;
-    cancelPendingMapPreview();
-    setOpen(false);
-    requestAnimationFrame(() => {
-      revertPreview();
-      suppressOutsideCloseRef.current = false;
-    });
-  }, [cancelPendingMapPreview, revertPreview]);
-
   useEffect(() => {
     if (!open) return;
-    const onWindowBlur = () => {
-      suppressOutsideCloseRef.current = true;
-    };
-    const onWindowFocus = () => {
-      window.setTimeout(() => {
-        suppressOutsideCloseRef.current = false;
-      }, 0);
-    };
-    window.addEventListener("blur", onWindowBlur);
-    window.addEventListener("focus", onWindowFocus);
+    commitOnCloseRef.current = false;
     return () => {
-      window.removeEventListener("blur", onWindowBlur);
-      window.removeEventListener("focus", onWindowFocus);
+      if (commitOnCloseRef.current) return;
+      cancelPendingMapPreview();
+      Route.setRouteColor(routeId, originalColorRef.current);
     };
-  }, [open]);
+  }, [open, routeId, cancelPendingMapPreview]);
+
+  const revertAndClose = useCallback(() => {
+    if (!open) return;
+    onOpenChange?.(false);
+  }, [open, onOpenChange]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -478,30 +466,18 @@ function RouteColorPicker({ routeId, color, disabled }) {
     };
   }, [open, syncPickerLayout]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onClickOutside = (e) => {
-      if (suppressOutsideCloseRef.current) return;
-      if (rootRef.current?.contains(e.target)) return;
-      if (popoverRef.current?.contains(e.target)) return;
-      revertAndClose();
-    };
-    document.addEventListener("click", onClickOutside);
-    return () => document.removeEventListener("click", onClickOutside);
-  }, [open, revertAndClose]);
-
   const togglePicker = (e) => {
     e.stopPropagation();
     e.preventDefault();
     if (disabled) return;
-    if (openRef.current) {
+    if (open) {
       revertAndClose();
       return;
     }
     originalColorRef.current = color;
     setDraft(color);
     setHexText(color);
-    setOpen(true);
+    onOpenChange?.(true);
   };
 
   const commitHexField = () => {
@@ -513,23 +489,18 @@ function RouteColorPicker({ routeId, color, disabled }) {
   const openNativeColorPicker = (e) => {
     e.stopPropagation();
     e.preventDefault();
-    syncPickerLayout();
-    requestAnimationFrame(() => {
-      syncPickerLayout();
-      nativeColorInputRef.current?.click();
-    });
+    nativeColorInputRef.current?.click();
   };
 
   const confirm = (e) => {
     e.stopPropagation();
     e.preventDefault();
-    suppressOutsideCloseRef.current = true;
     cancelPendingMapPreview();
     const next = normalizeRouteHexColor(hexText) ?? draft;
-    setOpen(false);
+    commitOnCloseRef.current = true;
+    onOpenChange?.(false);
     requestAnimationFrame(() => {
       Route.setRouteColor(routeId, next);
-      suppressOutsideCloseRef.current = false;
     });
   };
 
@@ -644,6 +615,9 @@ function RouteRow({
   onSplitLinePick,
   activeEditRouteId,
   blockRowEdit = false,
+  suspendRowInteraction = false,
+  colorPickerOpen = false,
+  onColorPickerOpenChange,
   cols,
   gridStyle,
   t,
@@ -669,10 +643,11 @@ function RouteRow({
   const isLockedByOtherRow = !!activeEditRouteId && activeEditRouteId !== g.route_id;
   const disableHideShow = isLockedByOtherRow || isActiveEditingRow;
   const disableRowActions = isLockedByOtherRow;
+  const lockTrailingExceptColorPicker = suspendRowInteraction && !colorPickerOpen;
 
   const startEdit = (e) => {
     rowEditPressRef.current = false;
-    if (!showRouteActions || disableRowActions || blockRowEdit) return;
+    if (!showRouteActions || disableRowActions || blockRowEdit || suspendRowInteraction) return;
     if (isRowEditExcludedTarget(e.target)) return;
     rowEditPressRef.current = true;
     Route.clearHover();
@@ -683,24 +658,27 @@ function RouteRow({
   const endMouseUp = (e) => {
     if (!rowEditPressRef.current) return;
     rowEditPressRef.current = false;
-    if (!showRouteActions || disableRowActions || blockRowEdit) return;
+    if (!showRouteActions || disableRowActions || blockRowEdit || suspendRowInteraction) return;
     if (isRowEditExcludedTarget(e.target)) return;
     setMode("edit-route-active");
   };
 
   const handleBatchRowClick = (e) => {
+    if (suspendRowInteraction) return;
     if (!blockRowEdit || mergeSelectMode) return;
     if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT" || e.target.tagName === "B") return;
     onToggleSelect();
   };
 
   const handleMergeRowClick = (e) => {
+    if (suspendRowInteraction) return;
     if (!mergeSelectMode) return;
     if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT" || e.target.tagName === "B") return;
     onMergePick?.();
   };
 
   const handleSplitRouteRowClick = (e) => {
+    if (suspendRowInteraction) return;
     if (!splitLineSelectMode) return;
     if (e.target.tagName === "BUTTON" || e.target.tagName === "INPUT" || e.target.tagName === "B") return;
     onSplitLinePick?.();
@@ -748,12 +726,14 @@ function RouteRow({
       <RouteColorPicker
         routeId={g.route_id}
         color={g.subroutes[0]?.color || "#1e88e5"}
-        disabled={disableRowActions}
+        disabled={disableRowActions || lockTrailingExceptColorPicker}
+        open={colorPickerOpen}
+        onOpenChange={onColorPickerOpenChange}
       />
       <button
         type="button"
         className="route-row-action-btn"
-        disabled={disableRowActions}
+        disabled={disableRowActions || suspendRowInteraction}
         title={t("routeList.routeInfoTitle")}
         onClick={(e) => {
           e.stopPropagation();
@@ -766,7 +746,7 @@ function RouteRow({
       <button
         type="button"
         className="route-row-action-btn"
-        disabled={disableHideShow || Route.isRouteHidden(g.route_id)}
+        disabled={disableHideShow || suspendRowInteraction || Route.isRouteHidden(g.route_id)}
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
@@ -778,7 +758,7 @@ function RouteRow({
       <button
         type="button"
         className="route-row-action-btn"
-        disabled={disableHideShow || !Route.isRouteHidden(g.route_id)}
+        disabled={disableHideShow || suspendRowInteraction || !Route.isRouteHidden(g.route_id)}
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
@@ -790,7 +770,7 @@ function RouteRow({
       <button
         type="button"
         className="delete-route-btn"
-        disabled={disableRowActions}
+        disabled={disableRowActions || suspendRowInteraction}
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
@@ -834,7 +814,7 @@ function RouteRow({
             type="checkbox"
             checked={selected}
             onChange={onToggleSelect}
-            disabled={disableRowActions || isActiveEditingRow}
+            disabled={disableRowActions || isActiveEditingRow || suspendRowInteraction}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           />
@@ -847,7 +827,11 @@ function RouteRow({
         )}
       </div>
       <div className="route-row-name-col route-row-title-text">
-        <RouteName routeId={g.route_id} initialName={currentName} allowRename={showRouteActions} />
+        <RouteName
+          routeId={g.route_id}
+          initialName={currentName}
+          allowRename={showRouteActions && !suspendRowInteraction}
+        />
       </div>
       {cols.kind && <div className="route-row-tags-col">{typeTags}</div>}
       {trailingActions}
