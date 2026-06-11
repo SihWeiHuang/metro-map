@@ -3,6 +3,7 @@
  * Skips setFilter when hidden set + subroute catalog are unchanged (common on geometry-only edits).
  */
 import { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER } from "../map/layers.js";
+import { setLayerFilter } from "./mapAdapter.js";
 import { syncStationLabelRouteHoverFilters } from "../map/stationLabelCollision.js";
 
 /** @type {string | null} */
@@ -50,7 +51,7 @@ function buildTransferAnyVisibleExpr(visibleSubrouteIds) {
 }
 
 /**
- * @param {import('../map-runtime/mapboxAdapter.js').MapboxLikeMap} map
+ * @param {import('./mapTypes.js').MapLike} map
  * @param {typeof import('../data/metroStore.js').store} store
  */
 export function applyHiddenSubrouteVisibility(map, store) {
@@ -75,23 +76,12 @@ export function applyHiddenSubrouteVisibility(map, store) {
   const regularStationVisibleFilter = ["all", REGULAR_STATION_LAYER_FILTER, stationVisibleFilter];
   const transferStationVisibleFilter = ["all", TRANSFER_STATION_LAYER_FILTER, stationVisibleFilter];
 
-  if (map.getLayer("stations-circle")) {
-    map.setFilter("stations-circle", regularStationVisibleFilter);
-  }
-  if (map.getLayer("transfer-stations-circle")) {
-    map.setFilter("transfer-stations-circle", transferStationVisibleFilter);
-  }
-  if (map.getLayer("stations-label")) {
-    map.setFilter("stations-label", stationVisibleFilter);
-  }
-  if (map.getLayer("stations-label-move-frame")) {
-    map.setFilter("stations-label-move-frame", stationVisibleFilter);
-  }
+  setLayerFilter(map, "stations-circle", regularStationVisibleFilter);
+  setLayerFilter(map, "transfer-stations-circle", transferStationVisibleFilter);
+  setLayerFilter(map, "stations-label", stationVisibleFilter);
+  setLayerFilter(map, "stations-label-move-frame", stationVisibleFilter);
   syncStationLabelRouteHoverFilters(map, stationVisibleFilter);
-
-  if (map.getLayer("routes-line")) {
-    map.setFilter("routes-line", ["!", ["in", ["get", "subroute_id"], ["literal", hiddenIds]]]);
-  }
+  setLayerFilter(map, "routes-line", ["!", ["in", ["get", "subroute_id"], ["literal", hiddenIds]]]);
 }
 
 /** Reset after map teardown or tests. */

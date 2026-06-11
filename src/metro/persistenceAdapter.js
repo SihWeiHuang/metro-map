@@ -38,11 +38,15 @@ export function writePersistPayloadToStorage() {
   }
 }
 
-export function flushPersistToStorage() {
+export function cancelPendingPersistToStorage() {
   if (persistTimer) {
     clearTimeout(persistTimer);
     persistTimer = null;
   }
+}
+
+export function flushPersistToStorage() {
+  cancelPendingPersistToStorage();
   writePersistPayloadToStorage();
 }
 

@@ -10,20 +10,20 @@ import {
 } from "./displayModel.js";
 import { applyHiddenSubrouteVisibility as applyHiddenSubrouteVisibilityFilters } from "./visibilityFilters.js";
 
-/** @param {import('./mapAdapter.js').MapboxLikeMap | null | undefined} map */
+/** @param {import('./mapTypes.js').MapLike | null | undefined} map */
 function setSourceData(map, sourceId, data) {
   if (!map || !data) return;
   setGeoJsonSourceData(map, sourceId, data);
 }
 
-/** @param {import('../map-runtime/mapboxAdapter.js').MapboxLikeMap} map @param {typeof import('../data/metroStore.js').store} store */
+/** @param {import('./mapTypes.js').MapLike} map @param {typeof import('../data/metroStore.js').store} store */
 export function applyHiddenSubrouteVisibility(map, store) {
   applyHiddenSubrouteVisibilityFilters(map, store);
 }
 
 /**
  * Full map source sync (init, import, share, reset).
- * @param {import('../map-runtime/mapboxAdapter.js').MapboxLikeMap | null | undefined} map
+ * @param {import('./mapTypes.js').MapLike | null | undefined} map
  * @param {typeof import('../data/metroStore.js').store} store
  * @param {{ preview?: boolean, visibilityOnly?: boolean }} [options]
  */
@@ -54,7 +54,7 @@ export function fullSync(map, store, options = {}) {
 
 /**
  * Incremental sync using displayModel dirty set.
- * @param {import('../map-runtime/mapboxAdapter.js').MapboxLikeMap | null | undefined} map
+ * @param {import('./mapTypes.js').MapLike | null | undefined} map
  * @param {typeof import('../data/metroStore.js').store} store
  * @param {{ preview?: boolean }} [options]
  */

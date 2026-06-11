@@ -1,3 +1,11 @@
+import {
+  getLayerFilter,
+  hasLayer,
+  setLayerFilter,
+  setMapLayoutProperty,
+  setMapPaintProperty,
+} from "../map-runtime/mapAdapter.js";
+
 /**
  * 車站站名 symbol 碰撞／閃避（Mapbox layout）。
  * 0 = 不閃避（強制顯示）；100 = 最嚴格。預設 55：站名優先於底圖文字、站間適度排開；站名不會被擠掉（text-optional: false）。
@@ -71,10 +79,10 @@ export const CORE_PLACE_BASEMAP_COLLISION_YIELD = BASEMAP_PLACE_TEXT_COLLISION_Y
 function applyLayoutToLayers(map, layerIds, layout) {
   if (!map) return;
   for (const layerId of layerIds) {
-    if (!map.getLayer(layerId)) continue;
+    if (!hasLayer(map, layerId)) continue;
     for (const [key, value] of Object.entries(layout)) {
       try {
-        map.setLayoutProperty(layerId, key, value);
+        setMapLayoutProperty(map, layerId, key, value);
       } catch {
         /* ignore */
       }
@@ -94,9 +102,7 @@ function buildHoveredSubrouteMatchExpr(subrouteIds) {
 }
 
 function hideRouteHoverLabelLayer(map) {
-  if (map.getLayer("stations-label-hover")) {
-    map.setFilter("stations-label-hover", EMPTY_STATION_FILTER);
-  }
+  setLayerFilter(map, "stations-label-hover", EMPTY_STATION_FILTER);
 }
 
 function applyRouteHoverLabelFilters(map, hoveredSubrouteIds, level = STATION_LABEL_COLLISION_LEVEL) {
@@ -108,12 +114,8 @@ function applyRouteHoverLabelFilters(map, hoveredSubrouteIds, level = STATION_LA
   applyLayoutToLayers(map, ["stations-label"], getStationLabelCollisionLayout(level));
   applyLayoutToLayers(map, ["stations-label-hover"], STATION_LABEL_DRAG_LAYOUT);
 
-  if (map.getLayer("stations-label")) {
-    map.setFilter("stations-label", ["all", base, ["!", matchExpr]]);
-  }
-  if (map.getLayer("stations-label-hover")) {
-    map.setFilter("stations-label-hover", ["all", base, matchExpr]);
-  }
+  setLayerFilter(map, "stations-label", ["all", base, ["!", matchExpr]]);
+  setLayerFilter(map, "stations-label-hover", ["all", base, matchExpr]);
 }
 
 /** @returns {string[]} */
@@ -137,14 +139,14 @@ function clearRouteHoverLabelFilters(map, level = STATION_LABEL_COLLISION_LEVEL)
   applyLayoutToLayers(map, STATION_LABEL_COLLISION_LAYER_IDS, getStationLabelCollisionLayout(level));
   hideRouteHoverLabelLayer(map);
 
-  if (base && map.getLayer("stations-label")) {
-    map.setFilter("stations-label", base);
+  if (base && hasLayer(map, "stations-label")) {
+    setLayerFilter(map, "stations-label", base);
   }
 }
 
 /**
  * 路線可見性 filter 更新後，重新套用 hover 分流（避免被 applyHiddenSubrouteVisibility 覆蓋）。
- * @param {import("mapbox-gl").Map | null | undefined} map
+ * @param {import("../map-runtime/mapTypes.js").MapLike | null | undefined} map
  * @param {unknown[] | null | undefined} [visibilityFilter]
  */
 export function syncStationLabelRouteHoverFilters(map, visibilityFilter) {
@@ -167,7 +169,7 @@ export function applyStationLabelCollision(map, level = STATION_LABEL_COLLISION_
 /**
  * 路線 hover 時：該路線站名強制顯示（關閉智慧閃避），其餘路線維持原碰撞設定。
  * Mapbox layout 不支援 data expression，改以 stations-label-hover 圖層分流。
- * @param {import("mapbox-gl").Map | null | undefined} map
+ * @param {import("../map-runtime/mapTypes.js").MapLike | null | undefined} map
  * @param {string[]} [hoveredSubrouteIds]
  * @param {number} [level]
  */
@@ -178,23 +180,23 @@ export function applyStationLabelCollisionForRouteHover(map, hoveredSubrouteIds 
   if (!ids.length) {
     clearRouteHoverLabelFilters(map, level);
   } else {
-    if (!activeRouteHoverSubrouteIds.length && map.getLayer("stations-label")) {
-      stationLabelVisibilityFilter = map.getFilter("stations-label");
+    if (!activeRouteHoverSubrouteIds.length && hasLayer(map, "stations-label")) {
+      stationLabelVisibilityFilter = getLayerFilter(map, "stations-label");
     }
     activeRouteHoverSubrouteIds = ids;
     applyRouteHoverLabelFilters(map, ids, level);
   }
 
-  if (map.getLayer("stations-label")) {
+  if (hasLayer(map, "stations-label")) {
     try {
-      map.setPaintProperty("stations-label", "text-opacity", 1);
+      setMapPaintProperty(map, "stations-label", "text-opacity", 1);
     } catch {
       /* ignore */
     }
   }
-  if (map.getLayer("stations-label-hover")) {
+  if (hasLayer(map, "stations-label-hover")) {
     try {
-      map.setPaintProperty("stations-label-hover", "text-opacity", 1);
+      setMapPaintProperty(map, "stations-label-hover", "text-opacity", 1);
     } catch {
       /* ignore */
     }
@@ -206,9 +208,9 @@ export function applyStationLabelDragPlacement(map) {
   stationLabelVisibilityFilter = null;
   applyLayoutToLayers(map, STATION_LABEL_DRAG_LAYER_IDS, STATION_LABEL_DRAG_LAYOUT);
   hideRouteHoverLabelLayer(map);
-  if (map.getLayer("stations-label")) {
+  if (hasLayer(map, "stations-label")) {
     try {
-      map.setPaintProperty("stations-label", "text-opacity", 1);
+      setMapPaintProperty(map, "stations-label", "text-opacity", 1);
     } catch {
       /* ignore */
     }

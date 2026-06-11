@@ -1,6 +1,4 @@
 import { useEffect, useRef } from "react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
 import { useI18n } from "../i18n/I18nProvider.jsx";
 import { setMapInstance, getMap } from "../map/mapInstance.js";
 import {
@@ -20,6 +18,11 @@ import { store } from "../data/metroStore.js";
 import { Route } from "../map/routeModel.js";
 import { initializeEventListeners } from "../map/modeBundle.js";
 import { applyMapLanguage } from "../map-runtime/mapAdapter.js";
+import {
+  createMapboxMap,
+  createNavigationControl,
+  setMapboxAccessToken,
+} from "../map-runtime/mapboxRuntime.js";
 import { hideTransferSnapHint } from "../map/mapPopups.js";
 import { configureScrollZoom } from "../map/mapScrollZoom.js";
 import { configureMiddleButtonDragPan } from "../map/mapMiddleButtonPan.js";
@@ -30,15 +33,15 @@ export default function MapView() {
   const { locale } = useI18n();
   const containerRef = useRef(null);
   const lastViewRef = useRef(getInitialMapCamera());
-  const mapRef = useRef(/** @type {mapboxgl.Map | null} */ (null));
+  const mapRef = useRef(/** @type {import('../map-runtime/mapTypes.js').MapLike | null} */ (null));
 
   useEffect(() => {
     if (!containerRef.current) return;
     const mapLanguage = locale === "en" ? "en" : "zh-Hant";
     const view = lastViewRef.current;
 
-    mapboxgl.accessToken = DEFAULT_TOKEN;
-    const map = new mapboxgl.Map({
+    setMapboxAccessToken(DEFAULT_TOKEN);
+    const map = createMapboxMap({
       container: containerRef.current,
       style: "mapbox://styles/ethen9798/cmfceirln001n01sl9bqf4axy",
       center: view.center,
@@ -49,7 +52,7 @@ export default function MapView() {
     });
 
     map.addControl(
-      new mapboxgl.NavigationControl({
+      createNavigationControl({
         visualizePitch: true,
       }),
       "top-right",

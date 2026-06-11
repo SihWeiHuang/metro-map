@@ -1,4 +1,5 @@
 import { findSubrouteBySubrouteId } from "../../data/routeQueries.js";
+import { hasLayer, queryRenderedFeatures } from "../../map-runtime/mapAdapter.js";
 import { TEMP_EDIT_LINE_HIT_LAYER } from "./state.js";
 
 export function isPrimaryMouseButton(e) {
@@ -8,11 +9,12 @@ export function isPrimaryMouseButton(e) {
 
 export function queryFeaturesAtPoint(map, point, layerIds, padPx = 0) {
   if (!layerIds.length) return [];
-  if (!padPx) return map.queryRenderedFeatures(point, { layers: layerIds });
+  if (!padPx) return queryRenderedFeatures(map, point, { layers: layerIds });
   const x = point.x;
   const y = point.y;
   const pad = padPx;
-  return map.queryRenderedFeatures(
+  return queryRenderedFeatures(
+    map,
     [
       [x - pad, y - pad],
       [x + pad, y + pad],
@@ -22,7 +24,7 @@ export function queryFeaturesAtPoint(map, point, layerIds, padPx = 0) {
 }
 
 export function queryTempEditLineAtPoint(map, point) {
-  const layers = map.getLayer(TEMP_EDIT_LINE_HIT_LAYER)
+  const layers = hasLayer(map, TEMP_EDIT_LINE_HIT_LAYER)
     ? [TEMP_EDIT_LINE_HIT_LAYER]
     : ["temp-edit-line-layer"];
   return queryFeaturesAtPoint(map, point, layers, 0);

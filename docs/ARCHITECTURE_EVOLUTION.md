@@ -149,3 +149,36 @@ src/map/routeModel.js           — thin Route facade
 ```
 
 See [PERFORMANCE_BASELINE.md](./PERFORMANCE_BASELINE.md) for metrics.
+
+---
+
+## Phase 6 — Map Engine Adapter Prep
+
+### Goal
+
+Reduce direct `mapbox-gl` coupling in map interaction and layer code; centralize engine-specific bootstrap so a future MapLibre swap touches few files.
+
+### Module layout
+
+| Module | Role |
+|--------|------|
+| `mapTypes.js` | Engine-neutral `MapLike` JSDoc types |
+| `mapAdapter.js` | Shared map API (sources, layers, filters, query, events) |
+| `mapboxAdapter.js` | Re-export adapter (active engine) |
+| `mapboxRuntime.js` | **Only** Map / NavigationControl / Popup construction + CSS |
+| `mapLibreAdapter.stub.js` | Mirror adapter surface; throws until wired |
+| `mapEngine.js` | `VITE_MAP_ENGINE` selector (default `mapbox`) |
+
+### Migration status (Phase 6 Step 1)
+
+- `layers.js`, `visibilityFilters.js`, `mapHoverFilters.js`, `stationLabelCollision.js`, `labelMoveFrameImage.js`, `modeBundle/layers.js` → `mapAdapter`
+- `MapView.jsx`, `mapPopups.js` → `mapboxRuntime` for construction only
+- Remaining direct `mapbox-gl` types: event handlers in `modeBundle/*`, `popupPlacement.js`, `mapViewState.js` (JSDoc only; no runtime import)
+
+### MapLibre checklist (future)
+
+1. Implement `mapLibreAdapter.js` with same exports as `mapAdapter.js`
+2. Add `maplibreRuntime.js` (style URL, token env)
+3. Switch `mapEngine.js` on `VITE_MAP_ENGINE=maplibre`
+4. Verify Standard-style slots / `setLanguage` equivalents
+5. Full manual regression matrix

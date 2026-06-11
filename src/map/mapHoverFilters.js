@@ -1,3 +1,9 @@
+import {
+  hasLayer,
+  setLayerFilter,
+  setMapLayoutProperty,
+  setMapPaintProperty,
+} from "../map-runtime/mapAdapter.js";
 import { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER } from "./layers.js";
 
 /** 基礎圖層預設／hover 樣式（與 layers.js 建立時一致） */
@@ -51,20 +57,20 @@ function caseWhenHighlighted(matchExpr, highlightedValue, defaultValue) {
 }
 
 export function hideStationHoverOverlayLayers(map, { preserveRouteHoverLabels = false } = {}) {
-  if (map.getLayer("stations-circle-hover")) {
-    map.setFilter("stations-circle-hover", ["all", REGULAR_STATION_LAYER_FILTER, EMPTY_STATION_FILTER]);
-  }
-  if (map.getLayer("transfer-stations-circle-hover")) {
-    map.setFilter("transfer-stations-circle-hover", ["all", TRANSFER_STATION_LAYER_FILTER, EMPTY_STATION_FILTER]);
-  }
-  if (!preserveRouteHoverLabels && map.getLayer("stations-label-hover")) {
-    map.setFilter("stations-label-hover", EMPTY_STATION_FILTER);
+  setLayerFilter(map, "stations-circle-hover", ["all", REGULAR_STATION_LAYER_FILTER, EMPTY_STATION_FILTER]);
+  setLayerFilter(map, "transfer-stations-circle-hover", [
+    "all",
+    TRANSFER_STATION_LAYER_FILTER,
+    EMPTY_STATION_FILTER,
+  ]);
+  if (!preserveRouteHoverLabels) {
+    setLayerFilter(map, "stations-label-hover", EMPTY_STATION_FILTER);
   }
 }
 
 /**
  * 路線／單站 hover：只改基礎圖層 paint，不切換 hover 疊層，避免站名／站點閃爍。
- * @param {import("mapbox-gl").Map | null | undefined} map
+ * @param {import("../map-runtime/mapTypes.js").MapLike | null | undefined} map
  * @param {{ subrouteIds?: string[], stationId?: string }} [options]
  */
 export function applyStationHoverVisuals(map, { subrouteIds = [], stationId = "" } = {}) {
@@ -91,16 +97,16 @@ export function applyStationHoverVisuals(map, { subrouteIds = [], stationId = ""
   const labelSize = caseWhenHighlighted(matchExpr, STATION_LABEL_SIZE_HOVER, STATION_LABEL_SIZE_DEFAULT);
   const labelHalo = caseWhenHighlighted(matchExpr, STATION_LABEL_HALO_HOVER, STATION_LABEL_HALO_DEFAULT);
 
-  if (map.getLayer("stations-circle")) {
-    map.setPaintProperty("stations-circle", "circle-radius", regularRadius);
+  if (hasLayer(map, "stations-circle")) {
+    setMapPaintProperty(map, "stations-circle", "circle-radius", regularRadius);
   }
-  if (map.getLayer("transfer-stations-circle")) {
-    map.setPaintProperty("transfer-stations-circle", "circle-radius", transferRadius);
+  if (hasLayer(map, "transfer-stations-circle")) {
+    setMapPaintProperty(map, "transfer-stations-circle", "circle-radius", transferRadius);
   }
-  if (map.getLayer("stations-label")) {
-    map.setLayoutProperty("stations-label", "text-size", labelSize);
-    map.setPaintProperty("stations-label", "text-halo-width", labelHalo);
-    map.setPaintProperty("stations-label", "text-opacity", 1);
+  if (hasLayer(map, "stations-label")) {
+    setMapLayoutProperty(map, "stations-label", "text-size", labelSize);
+    setMapPaintProperty(map, "stations-label", "text-halo-width", labelHalo);
+    setMapPaintProperty(map, "stations-label", "text-opacity", 1);
   }
 
   hideStationHoverOverlayLayers(map, { preserveRouteHoverLabels: ids.length > 0 });
@@ -118,6 +124,6 @@ export function setStationHoverPairFilters(map, stationId) {
 
 /** @deprecated 改由 applyStationHoverVisuals 統一處理，保留介面避免舊呼叫 */
 export function setStationLabelBaseMask(map, _hoverFilter) {
-  if (!map?.getLayer("stations-label")) return;
-  map.setPaintProperty("stations-label", "text-opacity", 1);
+  if (!map || !hasLayer(map, "stations-label")) return;
+  setMapPaintProperty(map, "stations-label", "text-opacity", 1);
 }

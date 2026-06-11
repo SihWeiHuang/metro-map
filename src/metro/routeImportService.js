@@ -11,7 +11,7 @@ import {
 } from "../data/routeConstants.js";
 import { store } from "../data/metroStore.js";
 import { setImportUndoAvailable } from "./importUndoBoundary.js";
-import { flushPersistToStorage } from "./persistenceAdapter.js";
+import { cancelPendingPersistToStorage } from "./persistenceAdapter.js";
 import {
   clearLastImportUndoSnapshot,
   getLastImportUndoSnapshot,
@@ -247,19 +247,20 @@ export function hasUserContent() {
  * @returns {{ ok: true }}
  */
 export function resetToDefaultState() {
-  flushPersistToStorage();
+  cancelPendingPersistToStorage();
   store.shareViewActive = false;
   cancelTempEditing();
   clearLastImportUndoSnapshot();
   notifyImportUndoListeners();
 
-  loadBuiltinDefaultState();
+  clearUserContent();
   store.hiddenSubrouteIds.clear();
   store.removedDefaultRouteIds.clear();
   store.builtinDefaultsSuppressed = false;
   store.settings.stationMinPerRoute = 0;
+  loadBuiltinDefaultState();
   bumpRoutesGeometryRevision();
-  refreshSources({ full: true });
+  refreshSources({ full: true, skipPersist: true });
 
   if (typeof localStorage !== "undefined") {
     try {

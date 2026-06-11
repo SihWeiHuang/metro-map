@@ -12,7 +12,7 @@
  *
  * edit-station never shows route hover popups (prevents covering transfer snap hints).
  */
-import mapboxgl from "mapbox-gl";
+import { createMapboxPopup } from "../map-runtime/mapboxRuntime.js";
 import { t } from "../i18n/i18n.js";
 import { resolveRouteDisplayNameFromProps } from "./defaultNames.js";
 import { popupScreenPoint, resolvePopupPlacement } from "./popupPlacement.js";
@@ -445,7 +445,7 @@ export function showRouteHoverPopup(lngLat, subrouteId, point, data) {
     popups.route = null;
   }
 
-  popups.route = new mapboxgl.Popup({
+  popups.route = createMapboxPopup({
     closeButton: false,
     closeOnClick: false,
     anchor: placement.anchor,
@@ -476,7 +476,7 @@ export function showStationBrowsePopup(lngLat, bodyHtml, point, estHeight) {
     popups.station = null;
   }
 
-  popups.station = new mapboxgl.Popup({
+  popups.station = createMapboxPopup({
     closeButton: false,
     closeOnClick: false,
     anchor: placement.anchor,
@@ -505,7 +505,7 @@ export function openStationEditPopup(lngLat, html) {
 
   if (popups.station) popups.station.remove();
 
-  popups.station = new mapboxgl.Popup({
+  popups.station = createMapboxPopup({
     closeButton: true,
     closeOnClick: false,
     className: STATION_EDIT_POPUP_CLASS,

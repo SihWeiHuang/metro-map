@@ -84,7 +84,11 @@ GitHub 請勿上傳 `.env`（專案已用 `.gitignore` 排除）。Mapbox **URL 
 | `src/map-runtime/displayModel.js` | 衍生顯示幾何（平滑、snap）與 dirty tracking。 |
 | `src/map-runtime/mapRenderer.js` | **唯一** Mapbox GeoJSON source / visibility filter 寫入者。 |
 | `src/map-runtime/visibilityFilters.js` | 隱藏路線 filter 建構；catalog / hidden 未變時跳過 `setFilter`。 |
-| `src/map-runtime/mapAdapter.js` | 地圖引擎抽象（Mapbox 實作；MapLibre stub 預留）。 |
+| `src/map-runtime/mapTypes.js` | 引擎中立 `MapLike` 型別（JSDoc）。 |
+| `src/map-runtime/mapAdapter.js` | 地圖引擎抽象 API（source／layer／filter／query）。 |
+| `src/map-runtime/mapboxRuntime.js` | **唯一** `mapbox-gl` 建構入口（Map、NavigationControl、Popup）。 |
+| `src/map-runtime/mapEngine.js` | 引擎選擇（預設 Mapbox；`VITE_MAP_ENGINE=maplibre` 預留）。 |
+| `src/map-runtime/mapLibreAdapter.stub.js` | MapLibre 遷移用 stub（與 `mapAdapter` 同介面）。 |
 | `src/metro/metroDomain.js` | UI 事件邊界、React hooks、persist adapter 匯出。 |
 | `src/metro/metroBootstrap.js` | 啟動時一次性載入內建／持久化路線（由 `main.jsx` 呼叫，不在 `routeModel` 副作用載入）。 |
 | `src/metro/routeCrudService.js` | 路線 CRUD、編輯 session、車站／轉乘站、顏色與隱藏。 |

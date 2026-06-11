@@ -1,3 +1,17 @@
+import {
+  addMapLayer,
+  addOrUpdateGeoJsonSource,
+  getMapStyle,
+  hasLayer,
+  mapOn,
+  mapOnce,
+  moveMapLayer,
+  removeLayerIfExists,
+  removeSourceIfExists,
+  setMapLayoutProperty,
+  setMapPaintProperty,
+  styleUsesMapboxSlots,
+} from "../map-runtime/mapAdapter.js";
 import { MAPBOX_BASEMAP_LIGHT_PRESET } from "./basemapAppearanceConfig.js";
 import {
   buildStationDisplayCollections,
@@ -99,13 +113,6 @@ const METRO_OVERLAY_SLOT = "top";
 
 export { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER };
 
-function styleUsesMapboxSlots(map) {
-  const style = map.getStyle();
-  if (!style) return false;
-  if (Array.isArray(style.imports) && style.imports.length > 0) return true;
-  return style.layers?.some((layer) => layer.slot != null) ?? false;
-}
-
 const BUILDING_LAYER_RE = /building|structure|extrusion/i;
 
 function isBuildingBasemapLayer(layer) {
@@ -190,19 +197,19 @@ function shouldHideBasemapIconLayer(layer) {
 
 function hideBasemapLayer(map, layerId, layer) {
   try {
-    map.setLayoutProperty(layerId, "visibility", "none");
+    setMapLayoutProperty(map, layerId, "visibility", "none");
     return;
   } catch {
     /* Standard import layers may reject visibility */
   }
   if (layer?.type === "symbol") {
     try {
-      if (layer.layout?.["text-field"]) map.setPaintProperty(layerId, "text-opacity", 0);
+      if (layer.layout?.["text-field"]) setMapPaintProperty(map, layerId, "text-opacity", 0);
     } catch {
       /* ignore */
     }
     try {
-      if (layer.layout?.["icon-image"]) map.setPaintProperty(layerId, "icon-opacity", 0);
+      if (layer.layout?.["icon-image"]) setMapPaintProperty(map, layerId, "icon-opacity", 0);
     } catch {
       /* ignore */
     }
@@ -210,7 +217,7 @@ function hideBasemapLayer(map, layerId, layer) {
 }
 
 function applyReducedBasemapTextDensity(map) {
-  const layers = map.getStyle()?.layers;
+  const layers = getMapStyle(map)?.layers;
   if (!Array.isArray(layers)) return;
   for (const layer of layers) {
     if (!shouldHideBasemapTextLayer(layer)) continue;
@@ -219,7 +226,7 @@ function applyReducedBasemapTextDensity(map) {
 }
 
 function applyReducedBasemapIconDensity(map) {
-  const layers = map.getStyle()?.layers;
+  const layers = getMapStyle(map)?.layers;
   if (!Array.isArray(layers)) return;
   for (const layer of layers) {
     if (!shouldHideBasemapIconLayer(layer)) continue;
@@ -236,13 +243,13 @@ function isCorePlaceBasemapTextLayer(layer) {
 /** 僅主要地名：碰撞優先級低於捷運站名／路線／站點；路名圖層不變。 */
 function applyBasemapPlaceLabelCollisionYield(map, level = STATION_LABEL_COLLISION_LEVEL) {
   if (!map || level <= 0) return;
-  const layers = map.getStyle()?.layers;
+  const layers = getMapStyle(map)?.layers;
   if (!Array.isArray(layers)) return;
   for (const layer of layers) {
     if (!isCorePlaceBasemapTextLayer(layer)) continue;
     for (const [key, value] of Object.entries(BASEMAP_PLACE_TEXT_COLLISION_YIELD)) {
       try {
-        map.setLayoutProperty(layer.id, key, value);
+        setMapLayoutProperty(map, layer.id, key, value);
       } catch {
         /* Standard import 圖層可能拒絕 runtime 修改 */
       }
@@ -256,7 +263,7 @@ function basemapLayerIndexAfterBuildings(index, topBuildingIndex) {
 
 /** 第一個仍顯示的路名圖層：捷運幾何插在其下 → 畫在地名上、路名下。 */
 function findMetroGeometryInsertBeforeRoadLabelLayerId(map) {
-  const layers = map.getStyle()?.layers;
+  const layers = getMapStyle(map)?.layers;
   if (!Array.isArray(layers) || layers.length === 0) return undefined;
 
   let topBuildingIndex = -1;
@@ -278,13 +285,13 @@ function findMetroGeometryInsertBeforeRoadLabelLayerId(map) {
 
 /** 無法插到路名下時，把主要地名移到捷運幾何之下（繪製順序讓位）。 */
 function moveCorePlaceLabelsBelowMetroGeometry(map, topGeometryId) {
-  if (!topGeometryId || !map.getLayer(topGeometryId)) return;
-  const layers = map.getStyle()?.layers;
+  if (!topGeometryId || !hasLayer(map, topGeometryId)) return;
+  const layers = getMapStyle(map)?.layers;
   if (!Array.isArray(layers)) return;
   for (const layer of layers) {
     if (!isCorePlaceBasemapTextLayer(layer)) continue;
     try {
-      map.moveLayer(layer.id, topGeometryId);
+      moveMapLayer(map, layer.id, topGeometryId);
     } catch {
       /* import / slot 可能拒絕 */
     }
@@ -296,7 +303,7 @@ function moveCorePlaceLabelsBelowMetroGeometry(map, topGeometryId) {
  * 自訂 Classic 樣式無 imports 時會靜默略過。
  */
 function applyMapboxStandardBasemapConfig(map) {
-  const imports = map.getStyle()?.imports;
+  const imports = getMapStyle(map)?.imports;
   if (!Array.isArray(imports) || imports.length === 0) return;
 
   const importId = imports.find((item) => item.id === "basemap")?.id ?? imports[0]?.id;
@@ -328,16 +335,16 @@ function applyMapboxStandardBasemapConfig(map) {
 
 /** Classic 樣式（無 Standard import）時略調背景色，避免整圖過白。 */
 function applyClassicBasemapBackgroundTone(map) {
-  const imports = map.getStyle()?.imports;
+  const imports = getMapStyle(map)?.imports;
   if (Array.isArray(imports) && imports.length > 0) return;
 
-  const layers = map.getStyle()?.layers;
+  const layers = getMapStyle(map)?.layers;
   if (!Array.isArray(layers)) return;
 
   for (const layer of layers) {
     if (layer.type !== "background" || isMetroLayer(layer)) continue;
     try {
-      map.setPaintProperty(layer.id, "background-color", "#e9edf1");
+      setMapPaintProperty(map, layer.id, "background-color", "#e9edf1");
     } catch {
       /* ignore */
     }
@@ -363,7 +370,7 @@ export function resetBasemapClutterAppliedFlag(map) {
 
 /** First basemap symbol layer with text — fallback insert anchor (classic styles). */
 function findLabelAnchorLayerId(map) {
-  const layers = map.getStyle()?.layers;
+  const layers = getMapStyle(map)?.layers;
   if (!Array.isArray(layers)) return undefined;
 
   const labelHints = ["place", "poi", "road-label", "road-name", "settlement", "housenum", "transit"];
@@ -390,7 +397,7 @@ function findMetroGeometryInsertBeforeLayerId(map) {
   const roadAnchor = findMetroGeometryInsertBeforeRoadLabelLayerId(map);
   if (roadAnchor) return roadAnchor;
 
-  const layers = map.getStyle()?.layers;
+  const layers = getMapStyle(map)?.layers;
   if (!Array.isArray(layers) || layers.length === 0) return findLabelAnchorLayerId(map);
 
   let topBuildingIndex = -1;
@@ -449,10 +456,6 @@ function withMetroVisibilityPaint(layerDef) {
   return layerDef;
 }
 
-function removeLayerIfExists(map, layerId) {
-  if (map.getLayer(layerId)) map.removeLayer(layerId);
-}
-
 function addMetroRouteLayer(map, layerDef) {
   const def = withMetroVisibilityPaint(layerDef);
   const beforeId = findMetroGeometryInsertBeforeLayerId(map);
@@ -460,7 +463,7 @@ function addMetroRouteLayer(map, layerDef) {
 
   if (beforeId) {
     try {
-      map.addLayer(slottedDef, beforeId);
+      addMapLayer(map, slottedDef, beforeId);
       return;
     } catch {
       // Cross-slot beforeId rejected; fall through to slot-only / default placement.
@@ -468,21 +471,21 @@ function addMetroRouteLayer(map, layerDef) {
   }
 
   if (styleUsesMapboxSlots(map)) {
-    map.addLayer(slottedDef);
+    addMapLayer(map, slottedDef);
     return;
   }
 
   const fallbackBeforeId = findLabelAnchorLayerId(map);
   if (fallbackBeforeId) {
     try {
-      map.addLayer(def, fallbackBeforeId);
+      addMapLayer(map, def, fallbackBeforeId);
       return;
     } catch {
       // ignore
     }
   }
 
-  map.addLayer(def);
+  addMapLayer(map, def);
 }
 
 /** Overlays use `top` slot so circles/nodes draw above route lines in `middle`. */
@@ -493,41 +496,41 @@ function addMetroOverlayLayer(map, layerDef) {
 
   if (beforeId) {
     try {
-      map.addLayer(slottedDef, beforeId);
+      addMapLayer(map, slottedDef, beforeId);
       return;
     } catch {
       // Cross-slot beforeId rejected; fall through.
     }
   }
 
-  map.addLayer(slottedDef);
+  addMapLayer(map, slottedDef);
 }
 
 /** 站名不綁 Mapbox slot，以便疊在所有底圖 symbol 文字之上。 */
 function addMetroStationLabelLayer(map, layerDef) {
   const def = withMetroVisibilityPaint(layerDef);
-  if (map.getLayer(def.id)) return;
+  if (hasLayer(map, def.id)) return;
   try {
-    map.addLayer(def);
+    addMapLayer(map, def);
   } catch {
     addMetroOverlayLayer(map, layerDef);
   }
 }
 
 function moveLayerToStackTop(map, layerId) {
-  if (!map.getLayer(layerId)) return;
+  if (!hasLayer(map, layerId)) return;
   try {
-    map.moveLayer(layerId);
+    moveMapLayer(map, layerId);
     return;
   } catch {
     /* slot 限制時改插到最後一層之上 */
   }
-  const layers = map.getStyle()?.layers;
+  const layers = getMapStyle(map)?.layers;
   if (!Array.isArray(layers) || layers.length === 0) return;
   const topId = layers[layers.length - 1]?.id;
   if (!topId || topId === layerId) return;
   try {
-    map.moveLayer(layerId, topId);
+    moveMapLayer(map, layerId, topId);
   } catch {
     /* ignore */
   }
@@ -537,9 +540,9 @@ function chainLayerOrder(map, layerIds) {
   for (let i = layerIds.length - 1; i > 0; i--) {
     const belowId = layerIds[i - 1];
     const aboveId = layerIds[i];
-    if (!map.getLayer(belowId) || !map.getLayer(aboveId)) continue;
+    if (!hasLayer(map, belowId) || !hasLayer(map, aboveId)) continue;
     try {
-      map.moveLayer(belowId, aboveId);
+      moveMapLayer(map, belowId, aboveId);
     } catch {
       // Style may not allow moving between these layers.
     }
@@ -566,14 +569,14 @@ export function ensureMetroLayerStackOrder(map) {
     chainLayerOrder(map, METRO_HOVER_OVERLAY_LAYER_IDS);
   }
 
-  const topGeometryId = [...metroGeometryLayerIds].reverse().find((id) => map.getLayer(id));
+  const topGeometryId = [...metroGeometryLayerIds].reverse().find((id) => hasLayer(map, id));
 
   if (topGeometryId && mapLabelBeforeId) {
     let anchored = false;
     for (const layerId of metroGeometryLayerIds) {
-      if (!map.getLayer(layerId)) continue;
+      if (!hasLayer(map, layerId)) continue;
       try {
-        map.moveLayer(layerId, mapLabelBeforeId);
+        moveMapLayer(map, layerId, mapLabelBeforeId);
         anchored = true;
       } catch {
         /* slot / import */
@@ -581,7 +584,7 @@ export function ensureMetroLayerStackOrder(map) {
     }
     if (!anchored) {
       try {
-        map.moveLayer(topGeometryId, mapLabelBeforeId);
+        moveMapLayer(map, topGeometryId, mapLabelBeforeId);
       } catch {
         /* ignore */
       }
@@ -611,11 +614,7 @@ export function initializeLayers(map, store) {
   if (!map) return;
 
   function addOrSetSource(id, data) {
-    if (map.getSource(id)) {
-      map.getSource(id).setData(data);
-    } else {
-      map.addSource(id, { type: "geojson", data });
-    }
+    addOrUpdateGeoJsonSource(map, id, data);
   }
 
   addOrSetSource("routes", featureCollectionWithSmoothedLineStrings(store.subroutesFC));
@@ -652,8 +651,8 @@ export function initializeLayers(map, store) {
   } else {
     removeLayerIfExists(map, MRT_REFERENCE_LAYER_ID);
     removeLayerIfExists(map, MRT_REFERENCE_STATIONS_LAYER_ID);
-    if (map.getSource(MRT_REFERENCE_SOURCE_ID)) map.removeSource(MRT_REFERENCE_SOURCE_ID);
-    if (map.getSource(MRT_REFERENCE_STATIONS_SOURCE_ID)) map.removeSource(MRT_REFERENCE_STATIONS_SOURCE_ID);
+    removeSourceIfExists(map, MRT_REFERENCE_SOURCE_ID);
+    removeSourceIfExists(map, MRT_REFERENCE_STATIONS_SOURCE_ID);
   }
 
   addMetroRouteLayer(map, {
@@ -767,8 +766,8 @@ export function initializeLayers(map, store) {
   });
 
   ensureMetroLayerStackOrder(map);
-  map.once("idle", () => ensureMetroLayerStackOrder(map));
-  map.on("zoomend", () => ensureMetroLayerStackOrder(map));
+  mapOnce(map, "idle", () => ensureMetroLayerStackOrder(map));
+  mapOn(map, "zoomend", () => ensureMetroLayerStackOrder(map));
 
   const stationLabelLayoutBase = {
     "text-field": ["coalesce", ["get", "name"], ["get", "station_id"]],
@@ -794,7 +793,7 @@ export function initializeLayers(map, store) {
     ],
   };
 
-  if (!map.getLayer("stations-label-move-frame")) {
+  if (!hasLayer(map, "stations-label-move-frame")) {
     addMetroStationLabelLayer(map, {
       id: "stations-label-move-frame",
       type: "symbol",
@@ -816,7 +815,7 @@ export function initializeLayers(map, store) {
     });
   }
 
-  if (!map.getLayer("stations-label")) {
+  if (!hasLayer(map, "stations-label")) {
     addMetroStationLabelLayer(map, {
       id: "stations-label",
       type: "symbol",
@@ -840,7 +839,7 @@ export function initializeLayers(map, store) {
     });
   }
 
-  if (!map.getLayer("stations-label-hover")) {
+  if (!hasLayer(map, "stations-label-hover")) {
     addMetroStationLabelLayer(map, {
       id: "stations-label-hover",
       type: "symbol",
@@ -890,7 +889,7 @@ export function initializeLayers(map, store) {
   /** Invisible pick target: 2px beyond white casing on each side. */
   const TEMP_EDIT_LINE_HIT_WIDTH = TEMP_EDIT_LINE_CASING_WIDTH + 4;
 
-  if (!map.getLayer("temp-edit-line-casing-layer")) {
+  if (!hasLayer(map, "temp-edit-line-casing-layer")) {
     addMetroOverlayLayer(map, {
       id: "temp-edit-line-casing-layer",
       type: "line",
@@ -907,7 +906,7 @@ export function initializeLayers(map, store) {
     });
   }
 
-  if (!map.getLayer("temp-edit-line-layer")) {
+  if (!hasLayer(map, "temp-edit-line-layer")) {
     addMetroOverlayLayer(map, {
       id: "temp-edit-line-layer",
       type: "line",
@@ -925,7 +924,7 @@ export function initializeLayers(map, store) {
     });
   }
 
-  if (!map.getLayer("temp-edit-line-hit-layer")) {
+  if (!hasLayer(map, "temp-edit-line-hit-layer")) {
     addMetroOverlayLayer(map, {
       id: "temp-edit-line-hit-layer",
       type: "line",
@@ -942,7 +941,7 @@ export function initializeLayers(map, store) {
     });
   }
 
-  if (!map.getLayer("temp-edit-nodes-layer")) {
+  if (!hasLayer(map, "temp-edit-nodes-layer")) {
     addMetroOverlayLayer(map, {
       id: "temp-edit-nodes-layer",
       type: "circle",
@@ -956,7 +955,7 @@ export function initializeLayers(map, store) {
     });
   }
 
-  if (!map.getLayer("label-drag-limit-layer")) {
+  if (!hasLayer(map, "label-drag-limit-layer")) {
     addMetroOverlayLayer(map, {
       id: "label-drag-limit-layer",
       type: "line",
