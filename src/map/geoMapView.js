@@ -11,7 +11,7 @@ import { canonicalizeCountryId, canonicalizeRegion, getCatalogMapView } from "./
 import { computeBoundsFromFeatures } from "./mapGeoBounds.js";
 import { getMap } from "./mapInstance.js";
 import { saveMapView } from "./mapViewState.js";
-import { store } from "./routeModel.js";
+import { store } from "../data/metroStore.js";
 
 const GEO_CITY_MAP_PADDING = 48;
 const GEO_CITY_MAP_MAX_ZOOM = 15;

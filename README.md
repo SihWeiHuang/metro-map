@@ -75,11 +75,39 @@ GitHub 請勿上傳 `.env`（專案已用 `.gitignore` 排除）。Mapbox **URL 
 
 | 模組 | 職責 |
 |------|------|
-| `src/map/defaultData.js` | **唯一**從 `default-data/*.json` 載入內建預設路線（build 時自動打包該資料夾內所有 JSON）。 |
+| `src/data/metroStore.js` | **權威** in-memory route store（GeoJSON + metadata；含 `layers.default` / `layers.user` 分區）。 |
+| `src/data/storeLayers.js` | default / user 圖層合併與拆分（`syncMergedFromLayers`、`splitMergedIntoLayers`）。 |
+| `src/data/routeQueries.js` | 唯讀 route 查詢（子路線、車站、計數）。 |
+| `src/data/routeConstants.js` | 匯入格式、route_kind、persist key 等常數。 |
+| `src/data/defaultDataLoader.js` | 內建 default-data **lazy** 載入（Vite 動態 chunk，bootstrap 時並行合併）。 |
+| `src/data/defaultDataMerge.js` | 多檔 default-data JSON 合併與 ID 前綴邏輯（browser / Node 共用）。 |
+| `src/map-runtime/displayModel.js` | 衍生顯示幾何（平滑、snap）與 dirty tracking。 |
+| `src/map-runtime/mapRenderer.js` | **唯一** Mapbox GeoJSON source / visibility filter 寫入者。 |
+| `src/map-runtime/visibilityFilters.js` | 隱藏路線 filter 建構；catalog / hidden 未變時跳過 `setFilter`。 |
+| `src/map-runtime/mapAdapter.js` | 地圖引擎抽象（Mapbox 實作；MapLibre stub 預留）。 |
+| `src/metro/metroDomain.js` | UI 事件邊界、React hooks、persist adapter 匯出。 |
+| `src/metro/metroBootstrap.js` | 啟動時一次性載入內建／持久化路線（由 `main.jsx` 呼叫，不在 `routeModel` 副作用載入）。 |
+| `src/metro/routeCrudService.js` | 路線 CRUD、編輯 session、車站／轉乘站、顏色與隱藏。 |
+| `src/metro/routeImportService.js` | 匯入／匯出／復原／重設。 |
+| `src/metro/routeShareService.js` | 分享連結 session。 |
+| `src/metro/routeRenderCommands.js` | 向 `mapRenderer` 委派 GeoJSON refresh 與 visibility。 |
+| `src/map/modeController.js` | modeBundle 對外 facade（模式切換、事件註冊）。 |
+| `src/map/routeModel.js` | Route 命令 facade（組合上述 service；對外 API 不變）。 |
+| `src/map/routeTransferSnap.js` | 轉乘站 snap 幾何與 hover 輔助（自 facade 拆出）。 |
+| `src/map/defaultData.js` | `default-data/*.json` chunk 目錄（`import.meta.glob` lazy，不 eager 打包進主 bundle）。 |
 | `src/map/defaultNames.js` | **唯一**處理預設路線／車站名稱。新增路線請用 `allocateDefaultRouteLabel()`，新增車站請用 `allocateDefaultStationLabel()`，顯示名稱請用 `resolveRouteDisplayNameFromProps()` / `resolveStationDisplayName()`。內部 `subroute_id` / `station_id` 與顯示編號（`user_default_route_label` / `user_default_label`）分離。 |
 | `src/map/mapPopups.js` | **唯一**管理地圖 hover／提示 popup，並依模式強制規則（例如 `edit-station` 不顯示路線 hover，只顯示「新增轉乘站」）。請勿在 `modeBundle.js` 直接 `new mapboxgl.Popup()`。 |
-| `src/map/modeBundle.js` | 模式切換、游標、hover 編排；popup 一律委派給 `mapPopups.js`。 |
-| `src/map/routeModel.js` | 資料與商業邏輯；命名與 popup 顯示邏輯不在此重複實作。 |
+| `src/map/modeBundle.js` | 地圖模式 facade（re-export 子模組；對外 import 路徑不變）。 |
+| `src/map/modeBundle/state.js` | 互動狀態 `M`、`Modes`、編輯子模式。 |
+| `src/map/modeBundle/hover.js` | hover 編排與 browse／編輯提示 popup。 |
+| `src/map/modeBundle/drag.js` | 車站／標籤／暫時節點拖曳。 |
+| `src/map/modeBundle/control.js` | `setMode`、完成／取消、合併／拆線。 |
+| `src/map/modeBundle/handlers.js` | 各模式 click／down handler（general、add-route、edit-station 等）。 |
+| `src/map/modeBundle/events.js` | Mapbox 事件註冊與 pointer rAF 節流。 |
+| `src/metro/metroEvents.js` | 型別化事件匯流排（取代 `register*` callback）。 |
+| `src/metro/useMetro*.js` | React hooks：`useMetroStoreRevision`、`useMetroMapMode`、`useMetroMapInteraction`、`useMetroMergePick`、`useMetroShareView`。 |
+| `src/app/useRouteListWidth.js` / `useShareBootstrap.js` / `useAppImportActions.js` | App 殼層 hooks（側欄寬度、分享 bootstrap、匯入流程）。 |
+| `src/components/AppEditToolsPanel.jsx` 等 | App 拆分出的 UI 子元件（編輯工具列、完成列、檔案選單、匯入衝突對話框）。 |
 | `shared/shareLimits.js` | 分享連結與全站路線數上限常數（前後端共用）。 |
 | `api/share/` | 建立／讀取分享連結的 Serverless API。 |
 | `src/map/layers.js` | 底圖減雜訊（`applyBasemapClutterReduction`）；細部與 Studio 分工見 **[docs/底圖樣式調整.md](docs/底圖樣式調整.md)**。 |

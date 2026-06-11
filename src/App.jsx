@@ -3,18 +3,12 @@ import "./App.css";
 import MapView from "./components/MapView.jsx";
 import RouteListNavigator from "./components/RouteListNavigator.jsx";
 import RouteStatusDialog from "./components/RouteStatusDialog.jsx";
-import {
-  setMode,
-  finishEditing,
-  exitEditRouteSelectMode,
-  cancelMerge,
-  cancelRouteEditing,
-  setEditStationSubmode,
-  registerEditStationSubmodeChange,
-  registerModeHintChange,
-  registerRouteListInvalidation,
-} from "./map/modeBundle.js";
+import { setMode, cancelRouteEditing, finishEditing, exitEditRouteSelectMode } from "./map/modeController.js";
 import { Route } from "./map/routeModel.js";
+import { useMetroMapMode } from "./metro/useMetroMapMode.js";
+import { useMetroMapInteraction } from "./metro/useMetroMapInteraction.js";
+import { useMetroShareView } from "./metro/useMetroShareView.js";
+import { useMetroImportUndoAvailable } from "./metro/useMetroImportUndoAvailable.js";
 import { useI18n } from "./i18n/I18nProvider.jsx";
 import { resizeMap } from "./map/mapInstance.js";
 import { requestImportedMapView } from "./map/mapViewState.js";
@@ -28,31 +22,17 @@ import AdSenseLoader from "./components/AdSenseLoader.jsx";
 import { parseSitePageFromHash, sitePageHash } from "./site/siteRoutes.js";
 import { isAdSidebarEnabled } from "./site/adSidebarConfig.js";
 import { isAdsenseConfigured } from "./site/adsenseConfig.js";
-import { parseShareIdFromPathname } from "./share/parseSharePath.js";
-import { fetchShareById } from "./share/shareApi.js";
 import { installViewportSync } from "./site/viewportSync.js";
+import { useRouteListWidth } from "./app/useRouteListWidth.js";
+import { dismissSharePathIfPresent, useShareBootstrap } from "./app/useShareBootstrap.js";
+import { useAppImportActions } from "./app/useAppImportActions.js";
+import AppEditToolsPanel from "./components/AppEditToolsPanel.jsx";
+import AppMapFinishBar from "./components/AppMapFinishBar.jsx";
+import AppFileMenuDialog from "./components/AppFileMenuDialog.jsx";
+import AppImportConflictDialog from "./components/AppImportConflictDialog.jsx";
 
-const ROUTE_LIST_WIDTH_STORAGE_KEY = "metro-route-list-width";
 const AUTO_SHOW_NEW_ROUTE_STATUS_KEY = "metro-auto-show-new-route-status";
-const ROUTE_LIST_MIN_PX = 200;
 const adSidebarEnabled = isAdSidebarEnabled();
-
-function routeListMaxPx() {
-  return Math.min(720, Math.floor(window.innerWidth * 0.55));
-}
-
-function readStoredRouteListWidth() {
-  try {
-    const v = localStorage.getItem(ROUTE_LIST_WIDTH_STORAGE_KEY);
-    if (v) {
-      const n = parseInt(v, 10);
-      if (!Number.isNaN(n)) {
-        return Math.min(routeListMaxPx(), Math.max(ROUTE_LIST_MIN_PX, n));
-      }
-    }
-  } catch (_) {}
-  return Math.min(320, routeListMaxPx());
-}
 
 function readAutoShowNewRouteStatus() {
   try {
@@ -71,18 +51,32 @@ const DEFAULT_DOCUMENT_TITLE = "Metro Multiverse";
 
 function App() {
   const { t, locale, setLocale } = useI18n();
-  const [mode, setModeState] = useState("general");
-  const [editStationSubmode, setEditStationSubmodeState] = useState("crud");
-  const [modeHint, setModeHint] = useState(() => t("modeHint.general"));
-  const [listTick, setListTick] = useState(0);
-  const [routeListWidthPx, setRouteListWidthPx] = useState(readStoredRouteListWidth);
-  const routeListWidthRef = useRef(routeListWidthPx);
-  routeListWidthRef.current = routeListWidthPx;
+  const mode = useMetroMapMode();
+  const { modeHint, editStationSubmode } = useMetroMapInteraction();
+  const importUndoAvailable = useMetroImportUndoAvailable();
+  const { shareViewActive, shareViewExpiresAt } = useMetroShareView();
+  const { routeListWidthPx, startRouteListResize } = useRouteListWidth();
   /** 未開啟時側欄內其他按鈕皆停用（僅「編輯模式」可切換） */
   const [editToolsOpen, setEditToolsOpen] = useState(false);
-  const importInputRef = useRef(null);
-  const [pendingImport, setPendingImport] = useState(null);
-  const [importUndoAvailable, setImportUndoAvailable] = useState(false);
+  const onShareBootstrapReady = useCallback((mapView) => {
+    setEditToolsOpen(false);
+    setMode("general");
+    requestImportedMapView(mapView);
+  }, []);
+  const { shareBootstrap, dismissShareLoadError, resetShareBootstrap, setShareBootstrap } = useShareBootstrap({
+    onReady: onShareBootstrapReady,
+  });
+  const {
+    importInputRef,
+    pendingImport,
+    importErrorMessage,
+    handleImportFile,
+    handleExportMap,
+    handleUndoLastImport,
+    closeImportDialog,
+    confirmImportWithMode,
+    handleImportMapClick,
+  } = useAppImportActions(t);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [langMenuStyle, setLangMenuStyle] = useState(null);
@@ -95,12 +89,6 @@ function App() {
     typeof window !== "undefined" ? parseSitePageFromHash(window.location.hash) : null
   );
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const [shareViewTick, setShareViewTick] = useState(0);
-  const [shareBootstrap, setShareBootstrap] = useState(() => {
-    if (typeof window === "undefined") return { phase: "idle", id: null, error: "" };
-    const id = parseShareIdFromPathname(window.location.pathname);
-    return id ? { phase: "loading", id, error: "" } : { phase: "idle", id: null, error: "" };
-  });
   const [shareActionBusy, setShareActionBusy] = useState(false);
 
   useEffect(() => {
@@ -166,67 +154,7 @@ function App() {
     setSitePage(null);
   }, []);
 
-  const startRouteListResize = useCallback((clientX) => {
-    const startX = clientX;
-    const startW = routeListWidthRef.current;
-    let last = startW;
-    const move = (ev) => {
-      if ("touches" in ev && ev.touches.length > 0) {
-        ev.preventDefault();
-      }
-      const x = "touches" in ev && ev.touches.length > 0 ? ev.touches[0].clientX : ev.clientX;
-      const maxW = routeListMaxPx();
-      const next = Math.min(maxW, Math.max(ROUTE_LIST_MIN_PX, startW + (x - startX)));
-      last = next;
-      setRouteListWidthPx(next);
-    };
-    const end = () => {
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", end);
-      window.removeEventListener("touchmove", move);
-      window.removeEventListener("touchend", end);
-      window.removeEventListener("touchcancel", end);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      try {
-        localStorage.setItem(ROUTE_LIST_WIDTH_STORAGE_KEY, String(last));
-      } catch (_) {}
-    };
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", end);
-    window.addEventListener("touchmove", move, { passive: false });
-    window.addEventListener("touchend", end);
-    window.addEventListener("touchcancel", end);
-  }, []);
-
-  useEffect(() => {
-    const onWinResize = () => {
-      setRouteListWidthPx((w) => {
-        const maxW = routeListMaxPx();
-        return Math.min(maxW, Math.max(ROUTE_LIST_MIN_PX, w));
-      });
-    };
-    window.addEventListener("resize", onWinResize);
-    return () => window.removeEventListener("resize", onWinResize);
-  }, []);
-
-  const onModeChange = useCallback((next) => {
-    setModeState(next);
-    if (next !== "edit-station") {
-      setEditStationSubmodeState("crud");
-    }
-  }, []);
-
-  const onEditStationSubmodeChange = useCallback((next) => {
-    setEditStationSubmodeState(next);
-  }, []);
-
-  const bumpRouteList = () => setListTick((t) => t + 1);
-
   const handleRouteMetadataSaved = (payload) => {
-    bumpRouteList();
     if (payload?.country != null && payload?.region != null) {
       setRouteListGeoFocus({
         country: payload.country,
@@ -235,51 +163,6 @@ function App() {
       });
     }
   };
-
-  useEffect(() => {
-    registerEditStationSubmodeChange(onEditStationSubmodeChange);
-  }, [onEditStationSubmodeChange]);
-
-  useEffect(() => {
-    registerModeHintChange(setModeHint);
-  }, []);
-
-  useEffect(() => {
-    registerRouteListInvalidation(() => {
-      requestAnimationFrame(() => bumpRouteList());
-    });
-  }, []);
-
-  useEffect(() => Route.subscribeImportUndoAvailability(setImportUndoAvailable), []);
-
-  const bumpShareView = () => setShareViewTick((n) => n + 1);
-
-  useEffect(() => {
-    if (shareBootstrap.phase !== "loading" || !shareBootstrap.id) return;
-    let cancelled = false;
-    (async () => {
-      const fetched = await fetchShareById(shareBootstrap.id);
-      if (cancelled) return;
-      if (!fetched.ok) {
-        setShareBootstrap({ phase: "error", id: shareBootstrap.id, error: fetched.error });
-        return;
-      }
-      const opened = Route.openShareView(fetched.payload, { expiresAt: fetched.expiresAt });
-      if (!opened.ok) {
-        setShareBootstrap({ phase: "error", id: shareBootstrap.id, error: opened.error || "import_failed" });
-        return;
-      }
-      setShareBootstrap({ phase: "ready", id: shareBootstrap.id, error: "" });
-      setEditToolsOpen(false);
-      setMode("general");
-      bumpRouteList();
-      bumpShareView();
-      requestImportedMapView(opened.mapView);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [shareBootstrap.phase, shareBootstrap.id]);
 
   useEffect(() => {
     if (mode !== "general" || !editToolsOpen) {
@@ -306,10 +189,6 @@ function App() {
   }, [langMenuOpen]);
 
   useEffect(() => {
-    setListTick((x) => x + 1);
-  }, [locale]);
-
-  useEffect(() => {
     cancelRouteEditing();
     setMode("general");
   }, [locale]);
@@ -328,7 +207,7 @@ function App() {
       };
     }
     document.title = DEFAULT_DOCUMENT_TITLE;
-  }, [shareViewTick, shareBootstrap.phase, locale]);
+  }, [shareViewActive, shareBootstrap.phase, locale, t]);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => resizeMap());
@@ -363,9 +242,6 @@ function App() {
   const isEditRouteMode = mode === "edit-route-select" || mode === "edit-route-active";
   const showEditStationSubmodeButtons = mode === "edit-station";
 
-  const shareViewActive = Route.isShareViewActive();
-  void shareViewTick;
-
   useEffect(() => {
     if (shareViewActive) {
       setEditToolsOpen(false);
@@ -390,17 +266,17 @@ function App() {
     if (result?.ok && result.newRouteIds?.length > 0 && autoShowNewRouteStatus) {
       setStatusDialog({ routeIds: result.newRouteIds, isNewRoute: true });
     }
-    requestAnimationFrame(() => bumpRouteList());
+    requestAnimationFrame(() => {});
   };
 
   const handleCancelRouteEditing = () => {
     cancelRouteEditing();
-    requestAnimationFrame(() => bumpRouteList());
+    requestAnimationFrame(() => {});
   };
 
   const handleExitEditRouteSelect = () => {
     exitEditRouteSelectMode();
-    requestAnimationFrame(() => bumpRouteList());
+    requestAnimationFrame(() => {});
   };
 
   const activeEditRouteId = isEditingRouteActive ? Route.getActiveEditRouteId() : null;
@@ -413,7 +289,7 @@ function App() {
     if (!window.confirm(t("routeList.confirmDeleteLine", { name: routeName }))) return;
     cancelRouteEditing();
     Route.deleteRoute(routeId);
-    requestAnimationFrame(() => bumpRouteList());
+    requestAnimationFrame(() => {});
   };
 
   const openRouteMetadataDialog = (routeId) => {
@@ -442,27 +318,6 @@ function App() {
     });
   };
 
-  const handleExportMap = () => {
-    const json = Route.exportUserStateJSON();
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = Route.getExportFileName();
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const importErrorMessage = (code, result) => {
-    if (code === "route_limit_reached" && result?.limit != null) {
-      return t("routeModel.routeLimitReached", { limit: result.limit, current: result.current });
-    }
-    if (code === "unsupported_format") return t("app.importErrorUnsupported");
-    if (code === "missing_features") return t("app.importErrorMissing");
-    if (code === "invalid_json") return t("app.importErrorInvalid");
-    return t("app.importErrorGeneric");
-  };
-
   const tryStartAddRoute = () => {
     const check = Route.assertCanAddUserRoutes(1);
     if (!check.ok) {
@@ -470,81 +325,6 @@ function App() {
       return;
     }
     setMode("add-route");
-  };
-
-  const applyImport = (text, mode) => {
-    const result = Route.importUserStateJSON(text, { mode });
-    if (!result.ok) {
-      alert(importErrorMessage(result.error, result));
-      return;
-    }
-    bumpRouteList();
-    const importedMapView = result.mapView;
-    const successKey =
-      result.mode === "replaceMatching" ? "app.importSuccessReplaceMatching" : "app.importSuccess";
-    const successVars =
-      result.mode === "replaceMatching"
-        ? {
-            replacedRoutes: result.replacedRouteCount,
-            addedRoutes: result.addedRouteCount,
-            stations: result.stationCount,
-          }
-        : {
-            routes: result.routeCount,
-            stations: result.stationCount,
-          };
-    alert(t(successKey, successVars));
-    requestImportedMapView(importedMapView);
-  };
-
-  const handleImportFile = async (file) => {
-    if (!file) return;
-    let text;
-    try {
-      text = await file.text();
-    } catch {
-      alert(t("app.importErrorInvalid"));
-      return;
-    }
-    if (Route.hasUserContent()) {
-      const analysis = Route.analyzeImportJSON(text);
-      if (!analysis.ok) {
-        alert(importErrorMessage(analysis.error));
-        return;
-      }
-      if (analysis.duplicateRouteIds.length === 0) {
-        applyImport(text, "merge");
-        return;
-      }
-      setPendingImport({
-        text,
-        duplicateRouteLabels: analysis.duplicateRouteLabels,
-      });
-      return;
-    }
-    applyImport(text, "merge");
-  };
-
-  const closeImportDialog = () => setPendingImport(null);
-
-  const confirmImportWithMode = (mode) => {
-    if (pendingImport == null) return;
-    const { text } = pendingImport;
-    setPendingImport(null);
-    applyImport(text, mode);
-  };
-
-  const handleImportMapClick = () => {
-    importInputRef.current?.click();
-  };
-
-  const handleUndoLastImport = () => {
-    const result = Route.undoLastImport();
-    if (!result.ok) return;
-    bumpRouteList();
-    const restoredMapView = result.mapView;
-    alert(t("app.undoLastImportSuccess"));
-    requestImportedMapView(restoredMapView);
   };
 
   const shareLoadErrorMessage = (code) => {
@@ -562,9 +342,7 @@ function App() {
     const result = Route.exitShareView();
     setShareActionBusy(false);
     if (!result.ok) return;
-    setShareBootstrap({ phase: "idle", id: null, error: "" });
-    bumpRouteList();
-    bumpShareView();
+    resetShareBootstrap();
   };
 
   const handleAdoptShareView = async () => {
@@ -575,9 +353,7 @@ function App() {
       if (result.error) alert(importErrorMessage(result.error, result));
       return;
     }
-    setShareBootstrap({ phase: "idle", id: null, error: "" });
-    bumpRouteList();
-    bumpShareView();
+    resetShareBootstrap();
     const successKey =
       result.mode === "replaceMatching" ? "app.importSuccessReplaceMatching" : "app.importSuccess";
     const successVars =
@@ -625,23 +401,14 @@ function App() {
     setShareDialogOpen(true);
   };
 
-  const dismissSharePathIfPresent = () => {
-    if (typeof window === "undefined") return;
-    if (!parseShareIdFromPathname(window.location.pathname)) return;
-    window.history.replaceState(null, "", "/");
-    setShareBootstrap({ phase: "idle", id: null, error: "" });
-  };
-
   const handleFileMenuReset = () => {
     if (!window.confirm(t("app.resetToDefaultConfirm"))) return;
     closeFileMenu();
     Route.resetToDefaultState();
     clearSiteLocalStorage();
-    dismissSharePathIfPresent();
+    dismissSharePathIfPresent(setShareBootstrap);
     window.location.reload();
   };
-
-  const shareExpiresAt = Route.getShareViewExpiresAt();
 
   return (
     <div className={`app-root${shareViewActive ? " app-root--share-view" : ""}`}>
@@ -736,10 +503,7 @@ function App() {
           <button
             type="button"
             className="app-share-view-btn"
-            onClick={() => {
-              window.history.replaceState(null, "", window.location.pathname);
-              setShareBootstrap({ phase: "idle", id: null, error: "" });
-            }}
+            onClick={dismissShareLoadError}
           >
             {t("share.dismissLoadError")}
           </button>
@@ -753,8 +517,6 @@ function App() {
           aria-label={t("app.routeListAria")}
         >
           <RouteListNavigator
-            onRefresh={bumpRouteList}
-            listRevision={listTick}
             geoFocus={routeListGeoFocus}
             onGeoFocusHandled={() => setRouteListGeoFocus(null)}
             showRouteActions={routeListEditActions}
@@ -768,148 +530,22 @@ function App() {
               <p>{t("share.sidebarNote")}</p>
             </div>
           ) : (
-          <div className={`app-side-panel-footer app-controls-dock${editToolsOpen ? " app-controls-dock-open" : ""}`}>
-            <div className="app-mode-tools">
-            <div className="app-edit-mode-toggle-row">
-              <button
-                id="edit-mode-toggle"
-                type="button"
-                className={`app-edit-mode-toggle${editToolsOpen ? " active-button" : ""}`}
-                disabled={editModeToggleLocked || shareViewActive}
-                onClick={toggleEditTools}
-                aria-expanded={editToolsOpen}
-                aria-controls="edit-tools-panel"
-                title={
-                  shareViewActive
-                    ? t("share.editDisabledTitle")
-                    : editModeToggleLocked
-                      ? t("app.editModeToggleLockedTitle")
-                      : editToolsOpen
-                        ? t("app.editModeToggleAriaCollapse")
-                        : t("app.editModeToggleAriaExpand")
-                }
-              >
-                <span className="app-edit-mode-toggle-label">{t("app.controlsSectionTitle")}</span>
-                <span className="app-edit-mode-chevron" aria-hidden>
-                  {editToolsOpen ? "▾" : "▸"}
-                </span>
-              </button>
-            </div>
-            <div
-              id="edit-tools-panel"
-              className={`app-controls-toolbar${editToolsOpen ? "" : " app-controls-toolbar--collapsed"}`}
-              role="region"
-              aria-label={t("app.editToolsRegionLabel")}
-              aria-hidden={!editToolsOpen}
-            >
-              <div className={`button-container${toolsDisabled ? " button-container-disabled" : ""}`}>
-              <div id="mode-buttons" className="mode-buttons">
-                <button
-                  type="button"
-                  disabled={modeBtnDisabled(mode === "add-route")}
-                  className={mode === "add-route" ? "active-button" : ""}
-                  onClick={tryStartAddRoute}
-                >
-                  {t("app.modeAddRoute")}
-                </button>
-                <button
-                  type="button"
-                  disabled={modeBtnDisabled(isEditRouteMode) || isEditRouteMode}
-                  className={isEditRouteMode ? "active-button mode-button-active-locked" : ""}
-                  onClick={() => setMode("edit-route-select")}
-                >
-                  {t("app.modeEditRoute")}
-                </button>
-                <button
-                  type="button"
-                  disabled={modeBtnDisabled(mode === "edit-station")}
-                  className={mode === "edit-station" ? "active-button" : ""}
-                  onClick={() => setMode("edit-station")}
-                >
-                  {t("app.modeEditStation")}
-                </button>
-                <button
-                  type="button"
-                  disabled={modeBtnDisabled(mode === "merge")}
-                  className={mode === "merge" ? "active-button" : ""}
-                  onClick={() => setMode("merge")}
-                >
-                  {t("app.modeMerge")}
-                </button>
-                <button
-                  type="button"
-                  disabled={modeBtnDisabled(mode === "split-line")}
-                  className={mode === "split-line" ? "active-button" : ""}
-                  onClick={() => setMode("split-line")}
-                >
-                  {t("app.modeSplitLine")}
-                </button>
-                <button
-                  type="button"
-                  disabled={modeBtnDisabled(false)}
-                  onClick={openFileMenu}
-                  title={t("app.routeFilesMenuTitle")}
-                >
-                  {t("app.routeFilesMenu")}
-                </button>
-              </div>
-              {showMergeCancel && (
-                <button
-                  type="button"
-                  id="mergeCancelButton"
-                  className="mode-cancel-bar"
-                  disabled={toolsDisabled}
-                  onClick={cancelMerge}
-                >
-                  {t("app.cancel")}
-                </button>
-              )}
-              {showEditStationSubmodeButtons && (
-                <div
-                  className="edit-station-submode-panel"
-                  role="group"
-                  aria-label={t("app.modeEditStation")}
-                >
-                  <div className="edit-station-submode-panel__grid">
-                    <button
-                      type="button"
-                      disabled={toolsDisabled}
-                      className={`edit-station-submode-btn${editStationSubmode === "crud" ? " is-active" : ""}`}
-                      onClick={() => setEditStationSubmode("crud")}
-                    >
-                      {t("app.submodeCrud")}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={toolsDisabled}
-                      className={`edit-station-submode-btn${editStationSubmode === "move-station" ? " is-active" : ""}`}
-                      onClick={() => setEditStationSubmode("move-station")}
-                    >
-                      {t("app.submodeMoveStation")}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={toolsDisabled}
-                      className={`edit-station-submode-btn${editStationSubmode === "move-label" ? " is-active" : ""}`}
-                      onClick={() => setEditStationSubmode("move-label")}
-                    >
-                      {t("app.submodeMoveLabel")}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={toolsDisabled}
-                      className={`edit-station-submode-btn${editStationSubmode === "add-transfer" ? " is-active" : ""}`}
-                      onClick={() => setEditStationSubmode("add-transfer")}
-                    >
-                      {t("app.submodeAddTransfer")}
-                    </button>
-                  </div>
-                </div>
-              )}
-              </div>
-            </div>
-            </div>
-          </div>
+            <AppEditToolsPanel
+              t={t}
+              editToolsOpen={editToolsOpen}
+              toggleEditTools={toggleEditTools}
+              editModeToggleLocked={editModeToggleLocked}
+              shareViewActive={shareViewActive}
+              toolsDisabled={toolsDisabled}
+              modeBtnDisabled={modeBtnDisabled}
+              mode={mode}
+              isEditRouteMode={isEditRouteMode}
+              showMergeCancel={showMergeCancel}
+              showEditStationSubmodeButtons={showEditStationSubmodeButtons}
+              editStationSubmode={editStationSubmode}
+              openFileMenu={openFileMenu}
+              tryStartAddRoute={tryStartAddRoute}
+            />
           )}
         </aside>
         <div
@@ -935,10 +571,10 @@ function App() {
         </div>
         <div className={`app-main-column${adSidebarEnabled ? " app-main-column--with-ad" : ""}`}>
           <div className="app-map-stage">
-            <MapView onModeChange={onModeChange} />
+            <MapView />
             {shareViewActive ? (
               <ShareViewBanner
-                expiresAt={shareExpiresAt}
+                expiresAt={shareViewExpiresAt}
                 busy={shareActionBusy}
                 onAdopt={handleAdoptShareView}
                 onExit={handleExitShareView}
@@ -950,81 +586,20 @@ function App() {
                 {modeHint}
               </div>
             )}
-            {showFinish && editToolsOpen && (
-              <div
-                className={`app-map-finish-slot${
-                  showEditRouteActiveCommitActions && activeEditRouteId && !shareViewActive
-                    ? " app-map-finish-slot--triple"
-                    : showEditRouteActiveCommitActions || showAddRouteCommitActions
-                      ? " app-map-finish-slot--pair"
-                      : ""
-                }`}
-              >
-                {showEditRouteActiveCommitActions ? (
-                  <>
-                    <button
-                      type="button"
-                      id="cancelRouteEditButton"
-                      className="mode-cancel-bar"
-                      onClick={handleCancelRouteEditing}
-                    >
-                      {t("app.cancelRouteEdit")}
-                    </button>
-                    {activeEditRouteId && !shareViewActive ? (
-                      <button
-                        type="button"
-                        id="deleteRouteOnMapButton"
-                        className="mode-delete-route-bar"
-                        title={t("app.deleteRouteOnMapTitle")}
-                        onClick={handleDeleteActiveRouteOnMap}
-                      >
-                        {t("app.deleteRouteOnMap")}
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      id="finishRouteEditButton"
-                      className="mode-finish-bar"
-                      onClick={handleFinishEditing}
-                    >
-                      {t("app.finishRouteEdit")}
-                    </button>
-                  </>
-                ) : showEditRouteSelectEndAction ? (
-                  <button
-                    type="button"
-                    id="endEditRouteButton"
-                    className="mode-finish-bar"
-                    onClick={handleExitEditRouteSelect}
-                  >
-                    {t("app.endEditRoute")}
-                  </button>
-                ) : showAddRouteCommitActions ? (
-                  <>
-                    <button
-                      type="button"
-                      id="cancelModeButton"
-                      className="mode-cancel-bar"
-                      onClick={handleCancelRouteEditing}
-                    >
-                      {t("app.cancel")}
-                    </button>
-                    <button
-                      type="button"
-                      id="finishModeButton"
-                      className="mode-finish-bar"
-                      onClick={handleFinishEditing}
-                    >
-                      {t("app.finish")}
-                    </button>
-                  </>
-                ) : (
-                  <button type="button" id="finishModeButton" className="mode-finish-bar" onClick={handleFinishEditing}>
-                    {t("app.finish")}
-                  </button>
-                )}
-              </div>
-            )}
+            <AppMapFinishBar
+              t={t}
+              showFinish={showFinish}
+              editToolsOpen={editToolsOpen}
+              showEditRouteActiveCommitActions={showEditRouteActiveCommitActions}
+              showEditRouteSelectEndAction={showEditRouteSelectEndAction}
+              showAddRouteCommitActions={showAddRouteCommitActions}
+              activeEditRouteId={activeEditRouteId}
+              shareViewActive={shareViewActive}
+              onFinishEditing={handleFinishEditing}
+              onCancelRouteEditing={handleCancelRouteEditing}
+              onExitEditRouteSelect={handleExitEditRouteSelect}
+              onDeleteActiveRouteOnMap={handleDeleteActiveRouteOnMap}
+            />
           </div>
           {adSidebarEnabled ? <AdSidebar /> : null}
         </div>
@@ -1052,96 +627,24 @@ function App() {
           onSaved={handleRouteMetadataSaved}
         />
       )}
-      {fileMenuOpen && (
-        <div className="app-import-dialog-backdrop" role="presentation" onClick={closeFileMenu}>
-          <div
-            className="app-import-dialog app-file-menu-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="file-menu-dialog-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 id="file-menu-dialog-title" className="app-import-dialog-title">
-              {t("app.routeFilesDialogTitle")}
-            </h2>
-            <div className="app-file-menu-actions">
-              <button
-                type="button"
-                className="app-file-menu-btn app-file-menu-btn--primary"
-                onClick={handleFileMenuShare}
-                title={t("share.menuTitle")}
-              >
-                {t("share.menuLabel")}
-              </button>
-              <button type="button" className="app-file-menu-btn" onClick={handleFileMenuExport} title={t("app.exportRoutesTitle")}>
-                {t("app.exportRoutes")}
-              </button>
-              <button type="button" className="app-file-menu-btn" onClick={handleFileMenuImport} title={t("app.importMapTitle")}>
-                {t("app.importMap")}
-              </button>
-              <button
-                type="button"
-                className="app-file-menu-btn"
-                disabled={!importUndoAvailable}
-                onClick={handleFileMenuUndo}
-                title={t("app.undoLastImportTitle")}
-              >
-                {t("app.undoLastImport")}
-              </button>
-              <button
-                type="button"
-                className="app-file-menu-btn app-file-menu-btn--danger"
-                onClick={handleFileMenuReset}
-                title={t("app.resetToDefaultTitle")}
-              >
-                {t("app.resetToDefault")}
-              </button>
-            </div>
-            <div className="app-import-dialog-actions">
-              <button type="button" className="app-import-dialog-btn app-import-dialog-btn--cancel" onClick={closeFileMenu}>
-                {t("app.importCancel")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AppFileMenuDialog
+        t={t}
+        open={fileMenuOpen}
+        importUndoAvailable={importUndoAvailable}
+        onClose={closeFileMenu}
+        onShare={handleFileMenuShare}
+        onExport={handleFileMenuExport}
+        onImport={handleFileMenuImport}
+        onUndo={handleFileMenuUndo}
+        onReset={handleFileMenuReset}
+      />
       <ShareLinkDialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} />
-      {pendingImport != null && (
-        <div className="app-import-dialog-backdrop" role="presentation" onClick={closeImportDialog}>
-          <div
-            className="app-import-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="import-dialog-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 id="import-dialog-title" className="app-import-dialog-title">
-              {t("app.importModeTitle")}
-            </h2>
-            <p className="app-import-dialog-message">{t("app.importModeMessage")}</p>
-            <p className="app-import-dialog-duplicates">
-              {t("app.importDuplicateHint", {
-                names: pendingImport.duplicateRouteLabels.join("、"),
-              })}
-            </p>
-            <div className="app-import-dialog-options">
-              <button type="button" className="app-import-option" onClick={() => confirmImportWithMode("merge")}>
-                <span className="app-import-option-label">{t("app.importMergeDirect")}</span>
-                <span className="app-import-option-hint">{t("app.importMergeDirectHint")}</span>
-              </button>
-              <button type="button" className="app-import-option" onClick={() => confirmImportWithMode("replaceMatching")}>
-                <span className="app-import-option-label">{t("app.importReplaceMatching")}</span>
-                <span className="app-import-option-hint">{t("app.importReplaceMatchingHint")}</span>
-              </button>
-            </div>
-            <div className="app-import-dialog-actions">
-              <button type="button" className="app-import-dialog-btn app-import-dialog-btn--cancel" onClick={closeImportDialog}>
-                {t("app.importCancel")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AppImportConflictDialog
+        t={t}
+        pendingImport={pendingImport}
+        onClose={closeImportDialog}
+        onConfirm={confirmImportWithMode}
+      />
     </div>
   );
 }

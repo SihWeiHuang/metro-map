@@ -2,14 +2,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from "react-dom";
 import { useI18n } from "../i18n/I18nProvider.jsx";
 import { Route } from "../map/routeModel.js";
-import {
-  getMergePickSubrouteIds,
-  M,
-  pickRouteForMerge,
-  pickSubRouteForSplitLine,
-  registerMergePickChange,
-  setMode,
-} from "../map/modeBundle.js";
+import { M, pickRouteForMerge, pickSubRouteForSplitLine, setMode } from "../map/modeBundle.js";
+import { useMetroMergePick } from "../metro/mapInteractionBoundary.js";
 import {
   buildRouteListGridTemplate,
   defaultRouteListColumns,
@@ -24,7 +18,6 @@ function getRouteMergePickOrder(routes, mergePickSubrouteIds) {
 
 export default function RouteListPanel({
   routes: routesOverride,
-  onRefresh,
   showRouteActions = false,
   mergeSelectMode = false,
   splitLineSelectMode = false,
@@ -33,7 +26,7 @@ export default function RouteListPanel({
   const { t } = useI18n();
   const routeList = routesOverride ?? Route.getRouteList();
   const [selectedRouteIds, setSelectedRouteIds] = useState(() => new Set());
-  const [mergePickSubrouteIds, setMergePickSubrouteIds] = useState(() => getMergePickSubrouteIds());
+  const mergePickSubrouteIds = useMetroMergePick();
   const [columnVisibility] = useState(defaultRouteListColumns);
 
   const listCols = useMemo(
@@ -68,14 +61,6 @@ export default function RouteListPanel({
     }
   }, [showRouteActions]);
 
-  useEffect(() => {
-    registerMergePickChange(() => setMergePickSubrouteIds(getMergePickSubrouteIds()));
-  }, []);
-
-  useEffect(() => {
-    if (!mergeSelectMode) setMergePickSubrouteIds([]);
-  }, [mergeSelectMode]);
-
   const allSelected = routeList.length > 0 && selectedRouteIds.size === routeList.length;
   const selectedCount = selectedRouteIds.size;
   const activeEditRouteId = showRouteActions ? Route.getActiveEditRouteId() : null;
@@ -84,6 +69,48 @@ export default function RouteListPanel({
   const blockRowEdit = showRouteActions && selectedRouteIds.size > 0;
 
   const visibleRouteList = routeList;
+  const VIRTUAL_THRESHOLD = 80;
+  const EST_ROW_PX = 52;
+  const listScrollRef = useRef(null);
+  const [virtualRange, setVirtualRange] = useState({ start: 0, end: routeList.length });
+
+  useLayoutEffect(() => {
+    if (visibleRouteList.length <= VIRTUAL_THRESHOLD) {
+      setVirtualRange({ start: 0, end: visibleRouteList.length });
+      return;
+    }
+    const scrollEl =
+      listScrollRef.current?.closest(".route-list-sidebar-scroll") ??
+      document.querySelector(".route-list-sidebar-scroll");
+    if (!scrollEl) {
+      setVirtualRange({ start: 0, end: visibleRouteList.length });
+      return;
+    }
+    const update = () => {
+      const viewH = scrollEl.clientHeight || 600;
+      const start = Math.max(0, Math.floor(scrollEl.scrollTop / EST_ROW_PX) - 8);
+      const visibleCount = Math.ceil(viewH / EST_ROW_PX) + 16;
+      const end = Math.min(visibleRouteList.length, start + visibleCount);
+      setVirtualRange((prev) => (prev.start === start && prev.end === end ? prev : { start, end }));
+    };
+    update();
+    scrollEl.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      scrollEl.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [visibleRouteList.length, routeIdsKey]);
+
+  const renderedRoutes =
+    visibleRouteList.length > VIRTUAL_THRESHOLD
+      ? visibleRouteList.slice(virtualRange.start, virtualRange.end)
+      : visibleRouteList;
+  const virtualPadTop = visibleRouteList.length > VIRTUAL_THRESHOLD ? virtualRange.start * EST_ROW_PX : 0;
+  const virtualPadBottom =
+    visibleRouteList.length > VIRTUAL_THRESHOLD
+      ? Math.max(0, (visibleRouteList.length - virtualRange.end) * EST_ROW_PX)
+      : 0;
 
   const toggleRouteSelect = (routeId) => {
     setSelectedRouteIds((prev) => {
@@ -102,11 +129,11 @@ export default function RouteListPanel({
   };
 
   const hideSelected = () => {
-    if (Route.setRoutesHidden(Array.from(selectedRouteIds), true)) onRefresh();
+    Route.setRoutesHidden(Array.from(selectedRouteIds), true);
   };
 
   const showSelected = () => {
-    if (Route.setRoutesHidden(Array.from(selectedRouteIds), false)) onRefresh();
+    Route.setRoutesHidden(Array.from(selectedRouteIds), false);
   };
 
   const deleteSelected = () => {
@@ -114,21 +141,18 @@ export default function RouteListPanel({
     if (!confirm(t("routeList.confirmDeleteMany", { count: selectedRouteIds.size }))) return;
     Route.deleteRoutes(Array.from(selectedRouteIds));
     setSelectedRouteIds(new Set());
-    onRefresh();
   };
 
   const handleMergeRoutePick = (line) => {
     const subrouteId = line.subroutes[0]?.subroute_id;
     if (!subrouteId) return;
-    const result = pickRouteForMerge(subrouteId);
-    if (result.merged) onRefresh();
+    pickRouteForMerge(subrouteId);
   };
 
   const handleSplitRoutePick = (line) => {
     const subrouteId = line.subroutes[0]?.subroute_id;
     if (!subrouteId) return;
-    const result = pickSubRouteForSplitLine(subrouteId);
-    if (result.ok) onRefresh();
+    pickSubRouteForSplitLine(subrouteId);
   };
 
   const exportSelected = () => {
@@ -149,7 +173,10 @@ export default function RouteListPanel({
   };
 
   return (
-    <div className={`route-list-inner${showRouteActions ? " route-list-inner--edit" : ""}`}>
+    <div
+      ref={listScrollRef}
+      className={`route-list-inner${showRouteActions ? " route-list-inner--edit" : ""}`}
+    >
       {mergeSelectMode && (
         <div className="route-batch-toolbar route-merge-toolbar">
           <span className="route-merge-toolbar-hint">{t("routeList.mergePickHint")}</span>
@@ -212,7 +239,8 @@ export default function RouteListPanel({
           </div>
         )}
       </div>
-      {visibleRouteList.map((g) => {
+      {virtualPadTop > 0 ? <div className="route-list-virtual-spacer" style={{ height: virtualPadTop }} aria-hidden="true" /> : null}
+      {renderedRoutes.map((g) => {
         const currentName = g.subroutes[0]?.name ?? "";
         const mergePickOrder = mergeSelectMode ? getRouteMergePickOrder(g.subroutes, mergePickSubrouteIds) : 0;
         return (
@@ -220,7 +248,6 @@ export default function RouteListPanel({
             key={g.route_id}
             g={g}
             currentName={currentName}
-            onRefresh={onRefresh}
             selected={selectedRouteIds.has(g.route_id)}
             onToggleSelect={() => toggleRouteSelect(g.route_id)}
             showRouteActions={showRouteActions}
@@ -238,6 +265,9 @@ export default function RouteListPanel({
           />
         );
       })}
+      {virtualPadBottom > 0 ? (
+        <div className="route-list-virtual-spacer" style={{ height: virtualPadBottom }} aria-hidden="true" />
+      ) : null}
     </div>
   );
 }
@@ -327,7 +357,7 @@ function normalizeRouteHexColor(input) {
   return null;
 }
 
-function RouteColorPicker({ routeId, color, disabled, onRefresh }) {
+function RouteColorPicker({ routeId, color, disabled }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(color);
@@ -356,6 +386,7 @@ function RouteColorPicker({ routeId, color, disabled, onRefresh }) {
 
   useEffect(() => {
     openRef.current = open;
+    if (!open) suppressOutsideCloseRef.current = false;
   }, [open]);
 
   useEffect(() => {
@@ -406,10 +437,15 @@ function RouteColorPicker({ routeId, color, disabled, onRefresh }) {
   }, [cancelPendingMapPreview, routeId]);
 
   const revertAndClose = useCallback(() => {
-    revertPreview();
-    onRefresh();
+    if (!openRef.current) return;
+    suppressOutsideCloseRef.current = true;
+    cancelPendingMapPreview();
     setOpen(false);
-  }, [onRefresh, revertPreview]);
+    requestAnimationFrame(() => {
+      revertPreview();
+      suppressOutsideCloseRef.current = false;
+    });
+  }, [cancelPendingMapPreview, revertPreview]);
 
   useEffect(() => {
     if (!open) return;
@@ -444,14 +480,14 @@ function RouteColorPicker({ routeId, color, disabled, onRefresh }) {
 
   useEffect(() => {
     if (!open) return;
-    const onPointerDown = (e) => {
+    const onClickOutside = (e) => {
       if (suppressOutsideCloseRef.current) return;
       if (rootRef.current?.contains(e.target)) return;
-      if (layerRef.current?.contains(e.target)) return;
+      if (popoverRef.current?.contains(e.target)) return;
       revertAndClose();
     };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("click", onClickOutside);
+    return () => document.removeEventListener("click", onClickOutside);
   }, [open, revertAndClose]);
 
   const togglePicker = (e) => {
@@ -487,11 +523,14 @@ function RouteColorPicker({ routeId, color, disabled, onRefresh }) {
   const confirm = (e) => {
     e.stopPropagation();
     e.preventDefault();
+    suppressOutsideCloseRef.current = true;
     cancelPendingMapPreview();
     const next = normalizeRouteHexColor(hexText) ?? draft;
-    Route.setRouteColor(routeId, next);
-    onRefresh();
     setOpen(false);
+    requestAnimationFrame(() => {
+      Route.setRouteColor(routeId, next);
+      suppressOutsideCloseRef.current = false;
+    });
   };
 
   const cancel = (e) => {
@@ -595,7 +634,6 @@ function RouteColorPicker({ routeId, color, disabled, onRefresh }) {
 function RouteRow({
   g,
   currentName,
-  onRefresh,
   selected,
   onToggleSelect,
   showRouteActions,
@@ -711,7 +749,6 @@ function RouteRow({
         routeId={g.route_id}
         color={g.subroutes[0]?.color || "#1e88e5"}
         disabled={disableRowActions}
-        onRefresh={onRefresh}
       />
       <button
         type="button"
@@ -734,7 +771,6 @@ function RouteRow({
           e.stopPropagation();
           e.preventDefault();
           Route.setRouteHidden(g.route_id, true);
-          onRefresh();
         }}
       >
         {t("routeList.hide")}
@@ -747,7 +783,6 @@ function RouteRow({
           e.stopPropagation();
           e.preventDefault();
           Route.setRouteHidden(g.route_id, false);
-          onRefresh();
         }}
       >
         {t("routeList.show")}
@@ -761,7 +796,6 @@ function RouteRow({
           e.preventDefault();
           if (confirm(t("routeList.confirmDeleteLine", { name: currentName || g.route_id }))) {
             Route.deleteRoute(g.route_id);
-            onRefresh();
           }
         }}
       >
@@ -813,12 +847,7 @@ function RouteRow({
         )}
       </div>
       <div className="route-row-name-col route-row-title-text">
-        <RouteName
-          routeId={g.route_id}
-          initialName={currentName}
-          onSaved={onRefresh}
-          allowRename={showRouteActions}
-        />
+        <RouteName routeId={g.route_id} initialName={currentName} allowRename={showRouteActions} />
       </div>
       {cols.kind && <div className="route-row-tags-col">{typeTags}</div>}
       {trailingActions}
@@ -826,7 +855,7 @@ function RouteRow({
   );
 }
 
-function RouteName({ routeId, initialName, onSaved, allowRename }) {
+function RouteName({ routeId, initialName, allowRename }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(initialName);
   const inputRef = useRef(null);
@@ -858,13 +887,11 @@ function RouteName({ routeId, initialName, onSaved, allowRename }) {
         onBlur={() => {
           Route.setRouteName(routeId, name);
           setEditing(false);
-          onSaved();
         }}
         onKeyDown={(ev) => {
           if (ev.key === "Enter") {
             Route.setRouteName(routeId, name);
             setEditing(false);
-            onSaved();
           } else if (ev.key === "Escape") {
             setName(initialName);
             setEditing(false);

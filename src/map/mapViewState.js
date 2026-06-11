@@ -1,7 +1,7 @@
 import { computeBoundsFromFeatures, normalizeImportedMapView } from "./mapGeoBounds.js";
 import { DEFAULT_MAP_VIEW } from "./defaultMapViewConstants.js";
 import { getMap } from "./mapInstance.js";
-import { store } from "./routeModel.js";
+import { store } from "../data/metroStore.js";
 
 export const MAP_VIEW_STORAGE_KEY = "metro-map-view-v1";
 

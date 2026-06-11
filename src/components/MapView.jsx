@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useI18n } from "../i18n/I18nProvider.jsx";
-import { setMapInstance } from "../map/mapInstance.js";
+import { setMapInstance, getMap } from "../map/mapInstance.js";
 import {
   applyMapCameraAfterLoad,
   bindMapViewPersistence,
@@ -16,22 +16,21 @@ import {
   initializeLayers,
   resetBasemapClutterAppliedFlag,
 } from "../map/layers.js";
-import { Route, store } from "../map/routeModel.js";
-import { initializeEventListeners, registerModeChange } from "../map/modeBundle.js";
+import { store } from "../data/metroStore.js";
+import { Route } from "../map/routeModel.js";
+import { initializeEventListeners } from "../map/modeBundle.js";
+import { applyMapLanguage } from "../map-runtime/mapAdapter.js";
 import { hideTransferSnapHint } from "../map/mapPopups.js";
 import { configureScrollZoom } from "../map/mapScrollZoom.js";
 import { configureMiddleButtonDragPan } from "../map/mapMiddleButtonPan.js";
 
 const DEFAULT_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "";
 
-export default function MapView({ onModeChange }) {
+export default function MapView() {
   const { locale } = useI18n();
   const containerRef = useRef(null);
   const lastViewRef = useRef(getInitialMapCamera());
-
-  useEffect(() => {
-    registerModeChange(onModeChange);
-  }, [onModeChange]);
+  const mapRef = useRef(/** @type {mapboxgl.Map | null} */ (null));
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -53,9 +52,10 @@ export default function MapView({ onModeChange }) {
       new mapboxgl.NavigationControl({
         visualizePitch: true,
       }),
-      "top-right"
+      "top-right",
     );
 
+    mapRef.current = map;
     setMapInstance(map);
     const cleanupScrollZoom = configureScrollZoom(map);
     const cleanupMiddleButtonPan = configureMiddleButtonDragPan(map);
@@ -65,7 +65,7 @@ export default function MapView({ onModeChange }) {
       applyBasemapClutterReduction(map, { force: true });
       addStationLabelFrameImage(map);
       initializeLayers(map, store);
-      Route.refreshSources();
+      Route.refreshSources({ full: true });
       initializeEventListeners();
       applyMapCameraAfterLoad(map);
       consumePendingMapFit(map);
@@ -103,9 +103,19 @@ export default function MapView({ onModeChange }) {
       const snap = snapshotMapView(map);
       if (snap) lastViewRef.current = snap;
       hideTransferSnapHint();
+      mapRef.current = null;
       setMapInstance(null);
       map.remove();
     };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current ?? getMap();
+    if (!map) return;
+    const mapLanguage = locale === "en" ? "en" : "zh-Hant";
+    if (!applyMapLanguage(map, mapLanguage)) {
+      /* legacy fallback: full rebuild handled only if adapter lacks setLanguage */
+    }
   }, [locale]);
 
   return <div id="map" ref={containerRef} className="map-canvas" />;

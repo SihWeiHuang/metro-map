@@ -1,0 +1,100 @@
+/**
+ * Map layer visibility filters for hidden subroutes.
+ * Skips setFilter when hidden set + subroute catalog are unchanged (common on geometry-only edits).
+ */
+import { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER } from "../map/layers.js";
+import { syncStationLabelRouteHoverFilters } from "../map/stationLabelCollision.js";
+
+/** @type {string | null} */
+let lastAppliedKey = null;
+
+/** @param {typeof import('../data/metroStore.js').store} store */
+function buildVisibilityStateKey(store) {
+  const hidden = [...store.hiddenSubrouteIds].sort().join("\0");
+  const catalog = store.subrouteCatalogKey ?? "";
+  return `${hidden}\n${catalog}`;
+}
+
+/** @param {typeof import('../data/metroStore.js').store} store */
+function collectSubrouteIds(store) {
+  if (store.subrouteCatalogKey) {
+    return store.subrouteCatalogKey.split("\0").filter(Boolean);
+  }
+  return store.subroutesFC.features
+    .map((f) => f.properties?.subroute_id)
+    .filter(Boolean);
+}
+
+/**
+ * @param {string[]} subrouteIds
+ * @param {Set<string>} hiddenSet
+ */
+function buildVisibleSubrouteIds(subrouteIds, hiddenSet) {
+  if (hiddenSet.size === 0) return subrouteIds;
+  return subrouteIds.filter((id) => !hiddenSet.has(id));
+}
+
+/**
+ * @param {string[]} visibleSubrouteIds
+ */
+function buildTransferAnyVisibleExpr(visibleSubrouteIds) {
+  if (visibleSubrouteIds.length === 0) return false;
+  return [
+    "any",
+    ...visibleSubrouteIds.map((rid) => [
+      "in",
+      rid,
+      ["coalesce", ["get", "transfer_routes"], ["literal", []]],
+    ]),
+  ];
+}
+
+/**
+ * @param {import('../map-runtime/mapboxAdapter.js').MapboxLikeMap} map
+ * @param {typeof import('../data/metroStore.js').store} store
+ */
+export function applyHiddenSubrouteVisibility(map, store) {
+  if (!map) return;
+
+  const stateKey = buildVisibilityStateKey(store);
+  if (stateKey === lastAppliedKey) return;
+  lastAppliedKey = stateKey;
+
+  const hiddenSet = store.hiddenSubrouteIds;
+  const hiddenIds = [...hiddenSet];
+  const subrouteIds = collectSubrouteIds(store);
+  const visibleSubrouteIds = buildVisibleSubrouteIds(subrouteIds, hiddenSet);
+
+  const useHiddenPrimaryCheck = hiddenIds.length <= visibleSubrouteIds.length;
+  const primaryVisibleExpr = useHiddenPrimaryCheck
+    ? ["!", ["in", ["get", "subroute_id"], ["literal", hiddenIds]]]
+    : ["in", ["get", "subroute_id"], ["literal", visibleSubrouteIds]];
+
+  const transferAnyVisibleExpr = buildTransferAnyVisibleExpr(visibleSubrouteIds);
+  const stationVisibleFilter = ["any", primaryVisibleExpr, transferAnyVisibleExpr];
+  const regularStationVisibleFilter = ["all", REGULAR_STATION_LAYER_FILTER, stationVisibleFilter];
+  const transferStationVisibleFilter = ["all", TRANSFER_STATION_LAYER_FILTER, stationVisibleFilter];
+
+  if (map.getLayer("stations-circle")) {
+    map.setFilter("stations-circle", regularStationVisibleFilter);
+  }
+  if (map.getLayer("transfer-stations-circle")) {
+    map.setFilter("transfer-stations-circle", transferStationVisibleFilter);
+  }
+  if (map.getLayer("stations-label")) {
+    map.setFilter("stations-label", stationVisibleFilter);
+  }
+  if (map.getLayer("stations-label-move-frame")) {
+    map.setFilter("stations-label-move-frame", stationVisibleFilter);
+  }
+  syncStationLabelRouteHoverFilters(map, stationVisibleFilter);
+
+  if (map.getLayer("routes-line")) {
+    map.setFilter("routes-line", ["!", ["in", ["get", "subroute_id"], ["literal", hiddenIds]]]);
+  }
+}
+
+/** Reset after map teardown or tests. */
+export function resetVisibilityFilterCache() {
+  lastAppliedKey = null;
+}

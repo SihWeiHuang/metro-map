@@ -4,6 +4,7 @@ import { scheduleGeoCityMapView } from "../map/geoMapView.js";
 import { canonicalizeCountryId, canonicalizeRegion } from "../map/geoCatalog.js";
 import { loadRouteListNav, saveRouteListNav } from "../map/routeListNavPrefs.js";
 import { Route } from "../map/routeModel.js";
+import { useMetroStoreRevision } from "../metro/useMetroStoreRevision.js";
 import RouteListPanel from "./RouteListPanel.jsx";
 import {
   buildCityNavEntries,
@@ -44,8 +45,6 @@ function GeoNavList({ items, getLabel, onPick, countLabel }) {
 }
 
 export default function RouteListNavigator({
-  listRevision = 0,
-  onRefresh,
   geoFocus = null,
   onGeoFocusHandled,
   showRouteActions = false,
@@ -54,6 +53,7 @@ export default function RouteListNavigator({
   onEditRouteMetadata,
 }) {
   const { t } = useI18n();
+  const listRevision = useMetroStoreRevision();
   const routeList = useMemo(() => Route.getRouteList(), [listRevision]);
 
   const [level, setLevel] = useState(() => loadRouteListNav()?.level ?? "country");
@@ -245,7 +245,6 @@ export default function RouteListNavigator({
           filteredRoutes.length > 0 ? (
             <RouteListPanel
               routes={filteredRoutes}
-              onRefresh={onRefresh}
               showRouteActions={routeLayerEditActions}
               mergeSelectMode={routeLayerMerge}
               splitLineSelectMode={routeLayerSplit}
