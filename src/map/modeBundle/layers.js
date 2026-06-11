@@ -1,5 +1,5 @@
 import { findSubrouteBySubrouteId } from "../../data/routeQueries.js";
-import { hasLayer, queryRenderedFeatures } from "../../map-runtime/mapAdapter.js";
+import { hasLayer, queryRenderedFeatures } from "../../map-runtime/mapEngine.js";
 import { TEMP_EDIT_LINE_HIT_LAYER } from "./state.js";
 
 export function isPrimaryMouseButton(e) {

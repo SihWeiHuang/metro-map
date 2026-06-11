@@ -1,4 +1,5 @@
 import { getMap } from "../mapInstance.js";
+import { hasLayer, setLayerFilter, setMapLayoutProperty } from "../../map-runtime/mapEngine.js";
 import { ensureMetroLayerStackOrder } from "../layers.js";
 import { applyStationLabelCollision, applyStationLabelDragPlacement } from "../stationLabelCollision.js";
 import { clearSmoothLineDisplayCache } from "../displayLineSmoothing.js";
@@ -91,12 +92,8 @@ export function applyEditStationSubmode() {
   if (getEditStationSubmode() === "move-label") {
     hideTransferSnapHint();
     Route.clearHover();
-    if (map.getLayer("routes-line-hover-casing")) {
-      map.setFilter("routes-line-hover-casing", ["==", ["get", "subroute_id"], ""]);
-    }
-    if (map.getLayer("routes-line-hover")) {
-      map.setFilter("routes-line-hover", ["==", ["get", "subroute_id"], ""]);
-    }
+    setLayerFilter(map, "routes-line-hover-casing", ["==", ["get", "subroute_id"], ""]);
+    setLayerFilter(map, "routes-line-hover", ["==", ["get", "subroute_id"], ""]);
     clearStationHoverVisuals(map);
     setStationLabelMoveFrameVisibility(true);
     applyStationLabelDragPlacement(map);
@@ -108,9 +105,9 @@ export function applyEditStationSubmode() {
 
 export function updateTransferSnapVisibility() {
   const map = getMap();
-  if (!map || !map.getLayer("transfer-snaps-layer")) return;
+  if (!map || !hasLayer(map, "transfer-snaps-layer")) return;
   const showSnaps = M.mode === "edit-station" && getEditStationSubmode() === "add-transfer";
-  map.setLayoutProperty("transfer-snaps-layer", "visibility", showSnaps ? "visible" : "none");
+  setMapLayoutProperty(map, "transfer-snaps-layer", "visibility", showSnaps ? "visible" : "none");
 }
 
 export function setEditStationSubmode(next) {

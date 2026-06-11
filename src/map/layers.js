@@ -8,10 +8,11 @@ import {
   moveMapLayer,
   removeLayerIfExists,
   removeSourceIfExists,
+  setMapConfigProperty,
   setMapLayoutProperty,
   setMapPaintProperty,
   styleUsesMapboxSlots,
-} from "../map-runtime/mapAdapter.js";
+} from "../map-runtime/mapEngine.js";
 import { MAPBOX_BASEMAP_LIGHT_PRESET } from "./basemapAppearanceConfig.js";
 import {
   buildStationDisplayCollections,
@@ -318,7 +319,7 @@ function applyMapboxStandardBasemapConfig(map) {
 
   for (const [key, value] of configs) {
     try {
-      map.setConfigProperty(importId, key, value);
+      setMapConfigProperty(map, importId, key, value);
     } catch {
       /* 非 Standard 或 import 尚未就緒 */
     }
@@ -326,7 +327,7 @@ function applyMapboxStandardBasemapConfig(map) {
 
   if (typeof MAPBOX_BASEMAP_LIGHT_PRESET === "string" && MAPBOX_BASEMAP_LIGHT_PRESET) {
     try {
-      map.setConfigProperty(importId, "lightPreset", MAPBOX_BASEMAP_LIGHT_PRESET);
+      setMapConfigProperty(map, importId, "lightPreset", MAPBOX_BASEMAP_LIGHT_PRESET);
     } catch {
       /* 自訂 Classic 樣式可能不支援 */
     }

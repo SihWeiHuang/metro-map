@@ -1,3 +1,5 @@
+import { getMapCanvas, hasLayer, projectMapPoint, queryRenderedFeatures } from "../map-runtime/mapEngine.js";
+
 /** Gap between the pointer and the popup edge (px). */
 const GAP_PX = 14;
 const VIEW_PADDING_PX = 8;
@@ -118,7 +120,7 @@ function featureCollisionKey(feature) {
 
 function mapFeatureCollisionPenalty(map, rect) {
   if (!map) return 0;
-  const layers = POPUP_COLLISION_LAYERS.filter((id) => map.getLayer(id));
+  const layers = POPUP_COLLISION_LAYERS.filter((id) => hasLayer(map, id));
   if (!layers.length) return 0;
 
   const x1 = Math.max(0, Math.floor(rect.x));
@@ -129,12 +131,13 @@ function mapFeatureCollisionPenalty(map, rect) {
 
   let features;
   try {
-    features = map.queryRenderedFeatures(
+    features = queryRenderedFeatures(
+      map,
       [
         [x1, y1],
         [x2, y2],
       ],
-      { layers }
+      { layers },
     );
   } catch {
     return 0;
@@ -154,8 +157,8 @@ function mapFeatureCollisionPenalty(map, rect) {
 }
 
 function pickBestCandidate(map, point, candidates, estWidth, estHeight, scoreOpts = {}) {
-  const viewW = map.getCanvas().clientWidth;
-  const viewH = map.getCanvas().clientHeight;
+  const viewW = getMapCanvas(map).clientWidth;
+  const viewH = getMapCanvas(map).clientHeight;
   let best = candidates[0];
   let bestScore = -Infinity;
   for (const candidate of candidates) {
@@ -170,7 +173,7 @@ function pickBestCandidate(map, point, candidates, estWidth, estHeight, scoreOpt
 
 /**
  * Pick Mapbox Popup anchor/offset so the popup sits beside the pointer, not on the feature.
- * @param {import("mapbox-gl").Map} map
+ * @param {import("../map-runtime/mapTypes.js").MapLike} map
  * @param {{ x: number, y: number }} point
  * @param {{ estWidth?: number, estHeight?: number, directionCount?: number }} [opts]
  * @returns {{ anchor: string, offset: [number, number] }}
@@ -192,12 +195,12 @@ export function resolvePopupPlacement(map, point, opts = {}) {
 }
 
 /**
- * @param {import("mapbox-gl").Map} map
- * @param {import("mapbox-gl").LngLatLike} lngLat
+ * @param {import("../map-runtime/mapTypes.js").MapLike} map
+ * @param {import("../map-runtime/mapTypes.js").LngLatLike} lngLat
  * @param {{ x: number, y: number } | undefined} point
  */
 export function popupScreenPoint(map, lngLat, point) {
   if (point && Number.isFinite(point.x) && Number.isFinite(point.y)) return point;
-  const projected = map.project(lngLat);
+  const projected = projectMapPoint(map, lngLat);
   return { x: projected.x, y: projected.y };
 }

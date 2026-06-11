@@ -64,6 +64,7 @@ import {
 } from "../map/geoCatalog.js";
 import { resolveRouteListNavGeoForNewRoute } from "../map/routeListNavPrefs.js";
 import { getMap } from "../map/mapInstance.js";
+import { projectMapPoint, unprojectMapPoint } from "../map-runtime/mapEngine.js";
 import { relocateTransferStationsForEditedSubroutes } from "../map/routeTransferGeometry.js";
 
 const ROUTE_STATUS_VALUES = new Set([
@@ -473,7 +474,7 @@ export function insertTempNodeOnSegment(pointPx, subrouteId) {
     ? store.temp.editingSessions.find((s) => s.subrouteId === subrouteId)
     : store.temp.editingSessions[0];
   if (!map || !session || session.nodes.length < 2) return;
-  const lngLat = map.unproject(pointPx);
+  const lngLat = unprojectMapPoint(map, pointPx);
   const line = T.lineString(session.nodes);
   const snapped = T.nearestPointOnLine(line, [lngLat.lng, lngLat.lat], { units: "meters" });
   const insertIdx = snapped.properties.index + 1;
@@ -759,8 +760,8 @@ export function setStationLabelPosition(station_id, labelCoord) {
   const centerCoord = stationDisplayFeature?.geometry?.coordinates || st.geometry.coordinates;
 
   if (!map) return;
-  const cp = map.project(centerCoord);
-  const tp = map.project(labelCoord);
+  const cp = projectMapPoint(map, centerCoord);
+  const tp = projectMapPoint(map, labelCoord);
 
   st.properties.label_offset_xy = [(tp.x - cp.x) / 12, (tp.y - cp.y) / 12];
   delete st.properties.label_lnglat;

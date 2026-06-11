@@ -12,7 +12,14 @@
  *
  * edit-station never shows route hover popups (prevents covering transfer snap hints).
  */
-import { createMapboxPopup } from "../map-runtime/mapboxRuntime.js";
+import { createMapPopup } from "../map-runtime/mapRuntime.js";
+import {
+  getMapCanvas,
+  getMapCanvasContainer,
+  mapOn,
+  mapOnce,
+  projectMapPoint,
+} from "../map-runtime/mapEngine.js";
 import { t } from "../i18n/i18n.js";
 import { resolveRouteDisplayNameFromProps } from "./defaultNames.js";
 import { popupScreenPoint, resolvePopupPlacement } from "./popupPlacement.js";
@@ -43,7 +50,7 @@ const popups = {
 
 /** @type {HTMLDivElement | null} */
 let transferSnapHintEl = null;
-/** @type {import("mapbox-gl").Map | null} */
+/** @type {import("../map-runtime/mapTypes.js").MapLike | null} */
 let transferSnapHintMap = null;
 
 let lastTransferSnapHintId = "";
@@ -52,12 +59,12 @@ let lastTransferSnapHintLngLat = null;
 /** @type {{ x: number, y: number } | null} */
 let lastTransferSnapHintPoint = null;
 let transferSnapHoverRaf = null;
-/** @type {import("mapbox-gl").LngLat | null} */
+/** @type {import("../map-runtime/mapTypes.js").LngLatLike | null} */
 let pendingTransferSnapLngLat = null;
 /** @type {{ x: number, y: number } | null} */
 let pendingTransferSnapPoint = null;
 
-/** @type {WeakSet<import("mapbox-gl").Map>} */
+/** @type {WeakSet<import("../map-runtime/mapTypes.js").MapLike>} */
 const mapsWithTransferSnapHintHooks = new WeakSet();
 
 export function initMapPopups({ getMap, getContext: readContext }) {
@@ -139,13 +146,13 @@ export function isStationEditPopupOpen() {
 
 /**
  * 提示框放在游標的對側（遠離指標），箭頭仍指向黃色吸附點。
- * @param {import("mapbox-gl").Map} map
+ * @param {import("../map-runtime/mapTypes.js").MapLike} map
  * @param {[number, number]} lngLat
  * @param {{ x: number, y: number } | undefined} point
  * @returns {"top" | "bottom" | "left" | "right"}
  */
 function transferSnapHintAnchor(map, lngLat, point) {
-  const snapPx = map.project(lngLat);
+  const snapPx = projectMapPoint(map, lngLat);
   const cursorPx = popupScreenPoint(map, lngLat, point);
   const dx = cursorPx.x - snapPx.x;
   const dy = cursorPx.y - snapPx.y;
@@ -188,7 +195,7 @@ function nudgeHintAwayFromCursor(left, top, w, h, cursorPx) {
   return { left: left + awayX * push, top: top + awayY * push };
 }
 
-/** @param {import("mapbox-gl").Map} map */
+/** @param {import("../map-runtime/mapTypes.js").MapLike} map */
 function ensureTransferSnapHintEl(map) {
   if (transferSnapHintEl && transferSnapHintMap === map && transferSnapHintEl.isConnected) {
     return transferSnapHintEl;
@@ -201,28 +208,28 @@ function ensureTransferSnapHintEl(map) {
   const label = document.createElement("span");
   label.className = "transfer-snap-hint__label";
   root.appendChild(label);
-  map.getCanvasContainer().appendChild(root);
+  getMapCanvasContainer(map).appendChild(root);
   transferSnapHintEl = root;
   transferSnapHintMap = map;
   return root;
 }
 
-/** @param {import("mapbox-gl").PointLike} p */
+/** @param {import("../map-runtime/mapTypes.js").PointLike} p */
 function isReasonableScreenPoint(p, map) {
   if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
-  const w = map.getCanvas().clientWidth;
-  const h = map.getCanvas().clientHeight;
+  const w = getMapCanvas(map).clientWidth;
+  const h = getMapCanvas(map).clientHeight;
   if (w <= 0 || h <= 0) return false;
   return p.x >= -64 && p.x <= w + 64 && p.y >= -64 && p.y <= h + 64;
 }
 
 /**
- * @param {import("mapbox-gl").Map} map
+ * @param {import("../map-runtime/mapTypes.js").MapLike} map
  * @param {[number, number]} lngLat
  * @param {{ x: number, y: number } | undefined} point
  */
 function layoutTransferSnapHint(map, lngLat, point) {
-  const snapPx = map.project(lngLat);
+  const snapPx = projectMapPoint(map, lngLat);
   if (!isReasonableScreenPoint(snapPx, map)) return false;
 
   const cursorPx = popupScreenPoint(map, lngLat, point);
@@ -266,8 +273,8 @@ function layoutTransferSnapHint(map, lngLat, point) {
 
   ({ left, top } = nudgeHintAwayFromCursor(left, top, w, h, cursorPx));
 
-  const maxW = map.getCanvas().clientWidth;
-  const maxH = map.getCanvas().clientHeight;
+  const maxW = getMapCanvas(map).clientWidth;
+  const maxH = getMapCanvas(map).clientHeight;
   const pad = TRANSFER_HINT_EDGE_PAD;
   left = Math.max(pad, Math.min(left, maxW - w - pad));
   top = Math.max(pad, Math.min(top, maxH - h - pad));
@@ -280,7 +287,7 @@ function layoutTransferSnapHint(map, lngLat, point) {
   return true;
 }
 
-/** @param {import("mapbox-gl").LngLatLike | null | undefined} coordinates */
+/** @param {import("../map-runtime/mapTypes.js").LngLatLike | null | undefined} coordinates */
 function normalizeSnapHintLngLat(coordinates) {
   if (!coordinates) return null;
   if (Array.isArray(coordinates) && coordinates.length >= 2) {
@@ -299,13 +306,13 @@ function normalizeSnapHintLngLat(coordinates) {
 
 function mapReadyForSnapHint(map) {
   if (!map.loaded()) return false;
-  const canvas = map.getCanvas();
+  const canvas = getMapCanvas(map);
   return Boolean(canvas?.clientWidth > 0 && canvas.clientHeight > 0);
 }
 
-/** @param {import("mapbox-gl").Map} map */
+/** @param {import("../map-runtime/mapTypes.js").MapLike} map */
 function snapHintProjectsOnMap(map, lngLat) {
-  const p = map.project(lngLat);
+  const p = projectMapPoint(map, lngLat);
   return isReasonableScreenPoint(p, map);
 }
 
@@ -325,14 +332,14 @@ function syncOpenTransferSnapHintPosition() {
   }
 }
 
-/** @param {import("mapbox-gl").Map} map */
+/** @param {import("../map-runtime/mapTypes.js").MapLike} map */
 function bindTransferSnapHintMapHooks(map) {
   if (mapsWithTransferSnapHintHooks.has(map)) return;
   mapsWithTransferSnapHintHooks.add(map);
-  map.on("resize", syncOpenTransferSnapHintPosition);
-  map.on("move", syncOpenTransferSnapHintPosition);
-  map.on("zoom", syncOpenTransferSnapHintPosition);
-  map.once("remove", () => {
+  mapOn(map, "resize", syncOpenTransferSnapHintPosition);
+  mapOn(map, "move", syncOpenTransferSnapHintPosition);
+  mapOn(map, "zoom", syncOpenTransferSnapHintPosition);
+  mapOnce(map, "remove", () => {
     if (transferSnapHintMap === map) hideTransferSnapHint();
   });
 }
@@ -370,7 +377,7 @@ export function showTransferSnapHint(coordinates, snapId, point) {
 }
 
 /**
- * @param {import("mapbox-gl").LngLat} lngLat
+ * @param {import("../map-runtime/mapTypes.js").LngLatLike} lngLat
  * @param {{ findNearest: Function, isOccupied: Function, maxMeters: number }} deps
  */
 export function scheduleTransferSnapHintUpdate(lngLat, deps, point) {
@@ -390,7 +397,7 @@ export function scheduleTransferSnapHintUpdate(lngLat, deps, point) {
 }
 
 /**
- * @param {import("mapbox-gl").LngLat} lngLat
+ * @param {import("../map-runtime/mapTypes.js").LngLatLike} lngLat
  * @param {{ findNearest: Function, isOccupied: Function, maxMeters: number }} deps
  */
 export function applyTransferSnapHintUpdate(lngLat, deps, point) {
@@ -410,7 +417,7 @@ export function applyTransferSnapHintUpdate(lngLat, deps, point) {
 }
 
 /**
- * @param {import("mapbox-gl").LngLat} lngLat
+ * @param {import("../map-runtime/mapTypes.js").LngLatLike} lngLat
  * @param {string} subrouteId
  * @param {{ x: number, y: number } | undefined} point
  * @param {{ routes: object[] }} data
@@ -445,7 +452,7 @@ export function showRouteHoverPopup(lngLat, subrouteId, point, data) {
     popups.route = null;
   }
 
-  popups.route = createMapboxPopup({
+  popups.route = createMapPopup({
     closeButton: false,
     closeOnClick: false,
     anchor: placement.anchor,
@@ -456,7 +463,7 @@ export function showRouteHoverPopup(lngLat, subrouteId, point, data) {
 }
 
 /**
- * @param {import("mapbox-gl").LngLat} lngLat
+ * @param {import("../map-runtime/mapTypes.js").LngLatLike} lngLat
  * @param {string} bodyHtml inner HTML for `.map-hover-popup__body`
  * @param {{ x: number, y: number } | undefined} point
  * @param {number} estHeight
@@ -476,7 +483,7 @@ export function showStationBrowsePopup(lngLat, bodyHtml, point, estHeight) {
     popups.station = null;
   }
 
-  popups.station = createMapboxPopup({
+  popups.station = createMapPopup({
     closeButton: false,
     closeOnClick: false,
     anchor: placement.anchor,
@@ -487,7 +494,7 @@ export function showStationBrowsePopup(lngLat, bodyHtml, point, estHeight) {
 }
 
 /**
- * @param {import("mapbox-gl").LngLatLike} lngLat
+ * @param {import("../map-runtime/mapTypes.js").LngLatLike} lngLat
  * @param {string} html
  */
 let stationEditPopupAbort = null;
@@ -505,7 +512,7 @@ export function openStationEditPopup(lngLat, html) {
 
   if (popups.station) popups.station.remove();
 
-  popups.station = createMapboxPopup({
+  popups.station = createMapPopup({
     closeButton: true,
     closeOnClick: false,
     className: STATION_EDIT_POPUP_CLASS,

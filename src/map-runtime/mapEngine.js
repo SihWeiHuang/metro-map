@@ -1,8 +1,6 @@
 /**
- * Active map engine selector. Default: Mapbox. Set VITE_MAP_ENGINE=maplibre to opt into stub (dev only).
+ * Public map adapter API — application code imports from here, not mapAdapter.js.
+ * Mapbox and MapLibre adapters share mapAdapter.js today; activeMapEngine selects runtime (mapRuntime.js).
  */
-const ENGINE = import.meta.env.VITE_MAP_ENGINE === "maplibre" ? "maplibre" : "mapbox";
-
-export const activeMapEngine = ENGINE;
-
-export * from "./mapboxAdapter.js";
+export { activeMapEngine } from "./mapEngineConfig.js";
+export * from "./mapAdapter.js";

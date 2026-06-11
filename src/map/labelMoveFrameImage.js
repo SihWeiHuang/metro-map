@@ -1,4 +1,4 @@
-import { addMapImage } from "../map-runtime/mapAdapter.js";
+import { addMapImage } from "../map-runtime/mapEngine.js";
 
 /** Image id for move-label mode: red rectangular frame around station names (via icon-text-fit). */
 export const STATION_LABEL_FRAME_IMAGE_ID = "station-label-frame";

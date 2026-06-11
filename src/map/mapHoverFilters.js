@@ -3,7 +3,7 @@ import {
   setLayerFilter,
   setMapLayoutProperty,
   setMapPaintProperty,
-} from "../map-runtime/mapAdapter.js";
+} from "../map-runtime/mapEngine.js";
 import { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER } from "./layers.js";
 
 /** 基礎圖層預設／hover 樣式（與 layers.js 建立時一致） */

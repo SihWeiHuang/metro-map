@@ -1,4 +1,4 @@
-/** Mapbox GL JS adapter — re-export mapAdapter surface for map-runtime consumers. */
+/** MapLibre GL JS adapter — same engine-neutral surface as Mapbox (MapLike API subset). */
 export {
   addMapImage,
   addMapLayer,

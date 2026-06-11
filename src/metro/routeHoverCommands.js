@@ -5,14 +5,15 @@ import { store } from "../data/metroStore.js";
 import { getMap } from "../map/mapInstance.js";
 import { applyStationHoverVisuals } from "../map/mapHoverFilters.js";
 import { applyStationLabelCollisionForRouteHover } from "../map/stationLabelCollision.js";
+import { hasLayer, setLayerFilter } from "../map-runtime/mapEngine.js";
 
-/** @param {import('mapbox-gl').Map} map @param {string} layerId @param {string[]} ids @param {string[]} hiddenIds */
+/** @param {import('../map-runtime/mapTypes.js').MapLike} map @param {string} layerId @param {string[]} ids @param {string[]} hiddenIds */
 function setRouteHoverLayerFilter(map, layerId, ids, hiddenIds) {
-  if (!map.getLayer(layerId)) return;
+  if (!hasLayer(map, layerId)) return;
   if (!ids.length) {
-    map.setFilter(layerId, ["==", ["get", "subroute_id"], ""]);
+    setLayerFilter(map, layerId, ["==", ["get", "subroute_id"], ""]);
   } else {
-    map.setFilter(layerId, [
+    setLayerFilter(map, layerId, [
       "all",
       ["in", ["get", "subroute_id"], ["literal", ids]],
       ["!", ["in", ["get", "subroute_id"], ["literal", hiddenIds]]],

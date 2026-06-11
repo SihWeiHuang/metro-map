@@ -1,7 +1,7 @@
 /**
  * Sole writer to Mapbox GeoJSON sources and route visibility filters.
  */
-import { setGeoJsonSourceData } from "./mapAdapter.js";
+import { setGeoJsonSourceData } from "./mapEngine.js";
 import {
   buildRouteDisplayPayload,
   buildTempEditFeatureCollections,

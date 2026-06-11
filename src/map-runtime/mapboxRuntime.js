@@ -4,23 +4,30 @@
  */
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { MAPBOX_DEFAULT_STYLE } from "./mapEngineConfig.js";
 
 /** @typedef {import('./mapTypes.js').MapLike} MapLike */
 
 /**
  * @param {string} token
  */
-export function setMapboxAccessToken(token) {
+export function setMapAccessToken(token) {
   mapboxgl.accessToken = token;
 }
+
+/** @deprecated Use setMapAccessToken */
+export const setMapboxAccessToken = setMapAccessToken;
 
 /**
  * @param {object} options mapboxgl.Map constructor options
  * @returns {MapLike}
  */
-export function createMapboxMap(options) {
+export function createMap(options) {
   return new mapboxgl.Map(options);
 }
+
+/** @deprecated Use createMap */
+export const createMapboxMap = createMap;
 
 /**
  * @param {object} [options]
@@ -32,6 +39,13 @@ export function createNavigationControl(options) {
 /**
  * @param {object} options
  */
-export function createMapboxPopup(options) {
+export function createMapPopup(options) {
   return new mapboxgl.Popup(options);
+}
+
+/** @deprecated Use createMapPopup */
+export const createMapboxPopup = createMapPopup;
+
+export function getDefaultMapStyle() {
+  return MAPBOX_DEFAULT_STYLE;
 }

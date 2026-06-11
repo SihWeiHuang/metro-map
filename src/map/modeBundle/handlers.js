@@ -1,5 +1,12 @@
 import * as turf from "@turf/turf";
 import { getMap } from "../mapInstance.js";
+import {
+  mapOff,
+  mapOn,
+  mapOnce,
+  queryRenderedFeatures,
+  setMapCanvasCursor,
+} from "../../map-runtime/mapEngine.js";
 import { applyStationLabelCollision } from "../stationLabelCollision.js";
 import { Route } from "../routeModel.js";
 import { getPrimaryEditingSession } from "../../data/routeQueries.js";
@@ -129,10 +136,10 @@ Modes["add-route"] = {
     M.dragging.isClickCandidate = true;
     M.dragging.downPoint = e.point;
     const map = getMap();
-    map.getCanvas().style.cursor = "grabbing";
-    map.on("mousemove", onDragMoveAddRoute);
-    map.once("mouseup", () => {
-      map.off("mousemove", onDragMoveAddRoute);
+    setMapCanvasCursor(map, "grabbing");
+    mapOn(map, "mousemove", onDragMoveAddRoute);
+    mapOnce(map, "mouseup", () => {
+      mapOff(map, "mousemove", onDragMoveAddRoute);
       finishTempNodeDrag();
       M.dragging.type = null;
       M.dragging.isClickCandidate = false;
@@ -159,7 +166,7 @@ Modes["edit-route-select"] = {
     Route.clearHover();
     M.suppressNextEditMapClick = true;
     Route.startEditRoute(routeId);
-    getMap().once("mouseup", () => setMode("edit-route-active"));
+    mapOnce(getMap(), "mouseup", () => setMode("edit-route-active"));
   },
 };
 
@@ -213,7 +220,7 @@ Modes["edit-station"] = {
     const clickLayers = stationEditClickLayers();
     if (!clickLayers.length) return;
     const map = getMap();
-    const hitFeatures = map.queryRenderedFeatures(e.point, { layers: clickLayers });
+    const hitFeatures = queryRenderedFeatures(map, e.point, { layers: clickLayers });
     if (!hitFeatures.length) return;
     if (hitFeatures[0].layer?.id === "transfer-snaps-layer") return;
     const topLayerId = hitFeatures[0].layer.id;

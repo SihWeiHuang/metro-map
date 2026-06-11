@@ -1,4 +1,5 @@
 import * as turf from "@turf/turf";
+import { projectMapPoint, unprojectMapPoint } from "../map-runtime/mapEngine.js";
 
 export function getDisplayedStationCenter(map, stationId, fallbackCoord) {
   const src = map.getSource("stations");
@@ -48,8 +49,8 @@ export function setStationPreviewCoord(map, stationId, coord) {
 const LABEL_TEXT_SIZE_PX = 12;
 
 function labelOffsetFromCenterPx(map, center, targetCoord) {
-  const cpx = map.project(center);
-  const tpx = map.project(targetCoord);
+  const cpx = projectMapPoint(map, center);
+  const tpx = projectMapPoint(map, targetCoord);
   return [(tpx.x - cpx.x) / LABEL_TEXT_SIZE_PX, (tpx.y - cpx.y) / LABEL_TEXT_SIZE_PX];
 }
 
@@ -62,12 +63,12 @@ export function getStationLabelVisualCoord(map, stationId, dragCenter) {
   if (!Array.isArray(offset) || offset.length < 2) {
     return center;
   }
-  const cpx = map.project(center);
+  const cpx = projectMapPoint(map, center);
   const labelPx = {
     x: cpx.x + offset[0] * LABEL_TEXT_SIZE_PX,
     y: cpx.y + offset[1] * LABEL_TEXT_SIZE_PX,
   };
-  const lngLat = map.unproject([labelPx.x, labelPx.y]);
+  const lngLat = unprojectMapPoint(map, [labelPx.x, labelPx.y]);
   return [lngLat.lng, lngLat.lat];
 }
 

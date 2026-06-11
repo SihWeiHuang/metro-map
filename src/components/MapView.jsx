@@ -17,12 +17,13 @@ import {
 import { store } from "../data/metroStore.js";
 import { Route } from "../map/routeModel.js";
 import { initializeEventListeners } from "../map/modeBundle.js";
-import { applyMapLanguage } from "../map-runtime/mapAdapter.js";
+import { applyMapLanguage, mapOnce } from "../map-runtime/mapEngine.js";
 import {
-  createMapboxMap,
+  createMap,
   createNavigationControl,
-  setMapboxAccessToken,
-} from "../map-runtime/mapboxRuntime.js";
+  getDefaultMapStyle,
+  setMapAccessToken,
+} from "../map-runtime/mapRuntime.js";
 import { hideTransferSnapHint } from "../map/mapPopups.js";
 import { configureScrollZoom } from "../map/mapScrollZoom.js";
 import { configureMiddleButtonDragPan } from "../map/mapMiddleButtonPan.js";
@@ -40,10 +41,10 @@ export default function MapView() {
     const mapLanguage = locale === "en" ? "en" : "zh-Hant";
     const view = lastViewRef.current;
 
-    setMapboxAccessToken(DEFAULT_TOKEN);
-    const map = createMapboxMap({
+    setMapAccessToken(DEFAULT_TOKEN);
+    const map = createMap({
       container: containerRef.current,
-      style: "mapbox://styles/ethen9798/cmfceirln001n01sl9bqf4axy",
+      style: getDefaultMapStyle(),
       center: view.center,
       zoom: view.zoom,
       bearing: view.bearing,
@@ -76,7 +77,7 @@ export default function MapView() {
     };
 
     if (map.isStyleLoaded()) onStyleReady();
-    else map.once("style.load", onStyleReady);
+    else mapOnce(map, "style.load", onStyleReady);
 
     const container = containerRef.current;
     const scheduleResize = () => {
@@ -89,7 +90,7 @@ export default function MapView() {
       });
     };
     scheduleResize();
-    map.once("load", scheduleResize);
+    mapOnce(map, "load", scheduleResize);
 
     let resizeObserver;
     if (container && typeof ResizeObserver !== "undefined") {

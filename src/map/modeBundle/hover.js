@@ -1,4 +1,5 @@
 import { getMap } from "../mapInstance.js";
+import { hasLayer, queryRenderedFeatures, setMapCanvasCursor } from "../../map-runtime/mapEngine.js";
 import { applyStationLabelCollision, applyStationLabelDragPlacement } from "../stationLabelCollision.js";
 import { clearStationHoverVisuals, setStationHoverPairFilters } from "../mapHoverFilters.js";
 import { Route, STATION_NAME_MAX_LEN } from "../routeModel.js";
@@ -52,7 +53,7 @@ export function resetStationEditPopupState() {
 
 function setCursor(style) {
   const map = getMap();
-  if (map) map.getCanvas().style.cursor = style || "";
+  if (map) setMapCanvasCursor(map, style || "");
 }
 
 export function isDraftingHoverMode(mode = M.mode) {
@@ -70,14 +71,14 @@ export function shouldSkipPointerHoverWork() {
 }
 
 function draftingCursorLayers(map) {
-  const tempLineLayers = map.getLayer(TEMP_EDIT_LINE_HIT_LAYER)
+  const tempLineLayers = hasLayer(map, TEMP_EDIT_LINE_HIT_LAYER)
     ? [TEMP_EDIT_LINE_HIT_LAYER]
     : ["temp-edit-line-layer"];
   return ["temp-edit-nodes-layer", ...STATION_CIRCLE_LAYERS, "routes-line", ...tempLineLayers];
 }
 
 function cursorForDraftingPoint(map, point) {
-  const hits = map.queryRenderedFeatures(point, { layers: draftingCursorLayers(map) });
+  const hits = queryRenderedFeatures(map, point, { layers: draftingCursorLayers(map) });
   if (!hits.length) return "crosshair";
   const layerId = hits[0].layer?.id;
   if (layerId === "temp-edit-nodes-layer") return "grab";
@@ -99,7 +100,7 @@ function isStationHoverLayerId(layerId) {
 }
 
 function pickHoverTarget(map, point) {
-  const hits = map.queryRenderedFeatures(point, { layers: HOVER_PICK_LAYERS });
+  const hits = queryRenderedFeatures(map, point, { layers: HOVER_PICK_LAYERS });
   if (!hits.length) return null;
   const layerId = hits[0].layer?.id;
   if (isStationHoverLayerId(layerId)) return { type: "station", feature: hits[0] };
@@ -136,12 +137,12 @@ export function setCursorForMode(e) {
   } else if (M.mode === "edit-station") {
     cursor = "";
     if (e) {
-      const onRoute = map.queryRenderedFeatures(e.point, { layers: ["routes-line"] });
-      const onStation = map.queryRenderedFeatures(e.point, { layers: STATION_CIRCLE_LAYERS });
-      const onStationLabel = map.queryRenderedFeatures(e.point, {
+      const onRoute = queryRenderedFeatures(map, e.point, { layers: ["routes-line"] });
+      const onStation = queryRenderedFeatures(map, e.point, { layers: STATION_CIRCLE_LAYERS });
+      const onStationLabel = queryRenderedFeatures(map, e.point, {
         layers: [...STATION_LABEL_LAYERS, "stations-label-hover"],
       });
-      const onSnap = map.queryRenderedFeatures(e.point, { layers: ["transfer-snaps-layer"] });
+      const onSnap = queryRenderedFeatures(map, e.point, { layers: ["transfer-snaps-layer"] });
       switch (editStationSubmode) {
         case "crud":
           if (onRoute.length) cursor = "pointer";

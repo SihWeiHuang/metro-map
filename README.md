@@ -86,9 +86,11 @@ GitHub 請勿上傳 `.env`（專案已用 `.gitignore` 排除）。Mapbox **URL 
 | `src/map-runtime/visibilityFilters.js` | 隱藏路線 filter 建構；catalog / hidden 未變時跳過 `setFilter`。 |
 | `src/map-runtime/mapTypes.js` | 引擎中立 `MapLike` 型別（JSDoc）。 |
 | `src/map-runtime/mapAdapter.js` | 地圖引擎抽象 API（source／layer／filter／query）。 |
-| `src/map-runtime/mapboxRuntime.js` | **唯一** `mapbox-gl` 建構入口（Map、NavigationControl、Popup）。 |
-| `src/map-runtime/mapEngine.js` | 引擎選擇（預設 Mapbox；`VITE_MAP_ENGINE=maplibre` 預留）。 |
-| `src/map-runtime/mapLibreAdapter.stub.js` | MapLibre 遷移用 stub（與 `mapAdapter` 同介面）。 |
+| `src/map-runtime/mapEngine.js` | **對外** adapter API（應用程式請從此 import，勿直接用 `mapAdapter`）。 |
+| `src/map-runtime/mapRuntime.js` | **對外** 地圖建構 facade（`createMap`、`createMapPopup`；依 `VITE_MAP_ENGINE` 切換）。 |
+| `src/map-runtime/mapboxRuntime.js` | Mapbox 實作（內部；**唯一** import `mapbox-gl`）。 |
+| `src/map-runtime/maplibreRuntime.js` | MapLibre 預留（實驗用；預設不啟用）。 |
+| `src/map-runtime/mapLibreAdapter.js` | MapLibre adapter 表面（目前與 Mapbox 共用 `mapAdapter` 實作）。 |
 | `src/metro/metroDomain.js` | UI 事件邊界、React hooks、persist adapter 匯出。 |
 | `src/metro/metroBootstrap.js` | 啟動時一次性載入內建／持久化路線（由 `main.jsx` 呼叫，不在 `routeModel` 副作用載入）。 |
 | `src/metro/routeCrudService.js` | 路線 CRUD、編輯 session、車站／轉乘站、顏色與隱藏。 |
@@ -116,7 +118,9 @@ GitHub 請勿上傳 `.env`（專案已用 `.gitignore` 排除）。Mapbox **URL 
 | `api/share/` | 建立／讀取分享連結的 Serverless API。 |
 | `src/map/layers.js` | 底圖減雜訊（`applyBasemapClutterReduction`）；細部與 Studio 分工見 **[docs/底圖樣式調整.md](docs/底圖樣式調整.md)**。 |
 
-驗證預設命名：`npm run test:names`
+驗證預設命名：`npm run test:names`  
+地圖 adapter 匯出面一致性：`npm run test:map-adapter-parity`  
+預設 Mapbox 引擎：`npm run test:map-engine-default`
 
 ### 預設路線資料（`default-data/`）
 

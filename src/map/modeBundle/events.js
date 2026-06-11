@@ -1,6 +1,7 @@
 import { getMap } from "../mapInstance.js";
 import { Route } from "../routeModel.js";
 import { subscribeGeometryRevisionBump } from "../../metro/geometryRevisionBoundary.js";
+import { mapOn } from "../../map-runtime/mapEngine.js";
 import { cur, M, TEMP_EDIT_LINE_HIT_LAYER } from "./state.js";
 import { isPrimaryMouseButton } from "./layers.js";
 import {
@@ -36,11 +37,11 @@ export function initializeEventListeners() {
   if (!map || map.__metroListenersBound) return;
   map.__metroListenersBound = true;
 
-  map.on("mousedown", (e) => {
+  mapOn(map, "mousedown", (e) => {
     if (!isPrimaryMouseButton(e)) return;
     M.pointer.isDown = true;
   });
-  map.on("mouseup", (e) => {
+  mapOn(map, "mouseup", (e) => {
     M.pointer.isDown = false;
     if (isDraftingHoverMode()) {
       requestAnimationFrame(() => {
@@ -49,28 +50,28 @@ export function initializeEventListeners() {
     }
   });
 
-  map.on("mousemove", (e) => {
+  mapOn(map, "mousemove", (e) => {
     cur()?.onMapMove?.(e);
     schedulePointerMoveHandlers(e);
   });
-  map.on("mouseleave", () => clearHoverAndPopups());
+  mapOn(map, "mouseleave", () => clearHoverAndPopups());
 
-  map.on("click", (e) => cur()?.onMapClick?.(e));
-  map.on("click", "routes-line", (e) => cur()?.onRouteClick?.(e));
-  map.on("click", "transfer-snaps-layer", (e) => cur()?.onTransferSnapClick?.(e));
-  map.on("click", "stations-circle", (e) => cur()?.onStationClick?.(e));
-  map.on("click", "transfer-stations-circle", (e) => cur()?.onStationClick?.(e));
-  map.on("click", "stations-label", (e) => cur()?.onStationClick?.(e));
-  map.on("click", "stations-label-hover", (e) => cur()?.onStationClick?.(e));
-  map.on("click", "temp-edit-line-layer", (e) => cur()?.onTempLineClick?.(e));
-  map.on("click", TEMP_EDIT_LINE_HIT_LAYER, (e) => cur()?.onTempLineClick?.(e));
+  mapOn(map, "click", (e) => cur()?.onMapClick?.(e));
+  mapOn(map, "click", (e) => cur()?.onRouteClick?.(e), "routes-line");
+  mapOn(map, "click", (e) => cur()?.onTransferSnapClick?.(e), "transfer-snaps-layer");
+  mapOn(map, "click", (e) => cur()?.onStationClick?.(e), "stations-circle");
+  mapOn(map, "click", (e) => cur()?.onStationClick?.(e), "transfer-stations-circle");
+  mapOn(map, "click", (e) => cur()?.onStationClick?.(e), "stations-label");
+  mapOn(map, "click", (e) => cur()?.onStationClick?.(e), "stations-label-hover");
+  mapOn(map, "click", (e) => cur()?.onTempLineClick?.(e), "temp-edit-line-layer");
+  mapOn(map, "click", (e) => cur()?.onTempLineClick?.(e), TEMP_EDIT_LINE_HIT_LAYER);
 
-  map.on("mousedown", "routes-line", (e) => cur()?.onRouteDown?.(e));
-  map.on("mousedown", "temp-edit-nodes-layer", (e) => cur()?.onTempNodeDown?.(e));
-  map.on("mousedown", "stations-circle", (e) => cur()?.onStationDown?.(e));
-  map.on("mousedown", "transfer-stations-circle", (e) => cur()?.onStationDown?.(e));
-  map.on("mousedown", "stations-label", (e) => cur()?.onStationLabelDown?.(e));
-  map.on("mousedown", "stations-label-hover", (e) => cur()?.onStationLabelDown?.(e));
+  mapOn(map, "mousedown", (e) => cur()?.onRouteDown?.(e), "routes-line");
+  mapOn(map, "mousedown", (e) => cur()?.onTempNodeDown?.(e), "temp-edit-nodes-layer");
+  mapOn(map, "mousedown", (e) => cur()?.onStationDown?.(e), "stations-circle");
+  mapOn(map, "mousedown", (e) => cur()?.onStationDown?.(e), "transfer-stations-circle");
+  mapOn(map, "mousedown", (e) => cur()?.onStationLabelDown?.(e), "stations-label");
+  mapOn(map, "mousedown", (e) => cur()?.onStationLabelDown?.(e), "stations-label-hover");
   updateTransferSnapVisibility();
 
   subscribeGeometryRevisionBump(() => {

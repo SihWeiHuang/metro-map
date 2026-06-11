@@ -12,6 +12,12 @@ import { computeBoundsFromFeatures } from "./mapGeoBounds.js";
 import { getMap } from "./mapInstance.js";
 import { saveMapView } from "./mapViewState.js";
 import { store } from "../data/metroStore.js";
+import {
+  fitMapBounds,
+  flyToMapCamera,
+  jumpToMapCamera,
+  mapOnce,
+} from "../map-runtime/mapEngine.js";
 
 const GEO_CITY_MAP_PADDING = 48;
 const GEO_CITY_MAP_MAX_ZOOM = 15;
@@ -53,7 +59,7 @@ function collectCityRouteFeatures(countryId, regionId) {
 }
 
 /**
- * @param {import('mapbox-gl').Map | null | undefined} map
+ * @param {import('../map-runtime/mapTypes.js').MapLike | null | undefined} map
  * @param {unknown} countryId
  * @param {unknown} regionId
  * @param {{ animate?: boolean, saveAfter?: boolean }} [options]
@@ -72,12 +78,12 @@ export function applyGeoCityMapView(map, countryId, regionId, { animate = true, 
     const degenerate = minLng === maxLng && minLat === maxLat;
 
     if (degenerate) {
-      map.jumpTo({
+      jumpToMapCamera(map, {
         center: [minLng, minLat],
         zoom: Math.min(GEO_CITY_MAP_MAX_ZOOM, 14),
       });
     } else {
-      map.fitBounds(bounds, {
+      fitMapBounds(map, bounds, {
         padding: GEO_CITY_MAP_PADDING,
         maxZoom: GEO_CITY_MAP_MAX_ZOOM,
         duration: animate ? GEO_CITY_FLY_DURATION_MS : 0,
@@ -85,7 +91,7 @@ export function applyGeoCityMapView(map, countryId, regionId, { animate = true, 
     }
 
     if (saveAfter && animate) {
-      map.once("moveend", () => {
+      mapOnce(map, "moveend", () => {
         if (Date.now() >= suppressSaveUntil - 50) saveMapView(map);
       });
     }
@@ -106,13 +112,13 @@ export function applyGeoCityMapView(map, countryId, regionId, { animate = true, 
   };
 
   if (animate) {
-    map.flyTo({ ...camera, duration: GEO_CITY_FLY_DURATION_MS });
+    flyToMapCamera(map, { ...camera, duration: GEO_CITY_FLY_DURATION_MS });
   } else {
-    map.jumpTo(camera);
+    jumpToMapCamera(map, camera);
   }
 
   if (saveAfter && animate) {
-    map.once("moveend", () => {
+    mapOnce(map, "moveend", () => {
       if (Date.now() >= suppressSaveUntil - 50) saveMapView(map);
     });
   }

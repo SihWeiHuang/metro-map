@@ -4,7 +4,7 @@ import {
   setLayerFilter,
   setMapLayoutProperty,
   setMapPaintProperty,
-} from "../map-runtime/mapAdapter.js";
+} from "../map-runtime/mapEngine.js";
 
 /**
  * 車站站名 symbol 碰撞／閃避（Mapbox layout）。

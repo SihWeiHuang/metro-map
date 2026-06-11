@@ -1,11 +1,14 @@
 /**
  * Middle mouse button (wheel click) drag to pan — common on Windows CAD/GIS apps.
- *
- * @param {import("mapbox-gl").Map} map
+ */
+import { getMapCanvas, panMapBy } from "../map-runtime/mapEngine.js";
+
+/**
+ * @param {import("../map-runtime/mapTypes.js").MapLike} map
  * @returns {() => void} cleanup
  */
 export function configureMiddleButtonDragPan(map) {
-  const canvas = map.getCanvas();
+  const canvas = getMapCanvas(map);
   let panning = false;
   let lastX = 0;
   let lastY = 0;
@@ -36,7 +39,7 @@ export function configureMiddleButtonDragPan(map) {
     lastX = e.clientX;
     lastY = e.clientY;
     if (dx !== 0 || dy !== 0) {
-      map.panBy([-dx, -dy], { animate: false });
+      panMapBy(map, [-dx, -dy], { animate: false });
     }
   };
 

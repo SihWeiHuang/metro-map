@@ -3,7 +3,7 @@
  * Skips setFilter when hidden set + subroute catalog are unchanged (common on geometry-only edits).
  */
 import { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER } from "../map/layers.js";
-import { setLayerFilter } from "./mapAdapter.js";
+import { setLayerFilter } from "./mapEngine.js";
 import { syncStationLabelRouteHoverFilters } from "../map/stationLabelCollision.js";
 
 /** @type {string | null} */

@@ -2,6 +2,17 @@ import { computeBoundsFromFeatures, normalizeImportedMapView } from "./mapGeoBou
 import { DEFAULT_MAP_VIEW } from "./defaultMapViewConstants.js";
 import { getMap } from "./mapInstance.js";
 import { store } from "../data/metroStore.js";
+import {
+  fitMapBounds,
+  flyToMapCamera,
+  getMapBearing,
+  getMapCenter,
+  getMapPitch,
+  getMapZoom,
+  jumpToMapCamera,
+  mapOn,
+  mapOnce,
+} from "../map-runtime/mapEngine.js";
 
 export const MAP_VIEW_STORAGE_KEY = "metro-map-view-v1";
 
@@ -46,12 +57,12 @@ export function loadSavedMapView() {
 export function saveMapView(map) {
   if (!map || typeof localStorage === "undefined") return;
   try {
-    const center = map.getCenter();
+    const center = getMapCenter(map);
     const payload = {
       center: [center.lng, center.lat],
-      zoom: map.getZoom(),
-      bearing: map.getBearing(),
-      pitch: map.getPitch(),
+      zoom: getMapZoom(map),
+      bearing: getMapBearing(map),
+      pitch: getMapPitch(map),
       savedAt: new Date().toISOString(),
     };
     localStorage.setItem(MAP_VIEW_STORAGE_KEY, JSON.stringify(payload));
@@ -78,7 +89,7 @@ function scheduleSaveMapView(map) {
 function applyCamera(map, view) {
   if (!map || !view) return;
   markSuppressSave();
-  map.jumpTo({
+  jumpToMapCamera(map, {
     center: view.center,
     zoom: view.zoom,
     bearing: view.bearing ?? 0,
@@ -101,12 +112,12 @@ export function fitMapToRoutes(map, { animate = true, saveAfter = false, padding
   markSuppressSave();
 
   if (degenerate) {
-    map.jumpTo({
+    jumpToMapCamera(map, {
       center: [minLng, minLat],
       zoom: Math.min(maxZoom, 14),
     });
   } else {
-    map.fitBounds(bounds, {
+    fitMapBounds(map, bounds, {
       padding,
       maxZoom,
       duration: animate ? 800 : 0,
@@ -114,7 +125,7 @@ export function fitMapToRoutes(map, { animate = true, saveAfter = false, padding
   }
 
   if (saveAfter) {
-    map.once("moveend", () => {
+    mapOnce(map, "moveend", () => {
       if (Date.now() >= suppressSaveUntil - 50) saveMapView(map);
     });
   }
@@ -219,7 +230,7 @@ export function requestDefaultMapView({ animate = true } = {}) {
   markSuppressSave();
   const view = { ...DEFAULT_MAP_VIEW };
   if (animate) {
-    map.flyTo({
+    flyToMapCamera(map, {
       center: view.center,
       zoom: view.zoom,
       bearing: view.bearing ?? 0,
@@ -227,7 +238,7 @@ export function requestDefaultMapView({ animate = true } = {}) {
       duration: 800,
     });
   } else {
-    map.jumpTo({
+    jumpToMapCamera(map, {
       center: view.center,
       zoom: view.zoom,
       bearing: view.bearing ?? 0,
@@ -235,7 +246,7 @@ export function requestDefaultMapView({ animate = true } = {}) {
     });
   }
   if (animate) {
-    map.once("moveend", () => {
+    mapOnce(map, "moveend", () => {
       if (Date.now() >= suppressSaveUntil - 50) saveMapView(map);
     });
   }
@@ -254,16 +265,16 @@ export function applyImportedMapView(map, mapView, { animate = false, saveAfter 
     const [[minLng, minLat], [maxLng, maxLat]] = view.bounds;
     const degenerate = minLng === maxLng && minLat === maxLat;
     if (degenerate) {
-      map.jumpTo({ center: view.center, zoom, bearing: 0, pitch: 0 });
+      jumpToMapCamera(map, { center: view.center, zoom, bearing: 0, pitch: 0 });
     } else {
-      map.fitBounds(view.bounds, {
+      fitMapBounds(map, view.bounds, {
         padding: IMPORT_MAP_PADDING,
         maxZoom: IMPORT_MAP_MAX_ZOOM,
         duration: animate ? 800 : 0,
       });
     }
   } else {
-    map.jumpTo({
+    jumpToMapCamera(map, {
       center: view.center,
       zoom,
       bearing: 0,
@@ -272,7 +283,7 @@ export function applyImportedMapView(map, mapView, { animate = false, saveAfter 
   }
 
   if (saveAfter) {
-    map.once("moveend", () => {
+    mapOnce(map, "moveend", () => {
       if (Date.now() >= suppressSaveUntil - 50) saveMapView(map);
     });
   }
@@ -289,16 +300,16 @@ export function consumePendingMapFit(map) {
 export function bindMapViewPersistence(map) {
   if (map.__metroViewPersistenceBound) return;
   map.__metroViewPersistenceBound = true;
-  map.on("moveend", () => scheduleSaveMapView(map));
+  mapOn(map, "moveend", () => scheduleSaveMapView(map));
 }
 
 export function snapshotMapView(map) {
   if (!map) return null;
-  const center = map.getCenter();
+  const center = getMapCenter(map);
   return {
     center: [center.lng, center.lat],
-    zoom: map.getZoom(),
-    bearing: map.getBearing(),
-    pitch: map.getPitch(),
+    zoom: getMapZoom(map),
+    bearing: getMapBearing(map),
+    pitch: getMapPitch(map),
   };
 }

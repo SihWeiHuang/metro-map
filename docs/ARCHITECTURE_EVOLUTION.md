@@ -165,20 +165,37 @@ Reduce direct `mapbox-gl` coupling in map interaction and layer code; centralize
 | `mapTypes.js` | Engine-neutral `MapLike` JSDoc types |
 | `mapAdapter.js` | Shared map API (sources, layers, filters, query, events) |
 | `mapboxAdapter.js` | Re-export adapter (active engine) |
-| `mapboxRuntime.js` | **Only** Map / NavigationControl / Popup construction + CSS |
-| `mapLibreAdapter.stub.js` | Mirror adapter surface; throws until wired |
-| `mapEngine.js` | `VITE_MAP_ENGINE` selector (default `mapbox`) |
+| `mapEngineConfig.js` | `activeMapEngine`, default style URLs |
+| `mapRuntime.js` | **Public** Map / NavigationControl / Popup facade (`VITE_MAP_ENGINE`) |
+| `mapboxRuntime.js` | Mapbox implementation + CSS (internal) |
+| `maplibreRuntime.js` | MapLibre placeholder (throws until `maplibre-gl` wired) |
+| `mapLibreAdapter.js` | MapLibre adapter surface (delegates to `mapAdapter` today) |
+| `mapEngine.js` | **Public** adapter API for all map interaction code |
 
 ### Migration status (Phase 6 Step 1)
 
 - `layers.js`, `visibilityFilters.js`, `mapHoverFilters.js`, `stationLabelCollision.js`, `labelMoveFrameImage.js`, `modeBundle/layers.js` → `mapAdapter`
 - `MapView.jsx`, `mapPopups.js` → `mapboxRuntime` for construction only
-- Remaining direct `mapbox-gl` types: event handlers in `modeBundle/*`, `popupPlacement.js`, `mapViewState.js` (JSDoc only; no runtime import)
 
-### MapLibre checklist (future)
+### Migration status (Phase 6 Step 2)
 
-1. Implement `mapLibreAdapter.js` with same exports as `mapAdapter.js`
-2. Add `maplibreRuntime.js` (style URL, token env)
-3. Switch `mapEngine.js` on `VITE_MAP_ENGINE=maplibre`
-4. Verify Standard-style slots / `setLanguage` equivalents
+- Extended `mapAdapter`: camera (`jumpTo`/`flyTo`/`fitBounds`/`easeTo`/`panBy`), `project`/`unproject`, canvas, layer-scoped events, `setMapConfigProperty`, zoom interaction toggles
+- `modeBundle/*` (events, handlers, hover, drag, control, mapUi), `mapViewState.js`, `geoMapView.js`, `mapScrollZoom.js`, `mapMiddleButtonPan.js`, `popupPlacement.js`, `stationPreview.js`, `routeHoverCommands.js`, `routeCrudService.js` → `mapAdapter` + `MapLike` types
+- **Only** `mapboxRuntime.js` imports `mapbox-gl` at runtime; `MapView` uses `mapOnce` for lifecycle hooks
+- `npm run test:map-adapter-parity` — mapbox vs MapLibre adapter export parity
+
+### Migration status (Phase 6 Step 3)
+
+- `mapEngine.js` + `mapRuntime.js` — single public import paths for adapter API and map construction
+- All application modules import `mapEngine` (not `mapAdapter` directly)
+- `MapView` / `mapPopups` use neutral `createMap` / `createMapPopup` / `setMapAccessToken`
+- `mapLibreAdapter.js` + `maplibreRuntime.js` stub; `VITE_MAP_ENGINE=maplibre` for future experiment
+- `npm run test:map-engine-default` — verifies default build stays on Mapbox
+
+### MapLibre activation checklist (post–Phase 6)
+
+1. Add `maplibre-gl` dependency
+2. Implement `createMap` / token / style in `maplibreRuntime.js`
+3. Set `VITE_MAP_ENGINE=maplibre` + `VITE_MAPLIBRE_STYLE` in `.env`
+4. Override `mapLibreAdapter.js` only where MapLibre diverges (slots, `setLanguage`, Standard imports)
 5. Full manual regression matrix

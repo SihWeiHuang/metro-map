@@ -1,5 +1,12 @@
 import * as turf from "@turf/turf";
 import { getMap } from "../mapInstance.js";
+import {
+  mapOff,
+  mapOn,
+  mapOnce,
+  projectMapPoint,
+  unprojectMapPoint,
+} from "../../map-runtime/mapEngine.js";
 import { applyStationLabelCollision, applyStationLabelDragPlacement } from "../stationLabelCollision.js";
 import { nearestPointOnSmoothedRoute } from "../displayLineSmoothing.js";
 import { Route } from "../routeModel.js";
@@ -31,7 +38,7 @@ let labelDragPreviewRaf = null;
 /** @type {{ update: (coord: number[]) => void, coord: number[] } | null} */
 let pendingLabelDragPreview = null;
 let stationDragPreviewRaf = null;
-/** @type {{ map: import('mapbox-gl').Map, sid: string, lngLat: [number, number] } | null} */
+/** @type {{ map: import('../../map-runtime/mapTypes.js').MapLike, sid: string, lngLat: [number, number] } | null} */
 let pendingStationDragPreview = null;
 
 export function cancelTempNodeDragListeners() {
@@ -221,12 +228,12 @@ function updateStationDragPreview(map, sid, lngLat) {
 function resolveStationDragLngLat(map, ev, grabOffsetPx) {
   if (!grabOffsetPx) return [ev.lngLat.lng, ev.lngLat.lat];
   const targetPx = { x: ev.point.x + grabOffsetPx.x, y: ev.point.y + grabOffsetPx.y };
-  const ll = map.unproject([targetPx.x, targetPx.y]);
+  const ll = unprojectMapPoint(map, [targetPx.x, targetPx.y]);
   return [ll.lng, ll.lat];
 }
 
 function labelGrabOffsetPx(map, e, feature, stationCenter) {
-  const centerPx = map.project(stationCenter);
+  const centerPx = projectMapPoint(map, stationCenter);
   const offset = feature.properties?.label_offset_xy;
   const visualPx = Array.isArray(offset)
     ? { x: centerPx.x + offset[0] * 12, y: centerPx.y + offset[1] * 12 }
@@ -254,9 +261,9 @@ export function beginStationPositionDrag(e, opts = {}) {
     if (M.dragging.type !== "station" || M.dragging.stationId !== sid) return;
     updateStationDragPreview(map, sid, resolveStationDragLngLat(map, ev, grabOffsetPx));
   };
-  map.on("mousemove", onDragStation);
-  map.once("mouseup", (ev) => {
-    map.off("mousemove", onDragStation);
+  mapOn(map, "mousemove", onDragStation);
+  mapOnce(map, "mouseup", (ev) => {
+    mapOff(map, "mousemove", onDragStation);
     flushStationDragPreview();
     updateStationDragPreview(map, sid, resolveStationDragLngLat(map, ev, grabOffsetPx));
     Route.moveStationAlongRoute(sid, getDisplayedStationCenter(map, sid, st.geometry.coordinates));
@@ -292,7 +299,7 @@ export function beginStationLabelOnlyDrag(e) {
   drawLabelDragLimitCircle(map, dragCenter, LABEL_DRAG_RADIUS_METERS);
   setStationLabelMoveFrameVisibility(false);
   const updatePreview = createStationLabelDragPreviewUpdater(map, sid, dragCenter);
-  const centerPx = map.project(dragCenter);
+  const centerPx = projectMapPoint(map, dragCenter);
   const offset = feature.properties?.label_offset_xy;
   const visualPx = Array.isArray(offset)
     ? { x: centerPx.x + offset[0] * 12, y: centerPx.y + offset[1] * 12 }
@@ -302,13 +309,13 @@ export function beginStationLabelOnlyDrag(e) {
   const onDragLabel = (ev) => {
     if (M.dragging.type !== "station-label" || M.dragging.stationId !== sid) return;
     const targetPx = { x: ev.point.x + grabOffsetPx.x, y: ev.point.y + grabOffsetPx.y };
-    const targetLngLat = map.unproject([targetPx.x, targetPx.y]);
+    const targetLngLat = unprojectMapPoint(map, [targetPx.x, targetPx.y]);
     currentLabelCoord = clampLabelCoordToDragRadius(dragCenter, [targetLngLat.lng, targetLngLat.lat]);
     scheduleLabelDragPreview(updatePreview, currentLabelCoord);
   };
-  map.on("mousemove", onDragLabel);
-  map.once("mouseup", () => {
-    map.off("mousemove", onDragLabel);
+  mapOn(map, "mousemove", onDragLabel);
+  mapOnce(map, "mouseup", () => {
+    mapOff(map, "mousemove", onDragLabel);
     flushLabelDragPreview();
     Route.setStationLabelPosition(sid, currentLabelCoord);
     clearLabelDragLimitCircle(map);

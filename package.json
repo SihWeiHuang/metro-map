@@ -15,7 +15,9 @@
     "test:share-limits": "node scripts/test-share-limits.mjs",
     "test:geo-catalog": "node scripts/test-geo-catalog.mjs",
     "test:route-list-nav": "node scripts/test-route-list-nav-prefs.mjs",
-    "test:perf-baseline": "node scripts/perf-baseline.mjs"
+    "test:perf-baseline": "node scripts/perf-baseline.mjs",
+    "test:map-adapter-parity": "node scripts/test-map-adapter-parity.mjs",
+    "test:map-engine-default": "node scripts/test-map-engine-default.mjs"
   },
   "dependencies": {
     "@turf/turf": "^7.3.4",
