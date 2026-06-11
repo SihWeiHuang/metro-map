@@ -84,6 +84,8 @@ function App() {
   const siteHeaderRef = useRef(null);
   const [statusDialog, setStatusDialog] = useState(null);
   const [routeListGeoFocus, setRouteListGeoFocus] = useState(null);
+  /** 新增路線流程進行中：抑制左側清單導覽觸發的地圖自動跳轉 */
+  const [addRouteFlowActive, setAddRouteFlowActive] = useState(false);
   const [autoShowNewRouteStatus, setAutoShowNewRouteStatus] = useState(readAutoShowNewRouteStatus);
   const [sitePage, setSitePage] = useState(() =>
     typeof window !== "undefined" ? parseSitePageFromHash(window.location.hash) : null
@@ -154,12 +156,13 @@ function App() {
     setSitePage(null);
   }, []);
 
-  const handleRouteMetadataSaved = (payload) => {
+  const handleRouteMetadataSaved = (payload, { isNewRoute } = {}) => {
     if (payload?.country != null && payload?.region != null) {
       setRouteListGeoFocus({
         country: payload.country,
         region: payload.region,
         seq: Date.now(),
+        skipMapView: isNewRoute === true,
       });
     }
   };
@@ -262,15 +265,24 @@ function App() {
   };
 
   const handleFinishEditing = async () => {
+    const wasAddRoute = mode === "add-route";
     const result = await finishEditing();
-    if (result?.ok && result.newRouteIds?.length > 0 && autoShowNewRouteStatus) {
-      setStatusDialog({ routeIds: result.newRouteIds, isNewRoute: true });
+    if (result?.ok && result.newRouteIds?.length > 0) {
+      if (autoShowNewRouteStatus) {
+        setStatusDialog({ routeIds: result.newRouteIds, isNewRoute: true });
+      } else {
+        setAddRouteFlowActive(false);
+      }
+    } else if (wasAddRoute) {
+      setAddRouteFlowActive(false);
     }
     requestAnimationFrame(() => {});
   };
 
   const handleCancelRouteEditing = () => {
+    const wasAddRoute = mode === "add-route";
     cancelRouteEditing();
+    if (wasAddRoute) setAddRouteFlowActive(false);
     requestAnimationFrame(() => {});
   };
 
@@ -296,7 +308,10 @@ function App() {
     setStatusDialog({ routeIds: [routeId], isNewRoute: false });
   };
 
-  const closeStatusDialog = () => setStatusDialog(null);
+  const closeStatusDialog = () => {
+    setStatusDialog(null);
+    setAddRouteFlowActive(false);
+  };
 
   const updateAutoShowNewRouteStatus = (next) => {
     setAutoShowNewRouteStatus(next);
@@ -324,6 +339,7 @@ function App() {
       alert(t("routeModel.routeLimitReached", { limit: check.limit, current: check.current }));
       return;
     }
+    setAddRouteFlowActive(true);
     setMode("add-route");
   };
 
@@ -519,6 +535,7 @@ function App() {
           <RouteListNavigator
             geoFocus={routeListGeoFocus}
             onGeoFocusHandled={() => setRouteListGeoFocus(null)}
+            suppressGeoMapView={addRouteFlowActive}
             showRouteActions={routeListEditActions}
             mergeSelectMode={mergeSelectMode}
             splitLineSelectMode={splitLineSelectMode}
@@ -624,7 +641,9 @@ function App() {
           suppressAutoOpen={!autoShowNewRouteStatus}
           onSuppressAutoOpenChange={(suppress) => updateAutoShowNewRouteStatus(!suppress)}
           onClose={closeStatusDialog}
-          onSaved={handleRouteMetadataSaved}
+          onSaved={(payload) =>
+            handleRouteMetadataSaved(payload, { isNewRoute: statusDialog.isNewRoute === true })
+          }
         />
       )}
       <AppFileMenuDialog

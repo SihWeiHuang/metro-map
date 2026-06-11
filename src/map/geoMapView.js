@@ -7,6 +7,7 @@
  * 3. 皆無 → 不移動地圖（之後可在 BUILTIN_GEO_CATALOG 手動加入城市 mapView）
  */
 
+import { MAP_CAMERA_ANIMATION_DURATION_MS } from "./defaultMapViewConstants.js";
 import { canonicalizeCountryId, canonicalizeRegion, getCatalogMapView } from "./geoCatalog.js";
 import { computeBoundsFromFeatures } from "./mapGeoBounds.js";
 import { getMap } from "./mapInstance.js";
@@ -21,7 +22,6 @@ import {
 
 const GEO_CITY_MAP_PADDING = 48;
 const GEO_CITY_MAP_MAX_ZOOM = 15;
-const GEO_CITY_FLY_DURATION_MS = 800;
 
 let suppressSaveUntil = 0;
 let pendingGeoCityApply = null;
@@ -86,7 +86,7 @@ export function applyGeoCityMapView(map, countryId, regionId, { animate = true, 
       fitMapBounds(map, bounds, {
         padding: GEO_CITY_MAP_PADDING,
         maxZoom: GEO_CITY_MAP_MAX_ZOOM,
-        duration: animate ? GEO_CITY_FLY_DURATION_MS : 0,
+        duration: animate ? MAP_CAMERA_ANIMATION_DURATION_MS : 0,
       });
     }
 
@@ -112,7 +112,7 @@ export function applyGeoCityMapView(map, countryId, regionId, { animate = true, 
   };
 
   if (animate) {
-    flyToMapCamera(map, { ...camera, duration: GEO_CITY_FLY_DURATION_MS });
+    flyToMapCamera(map, { ...camera, duration: MAP_CAMERA_ANIMATION_DURATION_MS });
   } else {
     jumpToMapCamera(map, camera);
   }

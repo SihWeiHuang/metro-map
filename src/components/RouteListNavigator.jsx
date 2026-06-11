@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../i18n/I18nProvider.jsx";
 import { scheduleGeoCityMapView } from "../map/geoMapView.js";
 import { canonicalizeCountryId, canonicalizeRegion } from "../map/geoCatalog.js";
@@ -47,6 +47,7 @@ function GeoNavList({ items, getLabel, onPick, countLabel }) {
 export default function RouteListNavigator({
   geoFocus = null,
   onGeoFocusHandled,
+  suppressGeoMapView = false,
   showRouteActions = false,
   mergeSelectMode = false,
   splitLineSelectMode = false,
@@ -59,9 +60,12 @@ export default function RouteListNavigator({
   const [level, setLevel] = useState(() => loadRouteListNav()?.level ?? "country");
   const [selectedCountryId, setSelectedCountryId] = useState(() => loadRouteListNav()?.countryId ?? "");
   const [selectedRegionId, setSelectedRegionId] = useState(() => loadRouteListNav()?.regionId ?? "");
+  const skipMapViewOnceRef = useRef(false);
+  const suppressWasActiveRef = useRef(false);
 
   useEffect(() => {
     if (!geoFocus) return;
+    if (geoFocus.skipMapView) skipMapViewOnceRef.current = true;
     const next = sanitizeRouteListNavSelection(
       "routes",
       canonicalizeCountryId(geoFocus.country),
@@ -90,9 +94,25 @@ export default function RouteListNavigator({
 
   /** 進入路線層（已選定城市）時移動地圖；國家層／城市列表層不移動 */
   useEffect(() => {
-    if (level !== "routes") return;
+    if (level !== "routes") {
+      suppressWasActiveRef.current = suppressGeoMapView;
+      return;
+    }
+    if (suppressGeoMapView) {
+      suppressWasActiveRef.current = true;
+      return;
+    }
+    if (skipMapViewOnceRef.current) {
+      skipMapViewOnceRef.current = false;
+      suppressWasActiveRef.current = false;
+      return;
+    }
+    if (suppressWasActiveRef.current) {
+      suppressWasActiveRef.current = false;
+      return;
+    }
     scheduleGeoCityMapView(selectedCountryId, selectedRegionId);
-  }, [level, selectedCountryId, selectedRegionId]);
+  }, [level, selectedCountryId, selectedRegionId, suppressGeoMapView]);
 
   const countryEntries = useMemo(() => buildCountryNavEntries(routeList), [routeList]);
   const cityEntries = useMemo(

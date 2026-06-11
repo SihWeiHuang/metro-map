@@ -1,5 +1,5 @@
 import { computeBoundsFromFeatures, normalizeImportedMapView } from "./mapGeoBounds.js";
-import { DEFAULT_MAP_VIEW } from "./defaultMapViewConstants.js";
+import { DEFAULT_MAP_VIEW, MAP_CAMERA_ANIMATION_DURATION_MS } from "./defaultMapViewConstants.js";
 import { getMap } from "./mapInstance.js";
 import { store } from "../data/metroStore.js";
 import {
@@ -120,7 +120,7 @@ export function fitMapToRoutes(map, { animate = true, saveAfter = false, padding
     fitMapBounds(map, bounds, {
       padding,
       maxZoom,
-      duration: animate ? 800 : 0,
+      duration: animate ? MAP_CAMERA_ANIMATION_DURATION_MS : 0,
     });
   }
 
@@ -235,7 +235,7 @@ export function requestDefaultMapView({ animate = true } = {}) {
       zoom: view.zoom,
       bearing: view.bearing ?? 0,
       pitch: view.pitch ?? 0,
-      duration: 800,
+      duration: MAP_CAMERA_ANIMATION_DURATION_MS,
     });
   } else {
     jumpToMapCamera(map, {
@@ -270,7 +270,7 @@ export function applyImportedMapView(map, mapView, { animate = false, saveAfter 
       fitMapBounds(map, view.bounds, {
         padding: IMPORT_MAP_PADDING,
         maxZoom: IMPORT_MAP_MAX_ZOOM,
-        duration: animate ? 800 : 0,
+        duration: animate ? MAP_CAMERA_ANIMATION_DURATION_MS : 0,
       });
     }
   } else {
