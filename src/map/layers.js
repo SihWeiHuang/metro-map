@@ -803,7 +803,7 @@ export function initializeLayers(map, store) {
         ...stationLabelLayoutBase,
         "icon-image": STATION_LABEL_FRAME_IMAGE_ID,
         "icon-text-fit": "both",
-        "icon-text-fit-padding": [2, 2, 2, 2],
+        "icon-text-fit-padding": [0.5, 0.5, 0.5, 0.5],
         "icon-allow-overlap": true,
         "text-allow-overlap": true,
         "text-ignore-placement": true,
