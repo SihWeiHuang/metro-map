@@ -75,6 +75,9 @@ export function initializeEventListeners() {
   updateTransferSnapVisibility();
 
   subscribeGeometryRevisionBump(() => {
-    if (M.mode === "edit-station") Route.scheduleRefreshTransferSnapSource();
+    if (M.mode === "edit-station") {
+      Route.scheduleRefreshTransferSnapSource();
+      Route.scheduleRefreshAbsorbZonesSource();
+    }
   });
 }

@@ -1,13 +1,18 @@
 import { getMap } from "../mapInstance.js";
 import { hasLayer, queryRenderedFeatures, setMapCanvasCursor } from "../../map-runtime/mapEngine.js";
-import { applyStationLabelCollision, applyStationLabelDragPlacement } from "../stationLabelCollision.js";
-import { clearStationHoverVisuals, setStationHoverPairFilters } from "../mapHoverFilters.js";
-import { Route, STATION_NAME_MAX_LEN } from "../routeModel.js";
+import { applyStationLabelDragPlacement } from "../stationLabelCollision.js";
 import {
-  findNearestTransferSnap,
+  clearTransferAbsorbZoneHoverFilter,
+  setStationHoverPairFilters,
+  setTransferAbsorbZoneHoverFilter,
+} from "../mapHoverFilters.js";
+import { Route, STATION_NAME_MAX_LEN } from "../routeModel.js";
+import { TRANSFER_ABSORB_METERS } from "../transferAbsorbConfig.js";
+import {
+  findNearestUnoccupiedTransferSnap,
   isTransferSnapOccupied,
+  resolveTransferSnapCenter,
   TRANSFER_SNAP_CLICK_METERS,
-  TRANSFER_SNAP_HOVER_METERS,
 } from "../routeTransferSnap.js";
 import {
   findStationById,
@@ -27,8 +32,8 @@ import {
   isStationEditPopupOpen,
   bindStationEditPopupHandlers,
   openStationEditPopup,
-  refreshEditStationTransferHint,
   showRouteHoverPopup,
+  showTransferSnapHint,
   showStationBrowsePopup,
 } from "../mapPopups.js";
 import {
@@ -38,7 +43,6 @@ import {
   STATION_CIRCLE_LAYERS,
   STATION_LABEL_LAYERS,
   TEMP_EDIT_LINE_HIT_LAYER,
-  TRANSFER_SNAP_HINT_DEPS,
 } from "./state.js";
 import { primarySubrouteIdForStation } from "./layers.js";
 
@@ -99,19 +103,153 @@ function isStationHoverLayerId(layerId) {
   );
 }
 
+const TRANSFER_ABSORB_ZONE_PICK_LAYERS = [
+  "transfer-absorb-zones-layer",
+  "transfer-absorb-zones-outline-layer",
+  "transfer-absorb-zones-hover-layer",
+  "transfer-absorb-zones-hover-outline-layer",
+];
+
+function isAbsorbZoneLayerId(layerId) {
+  return TRANSFER_ABSORB_ZONE_PICK_LAYERS.includes(layerId);
+}
+
+function findAbsorbZoneFeatureAtPoint(map, point) {
+  const layers = TRANSFER_ABSORB_ZONE_PICK_LAYERS.filter((id) => hasLayer(map, id));
+  if (!layers.length) return null;
+  const hits = queryRenderedFeatures(map, point, { layers });
+  return hits.find((h) => isAbsorbZoneLayerId(h.layer?.id)) || null;
+}
+
 function pickHoverTarget(map, point) {
   const hits = queryRenderedFeatures(map, point, { layers: HOVER_PICK_LAYERS });
   if (!hits.length) return null;
+
+  const snapHit = hits.find((h) => h.layer?.id === "transfer-snaps-layer");
+  if (snapHit) return { type: "transfer-snap", feature: snapHit };
+
+  const absorbHit = hits.find((h) => isAbsorbZoneLayerId(h.layer?.id));
+  if (absorbHit) return { type: "absorb-zone", feature: absorbHit };
+
   const layerId = hits[0].layer?.id;
   if (isStationHoverLayerId(layerId)) return { type: "station", feature: hits[0] };
-  if (layerId === "transfer-snaps-layer") return { type: "transfer-snap", feature: hits[0] };
   if (layerId === "routes-line") return { type: "route", feature: hits[0] };
   return null;
+}
+
+export function transferSnapCenterFromAbsorbZoneFeature(feature) {
+  return resolveTransferSnapCenter(feature);
+}
+
+function isTransferAddClickLayerId(layerId) {
+  return layerId === "transfer-snaps-layer" || layerId === "routes-line" || isAbsorbZoneLayerId(layerId);
+}
+
+export function refreshTransferCandidateLayers() {
+  Route.ensureTransferSnapSourceReady();
+  Route.ensureAbsorbZonesSourceReady();
+}
+
+/** 從地圖點擊解析轉乘候選（黃圈／小黃點／圈內路線）。 */
+export function resolveTransferSnapCandidateFromMapClick(map, point, lngLat, topLayerId) {
+  if (!map || getEditStationSubmode() !== "crud") return null;
+  if (!isTransferAddClickLayerId(topLayerId)) return null;
+
+  if (isAbsorbZoneLayerId(topLayerId)) {
+    const absorbFeature = findAbsorbZoneFeatureAtPoint(map, point);
+    if (absorbFeature && !isTransferSnapOccupied(absorbFeature)) {
+      const center = resolveTransferSnapCenter(absorbFeature);
+      const ridA = absorbFeature.properties?.subroute_id_a;
+      const ridB = absorbFeature.properties?.subroute_id_b;
+      if (center && ridA && ridB) {
+        return {
+          center,
+          ridA,
+          ridB,
+          snapId: absorbFeature.properties?.snap_id || "",
+        };
+      }
+    }
+  }
+
+  if (topLayerId === "transfer-snaps-layer") {
+    const hits = queryRenderedFeatures(map, point, { layers: ["transfer-snaps-layer"] });
+    const snap = hits[0];
+    if (snap && !isTransferSnapOccupied(snap)) {
+      const center = resolveTransferSnapCenter(snap);
+      const ridA = snap.properties?.subroute_id_a;
+      const ridB = snap.properties?.subroute_id_b;
+      if (center && ridA && ridB) {
+        return {
+          center,
+          ridA,
+          ridB,
+          snapId: snap.properties?.snap_id || "",
+        };
+      }
+    }
+  }
+
+  if (topLayerId === "routes-line") {
+    const snapNear = findNearestUnoccupiedTransferSnap(lngLat, TRANSFER_ABSORB_METERS);
+    if (snapNear) {
+      const p = snapNear.feature.properties;
+      return {
+        center: snapNear.feature.geometry.coordinates,
+        ridA: p.subroute_id_a,
+        ridB: p.subroute_id_b,
+        snapId: p.snap_id || "",
+      };
+    }
+  }
+
+  return null;
+}
+
+function tryApplyTransferSnapCandidateHoverAtPointer(map, e, target) {
+  if (getEditStationSubmode() !== "crud") return false;
+  if (target?.type === "transfer-snap") {
+    return applyTransferSnapCandidateHover(map, target.feature, e.point);
+  }
+  const absorbFeature = findAbsorbZoneFeatureAtPoint(map, e.point);
+  if (absorbFeature) {
+    return applyTransferSnapCandidateHover(map, absorbFeature, e.point);
+  }
+  const snapInZone = findNearestUnoccupiedTransferSnap(e.lngLat, TRANSFER_ABSORB_METERS);
+  if (snapInZone) {
+    return applyTransferSnapCandidateHover(map, snapInZone.feature, e.point);
+  }
+  return false;
+}
+
+/** 轉乘候選點 hover：黃色圈圈高亮 +「新增轉乘站」提示同時出現。 */
+function applyTransferSnapCandidateHover(map, snapFeature, cursorPoint) {
+  if (!map || !snapFeature) return false;
+  if (isTransferSnapOccupied(snapFeature)) {
+    M.hover.transferSnapId = "";
+    clearTransferAbsorbZoneHoverFilter(map);
+    hideTransferSnapHint();
+    return false;
+  }
+
+  const snapId = snapFeature.properties?.snap_id || "";
+  const center = resolveTransferSnapCenter(snapFeature);
+  if (!snapId || !center) return false;
+
+  M.hover.stationId = "";
+  M.hover.subrouteId = "";
+  M.hover.transferSnapId = snapId;
+  setStationHoverPairFilters(map, "");
+  setTransferAbsorbZoneHoverFilter(map, snapId);
+  hideStationBrowsePopup();
+  showTransferSnapHint(center, snapId, cursorPoint);
+  return true;
 }
 
 export function clearStationHoverHighlight() {
   M.hover.stationId = "";
   setStationHoverPairFilters(getMap(), "");
+  clearTransferAbsorbZoneHoverFilter(getMap());
 }
 
 export function setCursorForMode(e) {
@@ -143,19 +281,16 @@ export function setCursorForMode(e) {
         layers: [...STATION_LABEL_LAYERS, "stations-label-hover"],
       });
       const onSnap = queryRenderedFeatures(map, e.point, { layers: ["transfer-snaps-layer"] });
+      const onAbsorbZone = queryRenderedFeatures(map, e.point, {
+        layers: TRANSFER_ABSORB_ZONE_PICK_LAYERS.filter((id) => hasLayer(map, id)),
+      });
       switch (editStationSubmode) {
         case "crud":
-          if (onRoute.length) cursor = "pointer";
-          if (onStation.length || onStationLabel.length) cursor = "pointer";
-          break;
-        case "move-station":
+          if (onSnap.length || onRoute.length || onAbsorbZone.length) cursor = "pointer";
           if (onStation.length || onStationLabel.length) cursor = "grab";
           break;
         case "move-label":
           if (onStationLabel.length) cursor = "grab";
-          break;
-        case "add-transfer":
-          if (onSnap.length || onRoute.length) cursor = "pointer";
           break;
         default:
           break;
@@ -177,6 +312,7 @@ export function clearHoverAndPopups() {
   if (map && M.mode === "edit-station" && getEditStationSubmode() === "move-label") {
     applyStationLabelDragPlacement(map);
   }
+  clearTransferAbsorbZoneHoverFilter(map);
   hideHoverPopups();
 }
 
@@ -219,14 +355,22 @@ function collectPassingSubrouteIdsForPopup(hoveredFeature) {
 }
 
 export function addNearbyTransferStationFromClick(lngLat, highlightSubrouteId = "") {
-  const snapNear = findNearestTransferSnap(lngLat, TRANSFER_SNAP_CLICK_METERS);
-  if (!snapNear || isTransferSnapOccupied(snapNear.feature)) return false;
-  const snapId = snapNear.feature.properties?.snap_id || "";
-  if (!snapId || snapId !== M.hover.transferSnapId) return false;
+  const snapNear = findNearestUnoccupiedTransferSnap(lngLat, TRANSFER_SNAP_CLICK_METERS);
+  if (!snapNear) return false;
   const p = snapNear.feature.properties;
   Route.addTransferStationAt(snapNear.feature.geometry.coordinates, p.subroute_id_a, p.subroute_id_b);
   if (highlightSubrouteId) Route.highlightRoute(highlightSubrouteId);
+  suppressUiAfterTransferAdd();
   return true;
+}
+
+/** 新增轉乘站後：清 hover 提示並立即刷新候選點／黃圈。 */
+export function suppressUiAfterTransferAdd() {
+  closeStationEditPopup();
+  hideTransferSnapHint();
+  M.hover.transferSnapId = "";
+  clearTransferAbsorbZoneHoverFilter(getMap());
+  refreshTransferCandidateLayers();
 }
 
 function isStationLayerId(layerId) {
@@ -241,9 +385,16 @@ function isStationLayerId(layerId) {
 export function stationEditClickLayers() {
   switch (getEditStationSubmode()) {
     case "crud":
-      return [...STATION_CIRCLE_LAYERS, ...STATION_LABEL_LAYERS, "stations-label-hover", "routes-line"];
-    case "add-transfer":
-      return ["transfer-snaps-layer", "routes-line"];
+      return [
+        "transfer-absorb-zones-hover-layer",
+        "transfer-absorb-zones-hover-outline-layer",
+        "transfer-absorb-zones-layer",
+        "transfer-snaps-layer",
+        ...STATION_CIRCLE_LAYERS,
+        ...STATION_LABEL_LAYERS,
+        "stations-label-hover",
+        "routes-line",
+      ];
     default:
       return [];
   }
@@ -349,6 +500,7 @@ export function popupStationForEditing(station) {
         if (confirm(t("popup.confirmDeleteStation", { name: currentName }))) {
           Route.removeStation(p.station_id);
           closeStationEditPopup();
+          refreshTransferCandidateLayers();
         }
       } finally {
         deleteConfirmOpen = false;
@@ -399,33 +551,19 @@ function updateEditStationHover(e, target) {
   if (isStationEditPopupOpen()) return;
   if (M.pointer.isDown) return;
   if (M.dragging.type === "station" || M.dragging.type === "station-label") return;
+  const map = getMap();
   if (!target) {
+    if (tryApplyTransferSnapCandidateHoverAtPointer(map, e, null)) return;
     clearHoverAndPopups();
     return;
   }
-  const snapNear = findNearestTransferSnap(e.lngLat, TRANSFER_SNAP_HOVER_METERS);
-  const snapActive = snapNear && !isTransferSnapOccupied(snapNear.feature);
+  if (tryApplyTransferSnapCandidateHoverAtPointer(map, e, target)) {
+    return;
+  }
   if (target.type === "station") {
-    if (editStationSubmode === "add-transfer") {
-      const map = getMap();
-      Route.clearHover();
-      clearStationHoverVisuals(map);
-      M.hover.stationId = "";
-      M.hover.subrouteId = "";
-      M.hover.transferSnapId = "";
-      hideStationBrowsePopup();
-      if (snapActive) {
-        M.hover.transferSnapId = snapNear.feature.properties?.snap_id || "";
-        refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, snapNear, e.point);
-      } else {
-        hideTransferSnapHint();
-      }
-      return;
-    }
     const st = target.feature;
     const sid = st.properties.station_id;
     const rid = primarySubrouteIdForStation(st);
-    const map = getMap();
     if (M.hover.stationId === sid && M.hover.subrouteId === rid) {
       hideTransferSnapHint();
       return;
@@ -434,38 +572,17 @@ function updateEditStationHover(e, target) {
     M.hover.subrouteId = rid || "";
     M.hover.transferSnapId = "";
     setStationHoverPairFilters(map, sid);
+    clearTransferAbsorbZoneHoverFilter(map);
     hideStationBrowsePopup();
     hideTransferSnapHint();
     return;
   }
-  if (target.type === "transfer-snap") {
-    if (!isTransferSnapOccupied(target.feature)) {
-      M.hover.stationId = "";
-      M.hover.transferSnapId = target.feature.properties?.snap_id || "";
-      hideStationBrowsePopup();
-      refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, { feature: target.feature }, e.point);
-    } else {
-      M.hover.transferSnapId = "";
-      hideTransferSnapHint();
-    }
-    return;
-  }
   const rid = target.feature.properties.subroute_id;
-  if (snapActive) {
-    if (M.hover.subrouteId !== rid) {
-      M.hover.subrouteId = rid;
-      Route.highlightRoute(rid);
-    }
-    M.hover.stationId = "";
-    M.hover.transferSnapId = snapNear.feature.properties?.snap_id || "";
-    hideStationBrowsePopup();
-    refreshEditStationTransferHint(e.lngLat, TRANSFER_SNAP_HINT_DEPS, snapNear, e.point);
-    return;
-  }
   const sameRoute = M.hover.subrouteId === rid;
   M.hover.subrouteId = rid;
   M.hover.stationId = "";
   M.hover.transferSnapId = "";
+  clearTransferAbsorbZoneHoverFilter(getMap());
   if (!sameRoute) Route.highlightRoute(rid);
   hideStationBrowsePopup();
   hideTransferSnapHint();

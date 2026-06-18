@@ -8,7 +8,9 @@ import {
   setMapCanvasCursor,
 } from "../../map-runtime/mapEngine.js";
 import { applyStationLabelCollision } from "../stationLabelCollision.js";
+import { nearestPointOnSmoothedRoute } from "../displayLineSmoothing.js";
 import { Route } from "../routeModel.js";
+import { isTransferSnapOccupied } from "../routeTransferSnap.js";
 import { getPrimaryEditingSession } from "../../data/routeQueries.js";
 import { clearLabelDragLimitCircle } from "../stationPreview.js";
 import {
@@ -30,9 +32,11 @@ import {
   popupRoute,
   popupStationForEditing,
   resetStationEditPopupState,
+  resolveTransferSnapCandidateFromMapClick,
   setCursorForMode,
   stationEditClickLayers,
   stationFeatureFromMapClick,
+  suppressUiAfterTransferAdd,
 } from "./hover.js";
 import {
   beginStationLabelOnlyDrag,
@@ -91,21 +95,24 @@ Modes["add-route"] = {
           Route.queueStationFromExisting(hitFeatures[0].geometry.coordinates);
           break;
         case "routes-line": {
-          const snapped = turf.nearestPointOnLine(hitFeatures[0], [e.lngLat.lng, e.lngLat.lat]);
-          if (snapped) {
-            const session = getPrimaryEditingSession();
-            const nodes = session.nodes;
-            if (nodes.length > 0) {
-              const distToStart = turf.distance(turf.point(snapped.geometry.coordinates), turf.point(nodes[0]));
-              const distToEnd = turf.distance(
-                turf.point(snapped.geometry.coordinates),
-                turf.point(nodes[nodes.length - 1]),
-              );
-              if (distToStart < distToEnd) Route.addTempNodeAt(snapped.geometry.coordinates, session.subrouteId, 0);
-              else Route.addTempNodeAt(snapped.geometry.coordinates, session.subrouteId);
-            } else {
-              Route.addTempNodeAt(snapped.geometry.coordinates, session.subrouteId);
-            }
+          const routeProps = hitFeatures[0].properties || {};
+          const clickedRoute = getRouteFeature(routeProps.subroute_id);
+          const routeCoords = clickedRoute?.geometry?.coordinates;
+          if (!routeCoords || routeCoords.length < 2) break;
+          const snapped = nearestPointOnSmoothedRoute(routeCoords, [e.lngLat.lng, e.lngLat.lat]);
+          if (!snapped?.geometry?.coordinates) break;
+          const session = getPrimaryEditingSession();
+          const nodes = session.nodes;
+          if (nodes.length > 0) {
+            const distToStart = turf.distance(turf.point(snapped.geometry.coordinates), turf.point(nodes[0]));
+            const distToEnd = turf.distance(
+              turf.point(snapped.geometry.coordinates),
+              turf.point(nodes[nodes.length - 1]),
+            );
+            if (distToStart < distToEnd) Route.addTempNodeAt(snapped.geometry.coordinates, session.subrouteId, 0);
+            else Route.addTempNodeAt(snapped.geometry.coordinates, session.subrouteId);
+          } else {
+            Route.addTempNodeAt(snapped.geometry.coordinates, session.subrouteId);
           }
           break;
         }
@@ -189,12 +196,18 @@ Modes["edit-station"] = {
   name: "edit-station",
   onEnter() {
     Route.scheduleRefreshTransferSnapSource();
+    Route.scheduleRefreshAbsorbZonesSource();
     setEditStationSubmodeState(getEditStationSubmode());
     applyEditStationSubmode();
+    if (getEditStationSubmode() === "crud") {
+      Route.ensureTransferSnapSourceReady();
+      Route.ensureAbsorbZonesSourceReady();
+    }
     Route.clearHover();
   },
   onLeave() {
     Route.cancelScheduledTransferSnapRefresh();
+    Route.cancelScheduledAbsorbZonesRefresh();
     resetStationEditPopupState();
     const map = getMap();
     if (map) {
@@ -206,25 +219,43 @@ Modes["edit-station"] = {
     setEditStationSubmodeInternal(DEFAULT_EDIT_STATION_SUBMODE);
   },
   onTransferSnapClick(e) {
-    if (getEditStationSubmode() !== "add-transfer") return;
+    if (getEditStationSubmode() !== "crud") return;
     e.preventDefault();
     const feature = e.features?.[0];
     if (!feature || feature.layer?.id !== "transfer-snaps-layer") return;
+    if (isTransferSnapOccupied(feature)) return;
     const properties = feature.properties;
-    if (M.hover.transferSnapId !== (properties.snap_id || "")) return;
     const ridA = properties.subroute_id_a;
     const ridB = properties.subroute_id_b;
-    if (ridA && ridB) Route.addTransferStationAt(feature.geometry.coordinates, ridA, ridB);
+    if (ridA && ridB) {
+      Route.addTransferStationAt(feature.geometry.coordinates, ridA, ridB);
+      suppressUiAfterTransferAdd();
+    }
   },
   onMapClick(e) {
+    const map = getMap();
     const clickLayers = stationEditClickLayers();
     if (!clickLayers.length) return;
-    const map = getMap();
     const hitFeatures = queryRenderedFeatures(map, e.point, { layers: clickLayers });
     if (!hitFeatures.length) return;
-    if (hitFeatures[0].layer?.id === "transfer-snaps-layer") return;
-    const topLayerId = hitFeatures[0].layer.id;
-    const properties = hitFeatures[0].properties;
+    const topFeature = hitFeatures[0];
+    const topLayerId = topFeature.layer.id;
+    const properties = topFeature.properties;
+
+    if (getEditStationSubmode() === "crud") {
+      const candidate = resolveTransferSnapCandidateFromMapClick(map, e.point, e.lngLat, topLayerId);
+      if (candidate?.ridA && candidate?.ridB) {
+        Route.addTransferStationAt(candidate.center, candidate.ridA, candidate.ridB);
+        suppressUiAfterTransferAdd();
+        return;
+      }
+    }
+
+    if (M.suppressNextEditMapClick) {
+      M.suppressNextEditMapClick = false;
+      return;
+    }
+    if (topLayerId === "transfer-snaps-layer") return;
     if (getEditStationSubmode() === "crud") {
       const stationForEdit = stationFeatureFromMapClick(hitFeatures);
       if (stationForEdit) {
@@ -232,26 +263,30 @@ Modes["edit-station"] = {
         return;
       }
     }
-    if (topLayerId === "routes-line") {
-      if (getEditStationSubmode() === "add-transfer") {
-        addNearbyTransferStationFromClick(e.lngLat, properties.subroute_id);
-      } else if (getEditStationSubmode() === "crud") {
-        const snapped = turf.nearestPointOnLine(getRouteFeature(properties.subroute_id), [e.lngLat.lng, e.lngLat.lat], {
-          units: "meters",
-        });
+    if (topLayerId === "routes-line" && getEditStationSubmode() === "crud") {
+      if (
+        !addNearbyTransferStationFromClick(e.lngLat, properties.subroute_id)
+      ) {
         const routeFeature = getRouteFeature(properties.subroute_id);
-        const routeColor = routeFeature ? routeFeature.properties.color : null;
+        if (!routeFeature?.geometry?.coordinates || routeFeature.geometry.coordinates.length < 2) return;
+        const snapped = nearestPointOnSmoothedRoute(routeFeature.geometry.coordinates, [e.lngLat.lng, e.lngLat.lat]);
+        if (!snapped?.geometry?.coordinates) return;
+        const routeColor = routeFeature.properties.color ?? null;
         Route.addStationAt(properties.subroute_id, snapped.geometry.coordinates, null, routeColor);
         Route.highlightRoute(properties.subroute_id);
       }
     }
   },
   onStationDown(e) {
-    if (getEditStationSubmode() === "move-station") beginStationPositionDrag(e);
+    if (getEditStationSubmode() !== "crud") return;
+    if (M.hover.transferSnapId) return;
+    beginStationPositionDrag(e);
   },
   onStationLabelDown(e) {
     if (getEditStationSubmode() === "move-label") beginStationLabelOnlyDrag(e);
-    else if (getEditStationSubmode() === "move-station") beginStationPositionDrag(e, { grabFromLabel: true });
+    else if (getEditStationSubmode() === "crud" && !M.hover.transferSnapId) {
+      beginStationPositionDrag(e, { grabFromLabel: true });
+    }
   },
 };
 

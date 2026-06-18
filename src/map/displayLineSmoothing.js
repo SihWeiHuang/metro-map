@@ -142,6 +142,23 @@ export function smoothLineStringForDisplay(coords) {
   return result;
 }
 
+/** Which stored user segment (0-based) is closest to a snapped coordinate. */
+function userVertexSegmentIndex(coords, snapCoord) {
+  if (!coords || coords.length < 2) return 0;
+  let bestIdx = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const seg = turf.lineString([coords[i], coords[i + 1]]);
+    const onSeg = turf.nearestPointOnLine(seg, snapCoord, { units: "meters" });
+    const d = onSeg.properties?.dist ?? Infinity;
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
 /**
  * Nearest point on the same smoothed polyline used for route rendering (for snapping stations, etc.).
  * @param {number[][]} coords LineString coordinates
@@ -149,9 +166,26 @@ export function smoothLineStringForDisplay(coords) {
  */
 export function nearestPointOnSmoothedRoute(coords, lngLat) {
   if (!coords || coords.length < 2) return null;
-  const smoothed = smoothLineStringForDisplay(coords);
-  const line = smoothed?.length >= 2 ? turf.lineString(smoothed) : turf.lineString(coords);
+  const displayCoords = smoothLineStringForDisplay(coords);
+  const line = displayCoords?.length >= 2 ? turf.lineString(displayCoords) : turf.lineString(coords);
   return turf.nearestPointOnLine(line, lngLat, { units: "meters" });
+}
+
+/**
+ * Like nearestPointOnSmoothedRoute, but properties.index refers to the stored user vertex segment
+ * (insert new node at index + 1). Use when mutating session.nodes / route coordinates.
+ */
+export function nearestPointOnSmoothedRouteForVertexInsert(coords, lngLat) {
+  const snapped = nearestPointOnSmoothedRoute(coords, lngLat);
+  if (!snapped?.geometry?.coordinates) return null;
+  const segIdx = userVertexSegmentIndex(coords, snapped.geometry.coordinates);
+  return {
+    ...snapped,
+    properties: {
+      ...snapped.properties,
+      index: segIdx,
+    },
+  };
 }
 
 export function featureCollectionWithSmoothedLineStrings(fc) {

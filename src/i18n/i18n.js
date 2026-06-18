@@ -173,7 +173,8 @@ const STRINGS = {
     "modeHint.general": "請選擇操作模式。",
     "modeHint.routeNodeEdit": "點擊新增節點，拖曳節點移動。",
     "modeHint.editRouteSelect": "請點選路線以進入編輯。",
-    "modeHint.editStationCrud": "點選車站可編輯或刪除站名；點選子路線可新增車站。",
+    "modeHint.editStationCrud":
+      "點選車站可編輯或刪除站名；拖曳車站可沿路線移動；點選子路線可新增車站；點選路線交叉處的黃色標記可新增轉乘站。",
     "modeHint.editStationMoveStation": "拖曳車站圓點以沿路線移動位置。",
     "modeHint.editStationMoveLabel": "拖曳字卡以調整站名位置。",
     "modeHint.editStationAddTransfer": "點選路線交叉處的黃色標記，或點選路線附近標記以新增轉乘站。",
@@ -395,7 +396,8 @@ const STRINGS = {
     "modeHint.general": "Please select an operation mode.",
     "modeHint.routeNodeEdit": "Click to add nodes; drag nodes to move.",
     "modeHint.editRouteSelect": "Please click a line to begin editing.",
-    "modeHint.editStationCrud": "Click a station to edit or delete its name; click a sub-route to add a station.",
+    "modeHint.editStationCrud":
+      "Click a station to edit or delete its name; drag a station to move it along the line; click a sub-route to add a station; click yellow markers at route crossings to add a transfer station.",
     "modeHint.editStationMoveStation": "Drag station dots to move them along the line.",
     "modeHint.editStationMoveLabel": "Drag label cards to adjust station name positions.",
     "modeHint.editStationAddTransfer":

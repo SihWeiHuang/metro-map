@@ -17,6 +17,7 @@ export const STATION_LABEL_HALO_DEFAULT = 0.5;
 export const STATION_LABEL_HALO_HOVER = 1.5;
 
 const EMPTY_STATION_FILTER = ["==", ["get", "station_id"], ""];
+const EMPTY_ABSORB_ZONE_FILTER = ["==", ["get", "snap_id"], ""];
 
 /** @type {string | null} */
 let lastHoverVisualKey = null;
@@ -115,6 +116,18 @@ export function applyStationHoverVisuals(map, { subrouteIds = [], stationId = ""
 export function clearStationHoverVisuals(map) {
   lastHoverVisualKey = null;
   applyStationHoverVisuals(map, {});
+}
+
+export function setTransferAbsorbZoneHoverFilter(map, snapId) {
+  if (!map) return;
+  const sid = typeof snapId === "string" ? snapId : "";
+  const filter = sid ? ["==", ["get", "snap_id"], sid] : EMPTY_ABSORB_ZONE_FILTER;
+  setLayerFilter(map, "transfer-absorb-zones-hover-layer", filter);
+  setLayerFilter(map, "transfer-absorb-zones-hover-outline-layer", filter);
+}
+
+export function clearTransferAbsorbZoneHoverFilter(map) {
+  setTransferAbsorbZoneHoverFilter(map, "");
 }
 
 /** 編輯模式：單一站點強調（與路線 hover 共用基礎圖層樣式）。 */

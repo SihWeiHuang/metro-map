@@ -5,6 +5,9 @@ import {
   TRANSFER_SNAP_HOVER_METERS,
 } from "../routeTransferSnap.js";
 import { initMapPopups } from "../mapPopups.js";
+import { STATION_DRAG_CLICK_THRESHOLD_PX } from "../transferAbsorbConfig.js";
+
+export { STATION_DRAG_CLICK_THRESHOLD_PX };
 
 export const M = {
   mode: "general",
@@ -36,6 +39,10 @@ export const STATION_HOVER_CIRCLE_LAYERS = ["stations-circle-hover", "transfer-s
 export const STATION_LABEL_LAYERS = ["stations-label", "stations-label-hover"];
 export const HOVER_PICK_LAYERS = [
   "transfer-snaps-layer",
+  "transfer-absorb-zones-hover-layer",
+  "transfer-absorb-zones-hover-outline-layer",
+  "transfer-absorb-zones-layer",
+  "transfer-absorb-zones-outline-layer",
   ...STATION_HOVER_CIRCLE_LAYERS,
   ...STATION_CIRCLE_LAYERS,
   ...STATION_LABEL_LAYERS,
@@ -44,7 +51,7 @@ export const HOVER_PICK_LAYERS = [
 
 export const LABEL_DRAG_RADIUS_METERS = 500;
 
-export const EDIT_STATION_SUBMODES = ["crud", "move-station", "move-label", "add-transfer"];
+export const EDIT_STATION_SUBMODES = ["crud", "move-label"];
 export const DEFAULT_EDIT_STATION_SUBMODE = "crud";
 
 let editStationSubmode = DEFAULT_EDIT_STATION_SUBMODE;
@@ -58,7 +65,7 @@ export function setEditStationSubmodeLocal(next) {
 }
 
 export function normalizeEditStationSubmode(next) {
-  if (next === "station") return "crud";
+  if (next === "station" || next === "move-station" || next === "add-transfer") return "crud";
   return next;
 }
 

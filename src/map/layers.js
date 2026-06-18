@@ -19,6 +19,7 @@ import {
   featureCollectionWithSmoothedLineStrings,
 } from "./displayLineSmoothing.js";
 import { STATION_LABEL_FRAME_IMAGE_ID } from "./labelMoveFrameImage.js";
+import { ABSORB_ZONE_LAYER } from "./transferAbsorbConfig.js";
 import {
   applyStationLabelCollision,
   BASEMAP_PLACE_TEXT_COLLISION_YIELD,
@@ -72,6 +73,10 @@ const METRO_STATION_LABEL_LAYER_IDS = [
 /** Transient hover/edit overlays — above basemap labels; label-hover 最後再拉到最上。 */
 const METRO_HOVER_OVERLAY_LAYER_IDS = [
   "stations-circle-hover",
+  "transfer-absorb-zones-layer",
+  "transfer-absorb-zones-outline-layer",
+  "transfer-absorb-zones-hover-layer",
+  "transfer-absorb-zones-hover-outline-layer",
   "transfer-snaps-layer",
   "transfer-stations-circle",
   "transfer-stations-circle-hover",
@@ -84,6 +89,10 @@ function metroRecreatedLayerIds() {
     ...(isMrtReferenceOverlayActive() ? [MRT_REFERENCE_STATIONS_LAYER_ID] : []),
     "stations-circle",
     "stations-circle-hover",
+    "transfer-absorb-zones-layer",
+    "transfer-absorb-zones-outline-layer",
+    "transfer-absorb-zones-hover-layer",
+    "transfer-absorb-zones-hover-outline-layer",
     "transfer-snaps-layer",
     "transfer-stations-circle",
     "transfer-stations-circle-hover",
@@ -96,6 +105,7 @@ function metroSourceIds() {
     "stations",
     "station-labels",
     "transfer-snaps",
+    "transfer-absorb-zones",
     "temp-edit-line",
     "temp-edit-nodes",
     "label-drag-limit",
@@ -623,6 +633,7 @@ export function initializeLayers(map, store) {
   addOrSetSource("stations", stationsDisplayFC);
   addOrSetSource("station-labels", stationLabelsFC);
   addOrSetSource("transfer-snaps", { type: "FeatureCollection", features: [] });
+  addOrSetSource("transfer-absorb-zones", { type: "FeatureCollection", features: [] });
   addOrSetSource("temp-edit-line", { type: "FeatureCollection", features: [] });
   addOrSetSource("temp-edit-nodes", { type: "FeatureCollection", features: [] });
   addOrSetSource("label-drag-limit", { type: "FeatureCollection", features: [] });
@@ -725,6 +736,50 @@ export function initializeLayers(map, store) {
       "circle-color": ["coalesce", ["get", "color"], "#1e88e5"],
       "circle-stroke-width": 2.2,
       "circle-stroke-color": "#ffffff",
+    },
+  });
+
+  addMetroOverlayLayer(map, {
+    id: "transfer-absorb-zones-layer",
+    type: "fill",
+    source: "transfer-absorb-zones",
+    paint: {
+      "fill-color": ABSORB_ZONE_LAYER.lineColor,
+      "fill-opacity": ABSORB_ZONE_LAYER.fillOpacity,
+    },
+  });
+
+  addMetroOverlayLayer(map, {
+    id: "transfer-absorb-zones-outline-layer",
+    type: "line",
+    source: "transfer-absorb-zones",
+    paint: {
+      "line-color": ABSORB_ZONE_LAYER.lineColor,
+      "line-width": ABSORB_ZONE_LAYER.lineWidth,
+      "line-opacity": ABSORB_ZONE_LAYER.lineOpacity,
+    },
+  });
+
+  addMetroOverlayLayer(map, {
+    id: "transfer-absorb-zones-hover-layer",
+    type: "fill",
+    source: "transfer-absorb-zones",
+    filter: ["==", ["get", "snap_id"], ""],
+    paint: {
+      "fill-color": ABSORB_ZONE_LAYER.lineColor,
+      "fill-opacity": ABSORB_ZONE_LAYER.hoverFillOpacity,
+    },
+  });
+
+  addMetroOverlayLayer(map, {
+    id: "transfer-absorb-zones-hover-outline-layer",
+    type: "line",
+    source: "transfer-absorb-zones",
+    filter: ["==", ["get", "snap_id"], ""],
+    paint: {
+      "line-color": ABSORB_ZONE_LAYER.lineColor,
+      "line-width": ABSORB_ZONE_LAYER.hoverLineWidth,
+      "line-opacity": ABSORB_ZONE_LAYER.hoverLineOpacity,
     },
   });
 

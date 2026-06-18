@@ -24,13 +24,15 @@ import {
   LABEL_DRAG_RADIUS_METERS,
   M,
   STATION_CIRCLE_LAYERS,
+  STATION_DRAG_CLICK_THRESHOLD_PX,
 } from "./state.js";
 import {
+  getRouteFeature,
   isPrimaryMouseButton,
   queryFeaturesAtPoint,
   queryTempEditLineAtPoint,
 } from "./layers.js";
-import { clearStationHoverHighlight, setCursorForMode } from "./hover.js";
+import { clearStationHoverHighlight, addNearbyTransferStationFromClick, popupStationForEditing, setCursorForMode } from "./hover.js";
 import { setStationLabelMoveFrameVisibility } from "./mapUi.js";
 
 let tempNodePreviewRaf = null;
@@ -128,7 +130,11 @@ export function onMapClickWhileEditing(e) {
         return;
       }
       case "routes-line": {
-        const snapped = turf.nearestPointOnLine(hitFeatures[0], [e.lngLat.lng, e.lngLat.lat], { units: "meters" });
+        const routeProps = hitFeatures[0].properties || {};
+        const clickedRoute = getRouteFeature(routeProps.subroute_id);
+        const routeCoords = clickedRoute?.geometry?.coordinates;
+        if (!routeCoords || routeCoords.length < 2) return;
+        const snapped = nearestPointOnSmoothedRoute(routeCoords, [e.lngLat.lng, e.lngLat.lat]);
         if (snapped?.geometry?.coordinates) addNodeToNearestRouteEndpoint(snapped.geometry.coordinates);
         return;
       }
@@ -243,15 +249,17 @@ function labelGrabOffsetPx(map, e, feature, stationCenter) {
 
 export function beginStationPositionDrag(e, opts = {}) {
   if (!isPrimaryMouseButton(e)) return;
-  e.preventDefault();
-  e.originalEvent?.stopPropagation?.();
   const feature = e.features?.[0];
   if (!feature?.properties?.station_id || feature.properties?.is_transfer_fixed) return;
+  e.preventDefault();
+  e.originalEvent?.stopPropagation?.();
   const sid = feature.properties.station_id;
   const st = findStationById(sid);
   if (!st) return;
   M.dragging.type = "station";
   M.dragging.stationId = sid;
+  M.dragging.isClickCandidate = true;
+  M.dragging.downPoint = e.point;
   const map = getMap();
   clearStationHoverHighlight();
   applyStationLabelDragPlacement(map);
@@ -259,11 +267,37 @@ export function beginStationPositionDrag(e, opts = {}) {
   const grabOffsetPx = opts.grabFromLabel ? labelGrabOffsetPx(map, e, feature, dragCenter) : null;
   const onDragStation = (ev) => {
     if (M.dragging.type !== "station" || M.dragging.stationId !== sid) return;
-    updateStationDragPreview(map, sid, resolveStationDragLngLat(map, ev, grabOffsetPx));
+    if (M.dragging.isClickCandidate) {
+      const dist = Math.sqrt(
+        Math.pow(ev.point.x - M.dragging.downPoint.x, 2) + Math.pow(ev.point.y - M.dragging.downPoint.y, 2),
+      );
+      if (dist > STATION_DRAG_CLICK_THRESHOLD_PX) M.dragging.isClickCandidate = false;
+    }
+    if (!M.dragging.isClickCandidate) {
+      updateStationDragPreview(map, sid, resolveStationDragLngLat(map, ev, grabOffsetPx));
+    }
   };
   mapOn(map, "mousemove", onDragStation);
   mapOnce(map, "mouseup", (ev) => {
     mapOff(map, "mousemove", onDragStation);
+    const wasClick = M.dragging.isClickCandidate;
+    M.dragging.isClickCandidate = false;
+    M.dragging.downPoint = null;
+    if (wasClick) {
+      flushStationDragPreview();
+      M.dragging.type = null;
+      M.dragging.stationId = null;
+      if (getEditStationSubmode() === "crud" && M.hover.transferSnapId) {
+        if (addNearbyTransferStationFromClick(ev.lngLat, st.properties?.subroute_id ?? "")) {
+          setCursorForMode();
+          return;
+        }
+      }
+      M.suppressNextEditMapClick = true;
+      popupStationForEditing(st);
+      setCursorForMode();
+      return;
+    }
     flushStationDragPreview();
     updateStationDragPreview(map, sid, resolveStationDragLngLat(map, ev, grabOffsetPx));
     Route.moveStationAlongRoute(sid, getDisplayedStationCenter(map, sid, st.geometry.coordinates));

@@ -57,8 +57,6 @@ function getModeHintText() {
     case "edit-station": {
       const submode = getEditStationSubmode();
       if (submode === "move-label") return t("modeHint.editStationMoveLabel");
-      if (submode === "move-station") return t("modeHint.editStationMoveStation");
-      if (submode === "add-transfer") return t("modeHint.editStationAddTransfer");
       return t("modeHint.editStationCrud");
     }
     case "merge":
@@ -105,9 +103,24 @@ export function applyEditStationSubmode() {
 
 export function updateTransferSnapVisibility() {
   const map = getMap();
-  if (!map || !hasLayer(map, "transfer-snaps-layer")) return;
-  const showSnaps = M.mode === "edit-station" && getEditStationSubmode() === "add-transfer";
-  setMapLayoutProperty(map, "transfer-snaps-layer", "visibility", showSnaps ? "visible" : "none");
+  if (!map) return;
+  const showAids = M.mode === "edit-station" && getEditStationSubmode() === "crud";
+  const visibility = showAids ? "visible" : "none";
+  if (hasLayer(map, "transfer-snaps-layer")) {
+    setMapLayoutProperty(map, "transfer-snaps-layer", "visibility", visibility);
+  }
+  if (hasLayer(map, "transfer-absorb-zones-layer")) {
+    setMapLayoutProperty(map, "transfer-absorb-zones-layer", "visibility", visibility);
+  }
+  if (hasLayer(map, "transfer-absorb-zones-outline-layer")) {
+    setMapLayoutProperty(map, "transfer-absorb-zones-outline-layer", "visibility", visibility);
+  }
+  if (hasLayer(map, "transfer-absorb-zones-hover-layer")) {
+    setMapLayoutProperty(map, "transfer-absorb-zones-hover-layer", "visibility", visibility);
+  }
+  if (hasLayer(map, "transfer-absorb-zones-hover-outline-layer")) {
+    setMapLayoutProperty(map, "transfer-absorb-zones-hover-outline-layer", "visibility", visibility);
+  }
 }
 
 export function setEditStationSubmode(next) {
@@ -115,7 +128,10 @@ export function setEditStationSubmode(next) {
   if (!isEditStationSubmode(normalized)) return;
   setEditStationSubmodeInternal(normalized);
   applyEditStationSubmode();
-  if (normalized === "add-transfer") Route.ensureTransferSnapSourceReady();
+  if (normalized === "crud") {
+    Route.ensureTransferSnapSourceReady();
+    Route.ensureAbsorbZonesSourceReady();
+  }
   updateTransferSnapVisibility();
   clearHoverAndPopups();
 }

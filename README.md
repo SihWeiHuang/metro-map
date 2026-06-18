@@ -117,6 +117,8 @@ GitHub 請勿上傳 `.env`（專案已用 `.gitignore` 排除）。Mapbox **URL 
 | `shared/shareLimits.js` | 分享連結與全站路線數上限常數（前後端共用）。 |
 | `api/share/` | 建立／讀取分享連結的 Serverless API。 |
 | `src/map/layers.js` | 底圖減雜訊（`applyBasemapClutterReduction`）；細部與 Studio 分工見 **[docs/底圖樣式調整.md](docs/底圖樣式調整.md)**。 |
+| `src/map/routeGeodesic.js` | 路線測地線加密（長距離路段插入中間點，供顯示用折線近似大圓）。 |
+| `src/map/displayLineSmoothing.js` | **唯一**路線顯示幾何與車站吸附入口（`smoothLineStringForDisplay`、`nearestPointOnSmoothedRoute`）；判斷「點是否在路線上」請用此模組，勿直接對原始 coordinates 呼叫 Turf `nearestPointOnLine`。 |
 
 驗證預設命名：`npm run test:names`  
 地圖 adapter 匯出面一致性：`npm run test:map-adapter-parity`  

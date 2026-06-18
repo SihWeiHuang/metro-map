@@ -32,6 +32,12 @@ import {
   refreshTransferSnapSource,
   scheduleRefreshTransferSnapSource,
 } from "./routeTransferSnap.js";
+import {
+  cancelScheduledAbsorbZonesRefresh,
+  ensureAbsorbZonesSourceReady,
+  refreshAbsorbZonesSource,
+  scheduleRefreshAbsorbZonesSource,
+} from "./transferAbsorbZones.js";
 import { MAX_USER_ROUTES } from "../../shared/shareLimits.js";
 import {
   formatGeoPatch,
@@ -65,6 +71,9 @@ export {
   scheduleRefreshTransferSnapSource,
   ensureTransferSnapSourceReady,
   isTransferSnapCacheFresh,
+  cancelScheduledAbsorbZonesRefresh,
+  scheduleRefreshAbsorbZonesSource,
+  ensureAbsorbZonesSourceReady,
 };
 
 export const Route = {
@@ -86,6 +95,10 @@ export const Route = {
   ensureTransferSnapSourceReady,
   cancelScheduledTransferSnapRefresh,
   isTransferSnapCacheFresh,
+  refreshAbsorbZonesSource,
+  scheduleRefreshAbsorbZonesSource,
+  ensureAbsorbZonesSourceReady,
+  cancelScheduledAbsorbZonesRefresh,
   subscribeGeometryRevisionBump,
   resolveRouteDisplayName,
   resolveRouteDisplayNameFromProps,

@@ -1,5 +1,5 @@
 /**
- * Transfer snap point index (yellow hover targets for add-transfer mode).
+ * Transfer snap point index (yellow hover targets for crud submode).
  */
 import * as T from "@turf/turf";
 import { store } from "../data/metroStore.js";
@@ -10,14 +10,15 @@ import {
 import { smoothLineStringForDisplay } from "./displayLineSmoothing.js";
 import { getMap } from "./mapInstance.js";
 import { enumerateCandidateRoutePairs } from "./transferSnapIndex.js";
+import {
+  TRANSFER_ABSORB_METERS,
+  TRANSFER_SNAP_CLICK_METERS,
+  TRANSFER_SNAP_HOVER_METERS,
+} from "./transferAbsorbConfig.js";
+
+export { TRANSFER_SNAP_CLICK_METERS, TRANSFER_SNAP_HOVER_METERS };
 
 const TRANSFER_DEDUP_METERS = 4;
-const TRANSFER_ABSORB_METERS = 10;
-
-/** 游標與黃色吸附點距離 ≤ 此值（公尺）時視為「吸附」。 */
-export const TRANSFER_SNAP_HOVER_METERS = 22;
-/** 點擊路線時，與交叉吸附點距離 ≤ 此值（公尺）則改為新增轉乘站。 */
-export const TRANSFER_SNAP_CLICK_METERS = 30;
 
 let transferSnapCacheRevision = -1;
 let transferSnapCacheFC = null;
@@ -119,16 +120,58 @@ export function findNearestTransferSnap(lngLat, maxMeters) {
   return null;
 }
 
+/** 略過已建立轉乘站的候選點。 */
+export function findNearestUnoccupiedTransferSnap(lngLat, maxMeters) {
+  const fc = buildTransferSnapPointsFC();
+  const pt = T.point([lngLat.lng, lngLat.lat]);
+  let best = null;
+  let bestD = Infinity;
+  for (const f of fc.features) {
+    if (isTransferSnapOccupied(f)) continue;
+    const d = T.distance(pt, T.point(f.geometry.coordinates), { units: "meters" });
+    if (d < bestD) {
+      bestD = d;
+      best = f;
+    }
+  }
+  if (best && bestD <= maxMeters) return { feature: best, distanceMeters: bestD };
+  return null;
+}
+
+export function getTransferSnapPointsFC() {
+  return buildTransferSnapPointsFC();
+}
+
+function snapCoversSubroute(snapSubrouteId, station) {
+  if (!snapSubrouteId) return false;
+  if (station.properties?.subroute_id === snapSubrouteId) return true;
+  const routes = station.properties?.transfer_routes;
+  return Array.isArray(routes) && routes.includes(snapSubrouteId);
+}
+
+/** 候選點中心（點圖徵或吸收圈 properties 皆可）。 */
+export function resolveTransferSnapCenter(snapFeature) {
+  const lng = Number(snapFeature?.properties?.snap_lng);
+  const lat = Number(snapFeature?.properties?.snap_lat);
+  if (Number.isFinite(lng) && Number.isFinite(lat)) return [lng, lat];
+  const coord = snapFeature?.geometry?.coordinates;
+  if (Array.isArray(coord) && coord.length >= 2 && typeof coord[0] === "number") {
+    return coord;
+  }
+  return null;
+}
+
 /** 此交叉點是否已建立對應的固定轉乘站（兩條路線皆相符）。 */
 export function isTransferSnapOccupied(snapFeature) {
-  const c = snapFeature.geometry.coordinates;
+  const c = resolveTransferSnapCenter(snapFeature);
+  if (!c) return false;
   const ridA = snapFeature.properties.subroute_id_a;
   const ridB = snapFeature.properties.subroute_id_b;
   return store.stationsFC.features.some((s) => {
     if (!s.properties?.is_transfer_fixed) return false;
-    const close = T.distance(T.point(s.geometry.coordinates), T.point(c), { units: "meters" }) <= 2;
-    const routes = s.properties.transfer_routes || [];
-    return close && routes.includes(ridA) && routes.includes(ridB);
+    const close =
+      T.distance(T.point(s.geometry.coordinates), T.point(c), { units: "meters" }) <= TRANSFER_DEDUP_METERS;
+    return close && snapCoversSubroute(ridA, s) && snapCoversSubroute(ridB, s);
   });
 }
 
@@ -157,5 +200,9 @@ export function ensureTransferSnapSourceReady() {
 export function refreshTransferSnapSource() {
   const map = getMap();
   if (!map?.getSource("transfer-snaps")) return;
-  map.getSource("transfer-snaps").setData(buildTransferSnapPointsFC());
+  const fc = buildTransferSnapPointsFC();
+  map.getSource("transfer-snaps").setData({
+    type: "FeatureCollection",
+    features: fc.features.filter((f) => !isTransferSnapOccupied(f)),
+  });
 }

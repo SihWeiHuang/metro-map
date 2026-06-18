@@ -4,8 +4,7 @@
 import * as T from "@turf/turf";
 import { store } from "../data/metroStore.js";
 import { smoothLineStringForDisplay } from "./displayLineSmoothing.js";
-
-const TRANSFER_ABSORB_METERS = 10;
+import { TRANSFER_ABSORB_METERS } from "./transferAbsorbConfig.js";
 
 function distanceMeters(coordA, coordB) {
   if (!coordA || !coordB) return Infinity;

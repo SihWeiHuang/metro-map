@@ -40,7 +40,10 @@ import {
   trackRemovedDefaultRoutes,
   updateBuiltinDefaultsSuppression,
 } from "./routeStoreMutations.js";
-import { nearestPointOnSmoothedRoute } from "../map/displayLineSmoothing.js";
+import {
+  nearestPointOnSmoothedRoute,
+  nearestPointOnSmoothedRouteForVertexInsert,
+} from "../map/displayLineSmoothing.js";
 import { getBundledDefaultRouteOrder } from "../data/defaultDataLoader.js";
 import {
   allocateDefaultRouteLabel,
@@ -66,6 +69,9 @@ import { resolveRouteListNavGeoForNewRoute } from "../map/routeListNavPrefs.js";
 import { getMap } from "../map/mapInstance.js";
 import { projectMapPoint, unprojectMapPoint } from "../map-runtime/mapEngine.js";
 import { relocateTransferStationsForEditedSubroutes } from "../map/routeTransferGeometry.js";
+import { refreshTransferSnapSource } from "../map/routeTransferSnap.js";
+import { refreshAbsorbZonesSource } from "../map/transferAbsorbZones.js";
+import { TRANSFER_ABSORB_METERS } from "../map/transferAbsorbConfig.js";
 
 const ROUTE_STATUS_VALUES = new Set([
   ROUTE_STATUS_OPERATING,
@@ -74,8 +80,6 @@ const ROUTE_STATUS_VALUES = new Set([
   ROUTE_STATUS_CUSTOM,
 ]);
 
-/** 建立／整理轉乘站時，合併半徑內的一般站與路線端點站。 */
-const TRANSFER_ABSORB_METERS = 10;
 /** 視為同一重疊點的車站距離（公尺）。 */
 const STATION_COINCIDENT_METERS = 2;
 
@@ -299,11 +303,12 @@ export function endTempEditingAndCommit() {
       if (!routeFeature) return;
       routeFeature.geometry.coordinates = nodes;
       editedSubrouteIds.add(subrouteId);
-      const newLine = T.lineString(nodes);
       store.stationsFC.features.forEach((station) => {
         if (station.properties.subroute_id === subrouteId) {
-          const snapped = T.nearestPointOnLine(newLine, station.geometry.coordinates);
-          station.geometry.coordinates = snapped.geometry.coordinates;
+          const snapped = nearestPointOnSmoothedRoute(nodes, station.geometry.coordinates);
+          if (snapped?.geometry?.coordinates) {
+            station.geometry.coordinates = snapped.geometry.coordinates;
+          }
         }
       });
     } else {
@@ -343,9 +348,8 @@ export function endTempEditingAndCommit() {
 
         store.temp.editingSessions.forEach((session) => {
           if (session.nodes.length < 1) return;
-          const line = T.lineString(session.nodes);
-          const snapped = T.nearestPointOnLine(line, st.geometry.coordinates);
-          if (snapped.properties.dist < minDistance) {
+          const snapped = nearestPointOnSmoothedRoute(session.nodes, st.geometry.coordinates);
+          if (snapped && snapped.properties.dist < minDistance) {
             minDistance = snapped.properties.dist;
             closestSubrouteId = session.subrouteId || newSubrouteIdMap.get(session);
           }
@@ -475,8 +479,8 @@ export function insertTempNodeOnSegment(pointPx, subrouteId) {
     : store.temp.editingSessions[0];
   if (!map || !session || session.nodes.length < 2) return;
   const lngLat = unprojectMapPoint(map, pointPx);
-  const line = T.lineString(session.nodes);
-  const snapped = T.nearestPointOnLine(line, [lngLat.lng, lngLat.lat], { units: "meters" });
+  const snapped = nearestPointOnSmoothedRouteForVertexInsert(session.nodes, [lngLat.lng, lngLat.lat]);
+  if (!snapped?.geometry?.coordinates) return;
   const insertIdx = snapped.properties.index + 1;
   addTempNodeAt(snapped.geometry.coordinates, session.subrouteId, insertIdx);
 }
@@ -614,7 +618,6 @@ function collectStationIdsToAbsorbForTransfer(coord, mergedSubrouteIds) {
     const route = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteId);
     if (!route?.geometry?.coordinates || route.geometry.coordinates.length < 2) continue;
     const coords = route.geometry.coordinates;
-    const line = T.lineString(coords);
     const ends = [coords[0], coords[coords.length - 1]];
 
     for (const endCoord of ends) {
@@ -636,7 +639,7 @@ function collectStationIdsToAbsorbForTransfer(coord, mergedSubrouteIds) {
     for (const s of store.stationsFC.features) {
       if (s.properties?.subroute_id !== subrouteId) continue;
       if (s.properties?.is_transfer_fixed) continue;
-      const snapped = T.nearestPointOnLine(line, s.geometry.coordinates, { units: "meters" });
+      const snapped = nearestPointOnSmoothedRoute(coords, s.geometry.coordinates);
       const dAlong = snapped.properties.dist ?? Infinity;
       const dToTransfer = stationDistanceToCoordForAbsorption(s, coord, subrouteIds);
       const snappedNearTransfer =
@@ -724,6 +727,7 @@ export function addTransferStationAt(coord, subrouteIdA, subrouteIdB) {
 export function removeStation(station_id) {
   const st = store.stationsFC.features.find((f) => f.properties.station_id === station_id);
   if (!st) return false;
+  const wasTransfer = Boolean(st.properties?.is_transfer_fixed);
   const rid = st.properties.subroute_id;
   const minStations = store.settings.stationMinPerRoute;
   if (minStations > 0) {
@@ -736,6 +740,10 @@ export function removeStation(station_id) {
   store.stationsFC.features = store.stationsFC.features.filter((f) => f.properties.station_id !== station_id);
   syncCountersFromLoadedFeatures();
   refreshSources({ full: true });
+  if (wasTransfer && getMap()) {
+    refreshTransferSnapSource();
+    refreshAbsorbZonesSource();
+  }
   return true;
 }
 
@@ -789,9 +797,8 @@ export function queueStationFromExisting(coord) {
 
   store.temp.editingSessions.forEach((session) => {
     if (session.nodes.length < 2) return;
-    const line = T.lineString(session.nodes);
-    const snapped = T.nearestPointOnLine(line, coord);
-    if (snapped.properties.dist < minDistance) {
+    const snapped = nearestPointOnSmoothedRoute(session.nodes, coord);
+    if (snapped && snapped.properties.dist < minDistance) {
       minDistance = snapped.properties.dist;
       closestSession = session;
     }

@@ -7,7 +7,7 @@
  * |--------------------|----------------------------------------------------|
  * | Route hover        | general, edit-route-select, merge, split-line      |
  * | Station browse     | general, edit-route-select, merge, split-line      |
- * | Transfer snap hint | edit-station add-transfer; canvas overlay (not Mapbox Popup) |
+ * | Transfer snap hint | edit-station crud; canvas overlay (not Mapbox Popup) |
  * | Station edit       | edit-station (explicit click)                      |
  *
  * edit-station never shows route hover popups (prevents covering transfer snap hints).
@@ -86,7 +86,7 @@ function canShowStationBrowsePopup() {
 
 function canShowTransferSnapHint() {
   const ctx = getContext();
-  if (ctx.mode !== "edit-station" || ctx.editStationSubmode !== "add-transfer") return false;
+  if (ctx.mode !== "edit-station" || ctx.editStationSubmode !== "crud") return false;
   if (ctx.draggingType) return false;
   return true;
 }

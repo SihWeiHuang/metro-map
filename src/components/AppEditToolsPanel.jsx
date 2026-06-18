@@ -116,7 +116,7 @@ export default function AppEditToolsPanel({
             {showEditStationSubmodeButtons && (
               <div className="edit-station-submode-panel" role="group" aria-label={t("app.modeEditStation")}>
                 <div className="edit-station-submode-panel__grid">
-                  {["crud", "move-station", "move-label", "add-transfer"].map((submode) => (
+                  {["crud", "move-label"].map((submode) => (
                     <button
                       key={submode}
                       type="button"
@@ -124,15 +124,7 @@ export default function AppEditToolsPanel({
                       className={`edit-station-submode-btn${editStationSubmode === submode ? " is-active" : ""}`}
                       onClick={() => setEditStationSubmode(submode)}
                     >
-                      {t(
-                        submode === "crud"
-                          ? "app.submodeCrud"
-                          : submode === "move-station"
-                            ? "app.submodeMoveStation"
-                            : submode === "move-label"
-                              ? "app.submodeMoveLabel"
-                              : "app.submodeAddTransfer",
-                      )}
+                      {t(submode === "crud" ? "app.submodeCrud" : "app.submodeMoveLabel")}
                     </button>
                   ))}
                 </div>
