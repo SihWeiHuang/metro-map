@@ -57,7 +57,7 @@ export const DEFAULT_EDIT_STATION_SUBMODE = "crud";
 let editStationSubmode = DEFAULT_EDIT_STATION_SUBMODE;
 
 export function getEditStationSubmode() {
-  return editStationSubmode;
+  return normalizeEditStationSubmode(editStationSubmode);
 }
 
 export function setEditStationSubmodeLocal(next) {
@@ -79,7 +79,7 @@ initMapPopups({
   getMap,
   getContext: () => ({
     mode: M.mode,
-    editStationSubmode,
+    editStationSubmode: normalizeEditStationSubmode(editStationSubmode),
     draggingType: M.dragging.type,
   }),
 });

@@ -91,6 +91,12 @@ function canShowTransferSnapHint() {
   return true;
 }
 
+function mapReadyForSnapHint(map) {
+  if (!map?.isStyleLoaded?.()) return false;
+  const canvas = getMapCanvas(map);
+  return Boolean(canvas?.clientWidth > 0 && canvas.clientHeight > 0);
+}
+
 function mapInstance() {
   return getMapRef();
 }
@@ -196,6 +202,14 @@ function nudgeHintAwayFromCursor(left, top, w, h, cursorPx) {
 }
 
 /** @param {import("../map-runtime/mapTypes.js").MapLike} map */
+function getTransferSnapHintMount(map) {
+  const canvasContainer = getMapCanvasContainer(map);
+  const mapRoot = canvasContainer?.parentElement;
+  if (mapRoot) return mapRoot;
+  return canvasContainer;
+}
+
+/** @param {import("../map-runtime/mapTypes.js").MapLike} map */
 function ensureTransferSnapHintEl(map) {
   if (transferSnapHintEl && transferSnapHintMap === map && transferSnapHintEl.isConnected) {
     return transferSnapHintEl;
@@ -208,7 +222,7 @@ function ensureTransferSnapHintEl(map) {
   const label = document.createElement("span");
   label.className = "transfer-snap-hint__label";
   root.appendChild(label);
-  getMapCanvasContainer(map).appendChild(root);
+  getTransferSnapHintMount(map).appendChild(root);
   transferSnapHintEl = root;
   transferSnapHintMap = map;
   return root;
@@ -302,12 +316,6 @@ function normalizeSnapHintLngLat(coordinates) {
     if (Number.isFinite(lng) && Number.isFinite(lat)) return [lng, lat];
   }
   return null;
-}
-
-function mapReadyForSnapHint(map) {
-  if (!map.loaded()) return false;
-  const canvas = getMapCanvas(map);
-  return Boolean(canvas?.clientWidth > 0 && canvas.clientHeight > 0);
 }
 
 /** @param {import("../map-runtime/mapTypes.js").MapLike} map */

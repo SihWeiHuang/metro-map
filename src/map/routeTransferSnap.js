@@ -161,6 +161,48 @@ export function resolveTransferSnapCenter(snapFeature) {
   return null;
 }
 
+/** 將點圖徵／吸收圈圖徵解析成可 hover 的候選點資料。 */
+export function resolveSnapCandidateForHover(feature) {
+  if (!feature) return null;
+
+  let pointFeature = feature;
+  let snapId = feature.properties?.snap_id || "";
+  let center = resolveTransferSnapCenter(feature);
+
+  if (!center && snapId) {
+    const match = getTransferSnapPointsFC().features.find((f) => f.properties?.snap_id === snapId);
+    if (match) {
+      pointFeature = match;
+      center = resolveTransferSnapCenter(match);
+      snapId = match.properties?.snap_id || snapId;
+    }
+  }
+
+  if (!center) {
+    const ridA = feature.properties?.subroute_id_a;
+    const ridB = feature.properties?.subroute_id_b;
+    if (ridA && ridB) {
+      const pairMatch = getTransferSnapPointsFC().features.find(
+        (f) =>
+          !isTransferSnapOccupied(f) &&
+          ((f.properties?.subroute_id_a === ridA && f.properties?.subroute_id_b === ridB) ||
+            (f.properties?.subroute_id_a === ridB && f.properties?.subroute_id_b === ridA)),
+      );
+      if (pairMatch) {
+        pointFeature = pairMatch;
+        center = resolveTransferSnapCenter(pairMatch);
+        snapId = pairMatch.properties?.snap_id || "";
+      }
+    }
+  }
+
+  if (!center) return null;
+  if (!snapId) snapId = pointFeature.properties?.snap_id || "";
+  if (!snapId) return null;
+
+  return { snapId, center, pointFeature };
+}
+
 /** 此交叉點是否已建立對應的固定轉乘站（兩條路線皆相符）。 */
 export function isTransferSnapOccupied(snapFeature) {
   const c = resolveTransferSnapCenter(snapFeature);

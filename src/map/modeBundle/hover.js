@@ -11,6 +11,7 @@ import { TRANSFER_ABSORB_METERS } from "../transferAbsorbConfig.js";
 import {
   findNearestUnoccupiedTransferSnap,
   isTransferSnapOccupied,
+  resolveSnapCandidateForHover,
   resolveTransferSnapCenter,
   TRANSFER_SNAP_CLICK_METERS,
 } from "../routeTransferSnap.js";
@@ -208,7 +209,7 @@ export function resolveTransferSnapCandidateFromMapClick(map, point, lngLat, top
 
 function tryApplyTransferSnapCandidateHoverAtPointer(map, e, target) {
   if (getEditStationSubmode() !== "crud") return false;
-  if (target?.type === "transfer-snap") {
+  if (target?.type === "transfer-snap" || target?.type === "absorb-zone") {
     return applyTransferSnapCandidateHover(map, target.feature, e.point);
   }
   const absorbFeature = findAbsorbZoneFeatureAtPoint(map, e.point);
@@ -225,17 +226,16 @@ function tryApplyTransferSnapCandidateHoverAtPointer(map, e, target) {
 /** 轉乘候選點 hover：黃色圈圈高亮 +「新增轉乘站」提示同時出現。 */
 function applyTransferSnapCandidateHover(map, snapFeature, cursorPoint) {
   if (!map || !snapFeature) return false;
-  if (isTransferSnapOccupied(snapFeature)) {
+
+  const candidate = resolveSnapCandidateForHover(snapFeature);
+  if (!candidate || isTransferSnapOccupied(candidate.pointFeature)) {
     M.hover.transferSnapId = "";
     clearTransferAbsorbZoneHoverFilter(map);
     hideTransferSnapHint();
     return false;
   }
 
-  const snapId = snapFeature.properties?.snap_id || "";
-  const center = resolveTransferSnapCenter(snapFeature);
-  if (!snapId || !center) return false;
-
+  const { snapId, center } = candidate;
   M.hover.stationId = "";
   M.hover.subrouteId = "";
   M.hover.transferSnapId = snapId;
