@@ -863,6 +863,9 @@ export function mergeRoutes(subrouteIdA, subrouteIdB) {
   const routeA_feature = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteIdA);
   const routeB_feature = store.subroutesFC.features.find((f) => f.properties.subroute_id === subrouteIdB);
   if (!routeA_feature || !routeB_feature) return { ok: false, msg: t("routeModel.mergeNotFound") };
+  if (routeA_feature.properties.route_id === routeB_feature.properties.route_id) {
+    return { ok: false, msg: t("routeModel.mergeAlreadySame") };
+  }
 
   const lineA = T.lineString(routeA_feature.geometry.coordinates);
   const lineB = T.lineString(routeB_feature.geometry.coordinates);

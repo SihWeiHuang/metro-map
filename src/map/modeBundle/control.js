@@ -210,13 +210,16 @@ export function pickRouteForMerge(subrouteId) {
   const mergePick = getMergePickSubrouteIds();
   if (mergePick.length < 2) return { picked: true, merged: false };
   const res = Route.mergeRoutes(mergePick[0], mergePick[1]);
-  if (!res.ok) alert(res.msg);
-  else {
-    alert(t("routeModel.mergeSuccess"));
-    notifyStoreChanged();
+  if (!res.ok) {
+    alert(res.msg);
+    resetMergePickSubrouteIds();
+    emitModeHint();
+    return { picked: true, merged: false, ok: false, msg: res.msg };
   }
+  alert(t("routeModel.mergeSuccess"));
+  notifyStoreChanged();
   setMode("general");
-  return { picked: true, merged: res.ok, ok: res.ok, msg: res.msg };
+  return { picked: true, merged: true, ok: true, msg: res.msg };
 }
 
 /** @returns {{ ok: boolean, msg?: string }} */
