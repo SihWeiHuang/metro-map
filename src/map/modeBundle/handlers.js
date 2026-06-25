@@ -27,6 +27,7 @@ import {
   queryTempEditLineAtPoint,
   subrouteIdFromStationEvent,
 } from "./layers.js";
+import { closeStationEditPopup } from "../mapPopups.js";
 import {
   addNearbyTransferStationFromClick,
   popupRoute,
@@ -208,6 +209,7 @@ Modes["edit-station"] = {
   onLeave() {
     Route.cancelScheduledTransferSnapRefresh();
     Route.cancelScheduledAbsorbZonesRefresh();
+    closeStationEditPopup();
     resetStationEditPopupState();
     const map = getMap();
     if (map) {

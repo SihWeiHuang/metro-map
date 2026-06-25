@@ -36,6 +36,8 @@ import {
   normalizeUserDefaultNames,
   routeKindOf,
   syncCountersFromLoadedFeatures,
+  promoteRouteGroupToUser,
+  routeGroupHasDefaultKind,
   syncRouteSubrouteMetadata,
   trackRemovedDefaultRoutes,
   updateBuiltinDefaultsSuppression,
@@ -291,6 +293,7 @@ export function endTempEditingAndCommit() {
   const newSubrouteIdMap = new Map();
   const newRouteIds = [];
   const editedSubrouteIds = new Set();
+  const editedRouteIds = new Set();
   const transferStationIdsToNormalize = new Set();
   const newRouteNavGeo = resolveRouteListNavGeoForNewRoute(getRouteList());
 
@@ -301,6 +304,7 @@ export function endTempEditingAndCommit() {
     if (subrouteId) {
       const routeFeature = store.subroutesFC.features.find((x) => x.properties.subroute_id === subrouteId);
       if (!routeFeature) return;
+      if (routeFeature.properties.route_id) editedRouteIds.add(routeFeature.properties.route_id);
       routeFeature.geometry.coordinates = nodes;
       editedSubrouteIds.add(subrouteId);
       store.stationsFC.features.forEach((station) => {
@@ -383,6 +387,7 @@ export function endTempEditingAndCommit() {
     transferStationIdsToNormalize.add(stationId)
   );
   normalizeTransferStations(transferStationIdsToNormalize);
+  for (const routeId of editedRouteIds) promoteRouteGroupToUser(routeId);
   syncCountersFromLoadedFeatures();
   bumpRoutesGeometryRevision();
   refreshSources();
@@ -867,6 +872,11 @@ export function mergeRoutes(subrouteIdA, subrouteIdB) {
     return { ok: false, msg: t("routeModel.mergeAlreadySame") };
   }
 
+  const targetRouteId = routeA_feature.properties.route_id;
+  const sourceRouteId = routeB_feature.properties.route_id;
+  const sourceHadDefault = routeGroupHasDefaultKind(sourceRouteId);
+  const targetHadDefault = routeGroupHasDefaultKind(targetRouteId);
+
   const lineA = T.lineString(routeA_feature.geometry.coordinates);
   const lineB = T.lineString(routeB_feature.geometry.coordinates);
   const coordsA = routeA_feature.geometry.coordinates;
@@ -905,9 +915,6 @@ export function mergeRoutes(subrouteIdA, subrouteIdB) {
       store.stationsFC.features = store.stationsFC.features.filter((f) => f.properties.station_id !== stationToRemoveId);
     }
   }
-  const targetRouteId = routeA_feature.properties.route_id;
-  const sourceRouteId = routeB_feature.properties.route_id;
-
   // Merge whole lines (not a single sub-route pick), so selection order does not split lines.
   if (sourceRouteId !== targetRouteId) {
     store.subroutesFC.features.forEach((route) => {
@@ -919,9 +926,18 @@ export function mergeRoutes(subrouteIdA, subrouteIdB) {
 
   syncRouteSubrouteMetadata(targetRouteId, routeA_feature.properties);
 
-  const unifiedColor = routeA_feature.properties.color || routeB_feature.properties.color || "#1e88e5";
+  if (sourceHadDefault || targetHadDefault) {
+    if (sourceHadDefault && sourceRouteId !== targetRouteId) {
+      store.removedDefaultRouteIds.add(sourceRouteId);
+    }
+    promoteRouteGroupToUser(targetRouteId);
+  }
+
+  const primaryName = resolveRouteDisplayNameFromProps(routeA_feature.properties);
+  const primaryColor = routeA_feature.properties.color || "#1e88e5";
+  setRouteName(targetRouteId, primaryName);
+  setRouteColor(targetRouteId, primaryColor);
   bumpRoutesGeometryRevision();
-  setRouteColor(targetRouteId, unifiedColor);
   syncCountersFromLoadedFeatures();
   return { ok: true };
 }
@@ -947,9 +963,14 @@ export function splitLine(subrouteId) {
     };
   }
 
+  const wasDefault = routeGroupHasDefaultKind(routeId);
+  if (wasDefault) store.removedDefaultRouteIds.add(routeId);
+
   subroutesInRoute.forEach((route) => {
     route.properties.route_id = nextRouteId();
+    if (wasDefault) route.properties.route_kind = ROUTE_KIND_USER;
   });
+  if (wasDefault) updateBuiltinDefaultsSuppression();
   normalizeUserDefaultNames();
   bumpRoutesGeometryRevision();
   refreshSources();
@@ -1004,13 +1025,14 @@ export function setRouteName(routeId, newName) {
 export function setStationName(stationId, newName) {
   const station = store.stationsFC.features.find((f) => f.properties.station_id === stationId);
   if (station) {
-    const next = clampName15(newName);
+    const next = clampName15(String(newName ?? "").trim());
     station.properties.name = next;
     if (shouldClearStationLabelOnRename(next, station.properties.station_id)) {
       delete station.properties.user_default_label;
     }
   }
-  refreshSources();
+  refreshStationDisplaySources();
+  notifyStoreChanged();
 }
 
 export function setRouteMetadata(routeId, patch) {

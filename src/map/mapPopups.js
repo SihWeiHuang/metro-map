@@ -559,12 +559,22 @@ export function bindStationEditPopupHandlers(handlers) {
   syncNameCount();
   input?.addEventListener("input", syncNameCount, { signal });
 
-  const onSave = () => handlers.onSave(input?.value ?? "");
-  saveBtn?.addEventListener("click", onSave, { signal, once: true });
+  let saveLock = false;
+  const onSave = () => {
+    if (saveLock) return;
+    saveLock = true;
+    try {
+      handlers.onSave(input?.value ?? "");
+    } finally {
+      saveLock = false;
+    }
+  };
+  saveBtn?.addEventListener("click", onSave, { signal });
   input?.addEventListener(
     "keydown",
     (ev) => {
       if (ev.key === "Enter") {
+        if (ev.isComposing || ev.keyCode === 229) return;
         ev.preventDefault();
         onSave();
       }

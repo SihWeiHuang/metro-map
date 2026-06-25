@@ -469,7 +469,9 @@ export function popupStationForEditing(station) {
   hideRouteHoverPopup();
   hideStationBrowsePopup();
   hideTransferSnapHint();
-  const p = station.properties;
+  const storeStation = findStationById(stationId);
+  const p = storeStation?.properties ?? station.properties;
+  const popupCoords = storeStation?.geometry?.coordinates ?? station.geometry.coordinates;
   const currentName = resolveStationDisplayName(p);
   const safeName = escapeHtmlAttr(currentName);
   const html = `
@@ -485,7 +487,7 @@ export function popupStationForEditing(station) {
       </div>
     </div>
   `;
-  openStationEditPopup(station.geometry.coordinates, html);
+  openStationEditPopup(popupCoords, html);
   let deleteConfirmOpen = false;
   bindStationEditPopupHandlers({
     nameMaxLen: STATION_NAME_MAX_LEN,

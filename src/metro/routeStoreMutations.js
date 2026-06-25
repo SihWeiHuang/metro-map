@@ -182,6 +182,26 @@ export function trackRemovedDefaultRoutes(routeIds) {
   }
 }
 
+/** @param {string} routeId */
+export function routeGroupHasDefaultKind(routeId) {
+  if (typeof routeId !== "string" || routeId === "") return false;
+  return store.subroutesFC.features.some(
+    (f) => f.properties?.route_id === routeId && routeKindOf(f) === ROUTE_KIND_DEFAULT
+  );
+}
+
+/** After user mutation: move a whole route group from built-in default to user layer. */
+export function promoteRouteGroupToUser(routeId) {
+  if (typeof routeId !== "string" || routeId === "") return false;
+  if (!routeGroupHasDefaultKind(routeId)) return false;
+  trackRemovedDefaultRoutes(routeId);
+  for (const f of store.subroutesFC.features) {
+    if (f.properties?.route_id === routeId) f.properties.route_kind = ROUTE_KIND_USER;
+  }
+  updateBuiltinDefaultsSuppression();
+  return true;
+}
+
 export function updateBuiltinDefaultsSuppression() {
   if (store.builtinDefaultsSuppressed) return;
   const hasDefaultLeft = store.subroutesFC.features.some((f) => routeKindOf(f) === ROUTE_KIND_DEFAULT);
