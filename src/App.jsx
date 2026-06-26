@@ -30,6 +30,7 @@ import AppEditToolsPanel from "./components/AppEditToolsPanel.jsx";
 import AppMapFinishBar from "./components/AppMapFinishBar.jsx";
 import AppFileMenuDialog from "./components/AppFileMenuDialog.jsx";
 import AppImportConflictDialog from "./components/AppImportConflictDialog.jsx";
+import TutorialOverlay from "./components/TutorialOverlay.jsx";
 
 const AUTO_SHOW_NEW_ROUTE_STATUS_KEY = "metro-auto-show-new-route-status";
 const adSidebarEnabled = isAdSidebarEnabled();
@@ -92,6 +93,7 @@ function App() {
   );
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareActionBusy, setShareActionBusy] = useState(false);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
 
   useEffect(() => {
     const onHashChange = () => setSitePage(parseSitePageFromHash(window.location.hash));
@@ -146,6 +148,7 @@ function App() {
 
   const navigateSitePage = useCallback((pageId) => {
     setLangMenuOpen(false);
+    setTutorialOpen(false);
     window.location.hash = sitePageHash(pageId);
     setSitePage(pageId);
   }, []);
@@ -154,6 +157,21 @@ function App() {
     const base = window.location.pathname + window.location.search;
     window.history.replaceState(null, "", base);
     setSitePage(null);
+    setTutorialOpen(false);
+  }, []);
+
+  const openTutorial = useCallback(() => {
+    setLangMenuOpen(false);
+    if (tutorialOpen) {
+      setTutorialOpen(false);
+      return;
+    }
+    closeSitePage();
+    setTutorialOpen(true);
+  }, [closeSitePage, tutorialOpen]);
+
+  const closeTutorial = useCallback(() => {
+    setTutorialOpen(false);
   }, []);
 
   const handleRouteMetadataSaved = (payload, { isNewRoute } = {}) => {
@@ -463,8 +481,10 @@ function App() {
           <div className="app-header-actions">
             <SiteHeaderNav
               activePage={sitePage}
+              tutorialOpen={tutorialOpen}
               onNavigate={navigateSitePage}
               onHome={closeSitePage}
+              onOpenTutorial={openTutorial}
             />
             <div className="app-lang-dropdown" ref={langMenuRef}>
               <button
@@ -664,6 +684,7 @@ function App() {
         onClose={closeImportDialog}
         onConfirm={confirmImportWithMode}
       />
+      <TutorialOverlay open={tutorialOpen} onClose={closeTutorial} />
     </div>
   );
 }

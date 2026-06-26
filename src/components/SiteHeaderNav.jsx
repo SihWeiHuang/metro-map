@@ -3,9 +3,15 @@ import { useI18n } from "../i18n/I18nProvider.jsx";
 /** @typedef {import('../site/siteRoutes.js').SitePageId} SitePageId */
 
 /**
- * @param {{ activePage: SitePageId | null, onNavigate: (id: SitePageId) => void, onHome: () => void }} props
+ * @param {{
+ *   activePage: SitePageId | null,
+ *   tutorialOpen: boolean,
+ *   onNavigate: (id: SitePageId) => void,
+ *   onHome: () => void,
+ *   onOpenTutorial: () => void,
+ * }} props
  */
-export default function SiteHeaderNav({ activePage, onNavigate, onHome }) {
+export default function SiteHeaderNav({ activePage, tutorialOpen, onNavigate, onHome, onOpenTutorial }) {
   const { t } = useI18n();
 
   const items = /** @type {{ id: SitePageId, labelKey: string }[]} */ ([
@@ -18,6 +24,16 @@ export default function SiteHeaderNav({ activePage, onNavigate, onHome }) {
   return (
     <nav className="app-site-header-nav" aria-label={t("site.navAria")}>
       <ul className="app-site-header-nav-list">
+        <li>
+          <button
+            type="button"
+            className={`app-site-nav-link${tutorialOpen ? " is-active" : ""}`}
+            aria-current={tutorialOpen ? "page" : undefined}
+            onClick={onOpenTutorial}
+          >
+            {t("site.nav.tutorial")}
+          </button>
+        </li>
         {items.map(({ id, labelKey }) => (
           <li key={id}>
             <button
