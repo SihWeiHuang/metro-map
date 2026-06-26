@@ -81,6 +81,14 @@ export default function TutorialOverlay({ open, onClose }) {
             {t(page.titleKey)}
           </h2>
           <p className="tutorial-overlay-intro">{t(page.introKey)}</p>
+          {pageIndex === 0 ? (
+            <div className="tutorial-overlay-hints">
+              <p className="tutorial-overlay-hint">{t("tutorial.noRefreshHint")}</p>
+              {locale === "en" ? (
+                <p className="tutorial-overlay-hint tutorial-overlay-hint--note">{t("tutorial.videoLocaleNote")}</p>
+              ) : null}
+            </div>
+          ) : null}
         </section>
 
         <div className="tutorial-overlay-videos" ref={videosRef}>

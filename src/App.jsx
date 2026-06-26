@@ -31,6 +31,7 @@ import AppMapFinishBar from "./components/AppMapFinishBar.jsx";
 import AppFileMenuDialog from "./components/AppFileMenuDialog.jsx";
 import AppImportConflictDialog from "./components/AppImportConflictDialog.jsx";
 import TutorialOverlay from "./components/TutorialOverlay.jsx";
+import { shouldAutoOpenTutorialOnBoot } from "./site/tutorialBoot.js";
 
 const AUTO_SHOW_NEW_ROUTE_STATUS_KEY = "metro-auto-show-new-route-status";
 const adSidebarEnabled = isAdSidebarEnabled();
@@ -93,7 +94,7 @@ function App() {
   );
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareActionBusy, setShareActionBusy] = useState(false);
-  const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [tutorialOpen, setTutorialOpen] = useState(shouldAutoOpenTutorialOnBoot);
 
   useEffect(() => {
     const onHashChange = () => setSitePage(parseSitePageFromHash(window.location.hash));

@@ -5,6 +5,20 @@ let locale = "zh-Hant";
 
 const listeners = new Set();
 
+/** @returns {'zh-Hant' | 'en'} */
+function detectBrowserLocale() {
+  if (typeof navigator === "undefined") return "zh-Hant";
+  const langs = navigator.languages?.length ? navigator.languages : [navigator.language];
+  for (const raw of langs) {
+    if (!raw || typeof raw !== "string") continue;
+    const l = raw.toLowerCase();
+    if (l.startsWith("zh")) return "zh-Hant";
+    if (l.startsWith("en")) return "en";
+  }
+  return "en";
+}
+
+/** @returns {'zh-Hant' | 'en'} */
 function readInitialLocale() {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
@@ -12,7 +26,7 @@ function readInitialLocale() {
   } catch {
     // Ignore storage access failures and use the default locale.
   }
-  return "zh-Hant";
+  return detectBrowserLocale();
 }
 
 locale = readInitialLocale();
@@ -110,6 +124,8 @@ const STRINGS = {
     "tutorial.videoUnsupported": "你的瀏覽器無法播放此影片。",
     "tutorial.page1.title": "一、編輯節點",
     "tutorial.page1.intro": "在「編輯路線」模式下，可新增、拖曳移動與刪除節點，調整路線形狀。",
+    "tutorial.noRefreshHint": "路線會自動保存在瀏覽器，通常不必重新整理頁面。",
+    "tutorial.videoLocaleNote": "示範影片為中文介面錄製；網站 UI 已切換為英文。",
     "tutorial.page2.title": "二、編輯車站",
     "tutorial.page2.intro": "在「編輯車站」模式下，可新增車站、移動位置、設定轉乘站，以及調整站名標籤。",
     "tutorial.page3.title": "三、編輯路線",
@@ -366,6 +382,8 @@ const STRINGS = {
     "tutorial.videoUnsupported": "Your browser cannot play this video.",
     "tutorial.page1.title": "I. Edit nodes",
     "tutorial.page1.intro": "In Edit line mode, add, drag, and delete nodes to adjust a line's shape.",
+    "tutorial.noRefreshHint": "Your lines are saved in the browser—you usually don't need to refresh the page.",
+    "tutorial.videoLocaleNote": "Demo videos were recorded in Chinese; the site UI is in English.",
     "tutorial.page2.title": "II. Edit stations",
     "tutorial.page2.intro": "In Edit station mode, add stations, move them, set transfer stations, and reposition station labels.",
     "tutorial.page3.title": "III. Edit lines",
