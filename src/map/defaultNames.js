@@ -233,7 +233,7 @@ function subrouteIdSortKey(subrouteId) {
 export function normalizeUserRouteNamesInPlace(routes, isUserRoute) {
   if (!Array.isArray(routes)) return;
   const byRoute = collectUserRoutes(routes, isUserRoute);
-  const used = collectUsedDefaultRouteLabelNumbers(routes, isUserRoute);
+  const used = new Set();
 
   for (const routeSubroutes of byRoute.values()) {
     const head = headSubrouteInRoute(routeSubroutes);
@@ -251,7 +251,7 @@ export function normalizeUserRouteNamesInPlace(routes, isUserRoute) {
     if (!Number.isFinite(labelNumber)) {
       labelNumber = parseDefaultRouteLabelFromName(props.name);
     }
-    if (!Number.isFinite(labelNumber)) {
+    if (!Number.isFinite(labelNumber) || used.has(labelNumber)) {
       labelNumber = firstAvailableLabelNumber(used);
     }
     used.add(labelNumber);

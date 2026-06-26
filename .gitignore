@@ -27,3 +27,6 @@ dist-ssr
 *.sw?
 .vercel
 public/ads.txt
+
+# Local tutorial / demo videos
+video/

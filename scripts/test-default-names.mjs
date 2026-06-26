@@ -50,4 +50,30 @@ const display = resolveRouteDisplayNameFromProps({
 });
 assert(display === "路線r3", "display uses label not subroute_id");
 
+// After merge (both subroutes share display name 路線r1), split must re-assign r1 + r2.
+routes = [
+  {
+    properties: {
+      route_id: "split_a",
+      subroute_id: "r1",
+      name: "路線r1",
+      user_default_route_label: 1,
+      route_kind: "user",
+    },
+  },
+  {
+    properties: {
+      route_id: "split_b",
+      subroute_id: "r2",
+      name: "路線r1",
+      route_kind: "user",
+    },
+  },
+];
+normalizeAllUserDefaultNames(routes, [], isUser, isUser);
+assert(routes[0].properties.user_default_route_label === 1, "split keeps first line as r1");
+assert(routes[0].properties.name === "路線r1", "split first line display name");
+assert(routes[1].properties.user_default_route_label === 2, "split second line gets next label");
+assert(routes[1].properties.name === "路線r2", "split second line display name");
+
 console.log("test-default-names: all passed");
