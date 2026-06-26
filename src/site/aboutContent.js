@@ -121,8 +121,8 @@ export function getAboutContent(locale) {
     platformSummary: {
       label: L(locale, { zh: "平台概要", en: "Platform summary" }),
       text: L(locale, {
-        zh: "本服務由獨立開發者營運，與全球任何軌道營運機構及政府主管機關均無隸屬或合作關係。內建預設路線不代表各該地區官方立場或背書，所載內容均屬示意創作。原始碼託管於 GitHub，由 Vercel 部署上線；使用者無需註冊即可使用，面向全球開放。",
-        en: "The Service is operated by an independent developer, with no affiliation or partnership with any rail operator or government agency worldwide. Built-in default routes do not represent official positions or endorsement in any region; all content is schematic and creative in nature. Source is hosted on GitHub and deployed on Vercel. No account registration is required, and the platform is open to users worldwide.",
+        zh: "本服務由來自台灣的獨立開發者營運，與全球任何軌道營運機構及政府主管機關均無隸屬或合作關係。內建預設路線不代表各該地區官方立場或背書，所載內容均屬示意創作。原始碼託管於 GitHub，由 Vercel 部署上線；使用者無需註冊即可使用，面向全球開放。",
+        en: "The Service is operated by an independent developer based in Taiwan, with no affiliation or partnership with any rail operator or government agency worldwide. Built-in default routes do not represent official positions or endorsement in any region; all content is schematic and creative in nature. Source is hosted on GitHub and deployed on Vercel. No account registration is required, and the platform is open to users worldwide.",
       }),
     },
     footerNote: L(locale, {
