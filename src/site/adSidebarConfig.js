@@ -9,7 +9,7 @@
  * AdSense：VITE_ADSENSE_CLIENT（及可選 VITE_ADSENSE_SLOT）— 見 .env.example
  */
 
-export const AD_SIDEBAR_ON = 1;
+export const AD_SIDEBAR_ON = 0;
 
 /** @type {160} 與 .ad-sidebar 寬度一致，供地圖 resize 使用 */
 export const AD_SIDEBAR_WIDTH_PX = 160;
