@@ -49,7 +49,8 @@ export const HOVER_PICK_LAYERS = [
   "routes-line",
 ];
 
-export const LABEL_DRAG_RADIUS_METERS = 500;
+/** 站名拖曳範圍（螢幕像素）；縮放時視覺大小不變。 */
+export const LABEL_DRAG_RADIUS_PX = 60;
 
 export const EDIT_STATION_SUBMODES = ["crud", "move-label"];
 export const DEFAULT_EDIT_STATION_SUBMODE = "crud";

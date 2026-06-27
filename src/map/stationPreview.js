@@ -1,5 +1,6 @@
-import * as turf from "@turf/turf";
 import { projectMapPoint, unprojectMapPoint } from "../map-runtime/mapEngine.js";
+
+const LABEL_DRAG_LIMIT_CIRCLE_STEPS = 80;
 
 export function getDisplayedStationCenter(map, stationId, fallbackCoord) {
   const src = map.getSource("stations");
@@ -113,13 +114,48 @@ export function setStationLabelPreviewCoord(map, stationId, coord) {
   return true;
 }
 
-export function drawLabelDragLimitCircle(map, center, radiusMeters) {
+function labelDragLimitRingCoords(map, center, radiusPx) {
+  const centerPx = projectMapPoint(map, center);
+  const ring = [];
+  for (let i = 0; i <= LABEL_DRAG_LIMIT_CIRCLE_STEPS; i++) {
+    const angle = (i / LABEL_DRAG_LIMIT_CIRCLE_STEPS) * Math.PI * 2;
+    const px = {
+      x: centerPx.x + radiusPx * Math.cos(angle),
+      y: centerPx.y + radiusPx * Math.sin(angle),
+    };
+    const lngLat = unprojectMapPoint(map, [px.x, px.y]);
+    ring.push([lngLat.lng, lngLat.lat]);
+  }
+  return ring;
+}
+
+export function clampLabelCoordToDragRadius(map, dragCenter, targetCoord, radiusPx) {
+  const centerPx = projectMapPoint(map, dragCenter);
+  const targetPx = projectMapPoint(map, targetCoord);
+  const dx = targetPx.x - centerPx.x;
+  const dy = targetPx.y - centerPx.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist <= radiusPx) return targetCoord;
+  const scale = radiusPx / dist;
+  const clampedPx = { x: centerPx.x + dx * scale, y: centerPx.y + dy * scale };
+  const lngLat = unprojectMapPoint(map, [clampedPx.x, clampedPx.y]);
+  return [lngLat.lng, lngLat.lat];
+}
+
+export function drawLabelDragLimitCircle(map, center, radiusPx) {
   const src = map.getSource("label-drag-limit");
   if (!src) return;
-  const circle = turf.circle(center, radiusMeters / 1000, { steps: 80, units: "kilometers" });
   src.setData({
     type: "FeatureCollection",
-    features: [circle],
+    features: [
+      {
+        type: "Feature",
+        geometry: {
+          type: "Polygon",
+          coordinates: [labelDragLimitRingCoords(map, center, radiusPx)],
+        },
+      },
+    ],
   });
 }
 

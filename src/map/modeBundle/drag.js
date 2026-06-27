@@ -13,6 +13,7 @@ import { Route } from "../routeModel.js";
 import { findStationById, findSubrouteBySubrouteId, getEditingSessions } from "../../data/routeQueries.js";
 import {
   clearLabelDragLimitCircle,
+  clampLabelCoordToDragRadius,
   createStationLabelDragPreviewUpdater,
   drawLabelDragLimitCircle,
   getDisplayedStationCenter,
@@ -21,7 +22,7 @@ import {
 } from "../stationPreview.js";
 import {
   getEditStationSubmode,
-  LABEL_DRAG_RADIUS_METERS,
+  LABEL_DRAG_RADIUS_PX,
   M,
   STATION_CIRCLE_LAYERS,
   STATION_DRAG_CLICK_THRESHOLD_PX,
@@ -308,14 +309,6 @@ export function beginStationPositionDrag(e, opts = {}) {
   });
 }
 
-function clampLabelCoordToDragRadius(dragCenter, targetCoord) {
-  const d = turf.distance(turf.point(dragCenter), turf.point(targetCoord), { units: "meters" });
-  if (d <= LABEL_DRAG_RADIUS_METERS) return targetCoord;
-  const bearing = turf.bearing(turf.point(dragCenter), turf.point(targetCoord));
-  return turf.destination(turf.point(dragCenter), LABEL_DRAG_RADIUS_METERS, bearing, { units: "meters" }).geometry
-    .coordinates;
-}
-
 export function beginStationLabelOnlyDrag(e) {
   if (!isPrimaryMouseButton(e)) return;
   e.preventDefault();
@@ -330,7 +323,8 @@ export function beginStationLabelOnlyDrag(e) {
   M.dragging.stationId = sid;
   applyStationLabelDragPlacement(map);
   const dragCenter = getDisplayedStationCenter(map, sid, st.geometry.coordinates);
-  drawLabelDragLimitCircle(map, dragCenter, LABEL_DRAG_RADIUS_METERS);
+  const refreshLimitCircle = () => drawLabelDragLimitCircle(map, dragCenter, LABEL_DRAG_RADIUS_PX);
+  refreshLimitCircle();
   setStationLabelMoveFrameVisibility(false);
   const updatePreview = createStationLabelDragPreviewUpdater(map, sid, dragCenter);
   const centerPx = projectMapPoint(map, dragCenter);
@@ -344,12 +338,19 @@ export function beginStationLabelOnlyDrag(e) {
     if (M.dragging.type !== "station-label" || M.dragging.stationId !== sid) return;
     const targetPx = { x: ev.point.x + grabOffsetPx.x, y: ev.point.y + grabOffsetPx.y };
     const targetLngLat = unprojectMapPoint(map, [targetPx.x, targetPx.y]);
-    currentLabelCoord = clampLabelCoordToDragRadius(dragCenter, [targetLngLat.lng, targetLngLat.lat]);
+    currentLabelCoord = clampLabelCoordToDragRadius(
+      map,
+      dragCenter,
+      [targetLngLat.lng, targetLngLat.lat],
+      LABEL_DRAG_RADIUS_PX,
+    );
     scheduleLabelDragPreview(updatePreview, currentLabelCoord);
   };
   mapOn(map, "mousemove", onDragLabel);
+  mapOn(map, "move", refreshLimitCircle);
   mapOnce(map, "mouseup", () => {
     mapOff(map, "mousemove", onDragLabel);
+    mapOff(map, "move", refreshLimitCircle);
     flushLabelDragPreview();
     Route.setStationLabelPosition(sid, currentLabelCoord);
     clearLabelDragLimitCircle(map);
