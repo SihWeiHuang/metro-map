@@ -19,6 +19,7 @@ import ShareLinkDialog from "./components/ShareLinkDialog.jsx";
 import ShareViewBanner from "./components/ShareViewBanner.jsx";
 import AdSidebar from "./components/AdSidebar.jsx";
 import AdSenseLoader from "./components/AdSenseLoader.jsx";
+import Ga4Loader from "./components/Ga4Loader.jsx";
 import { parseSitePageFromHash, sitePageHash } from "./site/siteRoutes.js";
 import { isAdSidebarEnabled } from "./site/adSidebarConfig.js";
 import { isAdsenseConfigured } from "./site/adsenseConfig.js";
@@ -447,6 +448,7 @@ function App() {
 
   return (
     <div className={`app-root${shareViewActive ? " app-root--share-view" : ""}`}>
+      <Ga4Loader />
       {isAdsenseConfigured() ? <AdSenseLoader /> : null}
       <header className="app-site-header" ref={siteHeaderRef}>
         <div className="app-site-header-inner">
