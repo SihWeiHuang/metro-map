@@ -7,39 +7,15 @@ function ga4PagePath() {
   return hash.startsWith("/") ? hash : `/${hash}`;
 }
 
-function ensureGtagStub() {
-  window.dataLayer = window.dataLayer || [];
-  if (!window.gtag) {
-    window.gtag = function gtag() {
-      window.dataLayer.push(arguments);
-    };
-  }
-}
-
 function sendPageView() {
-  if (!isGa4Configured()) return;
-  ensureGtagStub();
+  if (!isGa4Configured() || typeof window.gtag !== "function") return;
   window.gtag("config", GA4_MEASUREMENT_ID, { page_path: ga4PagePath() });
 }
 
-/** Loads GA4 gtag.js once and tracks hash-based site pages in this SPA. */
+/** Sends virtual page views when hash routes change (gtag snippet lives in index.html head). */
 export default function Ga4Loader() {
   useEffect(() => {
     if (!isGa4Configured()) return;
-
-    ensureGtagStub();
-    window.gtag("js", new Date());
-
-    const id = GA4_MEASUREMENT_ID;
-    if (!document.querySelector(`script[data-ga4-id="${id}"]`)) {
-      const script = document.createElement("script");
-      script.async = true;
-      script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
-      script.dataset.ga4Id = id;
-      document.head.appendChild(script);
-    }
-
-    sendPageView();
 
     const onHashChange = () => sendPageView();
     window.addEventListener("hashchange", onHashChange);
