@@ -289,14 +289,12 @@ export function setMapZoomInteractionsEnabled(map, enabled) {
   if (enabled) {
     map.scrollZoom?.enable?.();
     map.boxZoom?.enable?.();
-    map.doubleClickZoom?.enable?.();
     map.touchZoomRotate?.enable?.();
     map.keyboard?.enable?.();
     return;
   }
   map.scrollZoom?.disable?.();
   map.boxZoom?.disable?.();
-  map.doubleClickZoom?.disable?.();
   map.touchZoomRotate?.disable?.();
   map.keyboard?.disable?.();
 }

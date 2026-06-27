@@ -50,6 +50,7 @@ export default function MapView() {
       bearing: view.bearing,
       pitch: view.pitch,
       language: mapLanguage,
+      doubleClickZoom: false,
     });
 
     map.addControl(
