@@ -12,6 +12,9 @@ export const TAIPEI_MAIN_STATION_CENTER = [121.51722, 25.04778];
 /** 涵蓋上述預設路網外框之縮放級別（Mapbox zoom） */
 export const DEFAULT_MAP_ZOOM = 11.5;
 
+/** 站名 symbol：zoom 低於此級別不顯示（車站圓點仍顯示） */
+export const STATION_LABEL_MIN_ZOOM = 12.5;
+
 /** 地圖 fitBounds / flyTo 等鏡頭動畫時長（毫秒） */
 export const MAP_CAMERA_ANIMATION_DURATION_MS = 1200;
 

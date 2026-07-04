@@ -14,6 +14,7 @@ import {
   styleUsesMapboxSlots,
 } from "../map-runtime/mapEngine.js";
 import { MAPBOX_BASEMAP_LIGHT_PRESET } from "./basemapAppearanceConfig.js";
+import { STATION_LABEL_MIN_ZOOM } from "./defaultMapViewConstants.js";
 import {
   buildStationDisplayCollections,
   featureCollectionWithSmoothedLineStrings,
@@ -854,6 +855,7 @@ export function initializeLayers(map, store) {
       id: "stations-label-move-frame",
       type: "symbol",
       source: "station-labels",
+      minzoom: STATION_LABEL_MIN_ZOOM,
       layout: {
         ...stationLabelLayoutBase,
         "icon-image": STATION_LABEL_FRAME_IMAGE_ID,
@@ -876,6 +878,7 @@ export function initializeLayers(map, store) {
       id: "stations-label",
       type: "symbol",
       source: "station-labels",
+      minzoom: STATION_LABEL_MIN_ZOOM,
       layout: {
         ...stationLabelLayoutBase,
         ...getStationLabelCollisionLayout(),
@@ -900,6 +903,7 @@ export function initializeLayers(map, store) {
       id: "stations-label-hover",
       type: "symbol",
       source: "station-labels",
+      minzoom: STATION_LABEL_MIN_ZOOM,
       layout: {
         "text-field": ["coalesce", ["get", "name"], ["get", "station_id"]],
         "text-font": ["Open Sans Bold", "Arial Unicode MS Regular"],
