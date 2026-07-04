@@ -39,8 +39,9 @@ import {
   MRT_REFERENCE_STATIONS_SOURCE_ID,
 } from "./mrtReferenceOverlay.js";
 
-const ROUTE_HOVER_LINE_WIDTH = 9;
-const ROUTE_HOVER_CASING_WIDTH = 12;
+const ROUTE_LINE_WIDTH = 4;
+const ROUTE_HOVER_LINE_WIDTH = 7;
+const ROUTE_HOVER_CASING_WIDTH = 10;
 
 function metroRouteLayerIds() {
   return [
@@ -674,7 +675,7 @@ export function initializeLayers(map, store) {
     source: "routes",
     paint: {
       "line-color": ["coalesce", ["get", "color"], "#1e88e5"],
-      "line-width": 6,
+      "line-width": ROUTE_LINE_WIDTH,
     },
     filter: ["!", ["in", ["get", "subroute_id"], ["literal", Array.from(store.hiddenSubrouteIds)]]],
     layout: {
@@ -722,7 +723,7 @@ export function initializeLayers(map, store) {
     paint: {
       "circle-radius": 7,
       "circle-color": ["coalesce", ["get", "color"], "#1e88e5"],
-      "circle-stroke-width": 2.2,
+      "circle-stroke-width": 1.5,
       "circle-stroke-color": "#ffffff",
     },
   });
@@ -735,7 +736,7 @@ export function initializeLayers(map, store) {
     paint: {
       "circle-radius": 9.5,
       "circle-color": ["coalesce", ["get", "color"], "#1e88e5"],
-      "circle-stroke-width": 2.2,
+      "circle-stroke-width": 1.2,
       "circle-stroke-color": "#ffffff",
     },
   });

@@ -7,14 +7,14 @@ import {
 import { REGULAR_STATION_LAYER_FILTER, TRANSFER_STATION_LAYER_FILTER } from "./layers.js";
 
 /** 基礎圖層預設／hover 樣式（與 layers.js 建立時一致） */
-export const STATION_CIRCLE_RADIUS_DEFAULT = 7;
-export const STATION_CIRCLE_RADIUS_HOVER = 9.5;
-export const TRANSFER_CIRCLE_RADIUS_DEFAULT = 7.2;
-export const TRANSFER_CIRCLE_RADIUS_HOVER = 9.25;
-export const STATION_LABEL_SIZE_DEFAULT = 14;
-export const STATION_LABEL_SIZE_HOVER = 15;
-export const STATION_LABEL_HALO_DEFAULT = 0.5;
-export const STATION_LABEL_HALO_HOVER = 1.5;
+export const STATION_CIRCLE_RADIUS_DEFAULT = 5;
+export const STATION_CIRCLE_RADIUS_HOVER = 7.5;
+export const TRANSFER_CIRCLE_RADIUS_DEFAULT = 5.2;
+export const TRANSFER_CIRCLE_RADIUS_HOVER = 7.25;
+export const STATION_LABEL_SIZE_DEFAULT = 12;
+export const STATION_LABEL_SIZE_HOVER = 13;
+export const STATION_LABEL_HALO_DEFAULT = 0.25;
+export const STATION_LABEL_HALO_HOVER = 0.5;
 
 const EMPTY_STATION_FILTER = ["==", ["get", "station_id"], ""];
 const EMPTY_ABSORB_ZONE_FILTER = ["==", ["get", "snap_id"], ""];
